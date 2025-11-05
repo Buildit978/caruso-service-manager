@@ -1,0 +1,10 @@
+# Node and TypeScript
+node_modules/
+dist/
+
+# Environment and OS files
+.env
+.DS_Store
+
+# VS Code
+.vscode/

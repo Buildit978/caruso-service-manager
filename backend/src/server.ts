@@ -4,9 +4,15 @@ import express from 'express';
 import http from 'http';
 import { connectDB } from './config/db';
 import customerRoutes from './routes/customers.routes';
+import workOrderRoutes from './routes/workOrders.routes';
+import workOrderRoutes from './routes/workOrders.routes';
+
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+
+
 
 // Middleware
 app.use(express.json());
@@ -19,6 +25,9 @@ app.get('/api/health', (_req, res) => {
 
 // Customers API
 app.use('/api/customers', customerRoutes);
+
+// Work Order API
+app.use('/api/work-orders', workOrderRoutes);
 
 const startServer = async () => {
     try {

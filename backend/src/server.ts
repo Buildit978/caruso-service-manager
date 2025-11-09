@@ -1,46 +1,43 @@
-// src/server.ts
+// backend/src/server.ts
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
+import cors from 'cors';
 import { connectDB } from './config/db';
-import customerRoutes from './routes/customers.routes';
-import workOrderRoutes from './routes/workOrders.routes';
-import workOrderRoutes from './routes/workOrders.routes';
+import customerRoutes from './routes/customers.route';
+import workOrderRoutes from './routes/workOrders.route';
+import summaryRoutes from './routes/summary.route';
 
 
 const app = express();
-const PORT = process.env.PORT || 4000;
 
-
-
-
-// Middleware
+// 🔹 Global middleware
+app.use(cors());          // ✅ allow requests from http://localhost:5173
 app.use(express.json());
 
-// Health check route
+// 🔹 API routes (keep /api prefix to match the frontend)
+app.use('/api/customers', customerRoutes);
+app.use('/api/work-orders', workOrderRoutes);
+app.use('/api/summary', summaryRoutes);
+
+
+// (Optional) health check
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
 });
 
+const PORT = process.env.PORT || 4000;
 
-// Customers API
-app.use('/api/customers', customerRoutes);
+const server = http.createServer(app);
 
-// Work Order API
-app.use('/api/work-orders', workOrderRoutes);
-
-const startServer = async () => {
-    try {
-        await connectDB();
-
-        const server = http.createServer(app);
+connectDB()
+    .then(() => {
         server.listen(PORT, () => {
+            console.log(`✅ MongoDB connected`);
             console.log(`🚗 Server running at http://localhost:${PORT}`);
         });
-    } catch (err) {
-        console.error('Failed to start server:', err);
+    })
+    .catch((err) => {
+        console.error('❌ Failed to connect to MongoDB', err);
         process.exit(1);
-    }
-};
-
-startServer();
+    });

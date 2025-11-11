@@ -56,9 +56,10 @@ export default function WorkOrderDetailPage() {
     };
 
     const handleEdit = () => {
-        // TODO: navigate to /work-orders/:id/edit later
-        alert('Edit work order – not implemented yet');
+        if (!workOrder?._id) return;
+        navigate(`/work-orders/${workOrder._id}/edit`);
     };
+
 
     const handleMarkComplete = async () => {
         if (!workOrder?._id) return;

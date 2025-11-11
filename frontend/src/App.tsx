@@ -7,6 +7,7 @@ import WorkOrdersPage from './pages/WorkOrdersPage'
 import CustomersPage from './pages/CustomersPage'
 import SettingsPage from './pages/SettingsPage';
 import WorkOrderDetailPage from './pages/WorkOrderDetailPage';
+import WorkOrderEditPage from './pages/WorkOrderEditPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/work-orders" element={<WorkOrdersPage />} />
         <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
+        <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
       </Routes>

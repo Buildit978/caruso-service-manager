@@ -60,10 +60,32 @@ export default function WorkOrderDetailPage() {
         alert('Edit work order – not implemented yet');
     };
 
-    const handleMarkComplete = () => {
-        // TODO: call PATCH /api/work-orders/:id/status later
-        alert('Mark complete – not implemented yet');
+    const handleMarkComplete = async () => {
+        if (!workOrder?._id) return;
+        try {
+            const res = await fetch(
+                `http://localhost:4000/api/work-orders/${workOrder._id}/status`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'completed' }),
+                }
+            );
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to update status');
+            }
+
+            const updated = await res.json();
+            setWorkOrder(updated); // refresh UI immediately
+            alert('✅ Work order marked complete!');
+        } catch (err: any) {
+            console.error(err);
+            alert(`Error: ${err.message}`);
+        }
     };
+
 
     const handleGenerateInvoice = () => {
         // TODO: navigate to /invoices/new?workOrderId=:id later

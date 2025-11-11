@@ -6,57 +6,36 @@ import { Customer } from '../models/customer.model';
 const router = Router();
 
 // GET /api/work-orders?status=open&customerId=...&from=2025-11-01&to=2025-11-30
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { status, customerId, from, to } = req.query;
+router.get(
+    '/',
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const customerId = req.query.customerId as string | undefined;
 
-        const query: any = {};
+            const query: Record<string, unknown> = {};
 
-        // Filter by status (open, in_progress, completed, invoiced)
-        if (typeof status === 'string' && status.trim() !== '') {
-            query.status = status;
-        }
-
-        // Filter by customer
-        if (typeof customerId === 'string' && customerId.trim() !== '') {
-            query.customerId = customerId;
-        }
-
-        // Filter by date range
-        if (typeof from === 'string' || typeof to === 'string') {
-            query.date = {};
-
-            if (typeof from === 'string' && from.trim() !== '') {
-                const fromDate = new Date(from);
-                if (!isNaN(fromDate.getTime())) {
-                    // greater than or equal
-                    query.date.$gte = fromDate;
-                }
+            // Filter by customer if query param exists
+            if (customerId) {
+                query.customerId = customerId; // 👈 MUST match schema field name
             }
 
-            if (typeof to === 'string' && to.trim() !== '') {
-                const toDate = new Date(to);
-                if (!isNaN(toDate.getTime())) {
-                    // less than or equal
-                    query.date.$lte = toDate;
-                }
-            }
+            const workOrders = await WorkOrder.find(query)
+                // 👇 MUST match the field that has ref: 'Customer' in your schema
+                .populate('customerId')
+                .sort({ createdAt: -1 });
 
-            // if date object ended up empty, delete it
-            if (Object.keys(query.date).length === 0) {
-                delete query.date;
-            }
+            res.json(workOrders);
+        } catch (err) {
+            console.error('Error fetching work orders:', err);
+            res.status(500).json({
+                message: 'Failed to fetch work orders',
+                error: (err as Error).message,
+            });
         }
-
-        const workOrders = await WorkOrder.find(query)
-            .sort({ date: -1 })
-            .populate('customerId', 'name phone email');
-
-        res.json(workOrders);
-    } catch (err) {
-        next(err);
     }
-});
+);
+
+
 
 // GET /api/work-orders/summary?customerId=...&from=YYYY-MM-DD&to=YYYY-MM-DD
 router.get(

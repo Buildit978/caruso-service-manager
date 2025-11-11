@@ -1,169 +1,167 @@
 // src/pages/WorkOrdersPage.tsx
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import type { WorkOrder, WorkOrderStatus } from '../types/api'
-import { fetchWorkOrders } from '../api/workOrders'
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
-type StatusFilter = WorkOrderStatus | 'ALL'
+type WorkOrderStatus = "open" | "in-progress" | "completed";
 
-const statusOptions: StatusFilter[] = ['ALL', 'OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+type Customer = {
+    _id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+};
 
-function WorkOrdersPage() {
-    const [searchParams] = useSearchParams()
-    const initialCustomerId = searchParams.get('customerId') || ''
-    const customerName = searchParams.get('customerName') || ''
+type WorkOrder = {
+    _id: string;
+    status: WorkOrderStatus;
+    total: number;
+    createdAt: string;
+    date?: string;
+    odometer?: number;
+    complaint?: string;
+    notes?: string;
+    customer?: Customer;
+};
 
-    const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-    const [customerIdFilter, setCustomerIdFilter] = useState(initialCustomerId)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+function useQuery() {
+    const { search } = useLocation();
+    return new URLSearchParams(search);
+}
 
-    const load = async (status: StatusFilter, customerId: string) => {
-        try {
-            setLoading(true)
-            setError(null)
+export default function WorkOrdersPage() {
+    const query = useQuery();
+    const customerId = query.get("customerId");
 
-            const filters: { status?: WorkOrderStatus; customerId?: string } = {}
+    const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-            if (status !== 'ALL') filters.status = status
-            if (customerId) filters.customerId = customerId
+    useEffect(() => {
+        const fetchWorkOrders = async () => {
+            try {
+                setLoading(true);
+                setError(null);
 
-            const data = await fetchWorkOrders(filters)
-            setWorkOrders(data)
-        } catch (err) {
-            console.error(err)
-            setError('Unable to load work orders.')
-        } finally {
-            setLoading(false)
-        }
+                const url = new URL("http://localhost:4000/api/work-orders");
+                if (customerId) {
+                    url.searchParams.set("customerId", customerId);
+                }
+
+                const res = await fetch(url.toString());
+                if (!res.ok) {
+                    throw new Error(`Request failed with status ${res.status}`);
+                }
+
+                const raw = await res.json();
+
+                // Normalize customer field so we can always use wo.customer
+                const normalized: WorkOrder[] = raw.map((wo: any) => ({
+                    ...wo,
+                    customer:
+                        wo.customer ??
+                        (typeof wo.customerId === "object" ? wo.customerId : undefined),
+                }));
+
+                setWorkOrders(normalized);
+            } catch (err: any) {
+                console.error("Error fetching work orders:", err);
+                setError(err.message || "Failed to load work orders");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchWorkOrders();
+    }, [customerId]);
+
+    const title = customerId
+        ? "Work Orders for Selected Customer"
+        : "All Work Orders";
+
+    if (loading) {
+        return <div className="p-6">Loading work orders...</div>;
     }
 
-    useEffect(() => {
-        // Keep state in sync with URL if user lands here from /customers
-        setCustomerIdFilter(initialCustomerId)
-    }, [initialCustomerId])
-
-    useEffect(() => {
-        void load(statusFilter, customerIdFilter)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, customerIdFilter])
-
-    const clearCustomerFilter = () => {
-        setCustomerIdFilter('')
+    if (error) {
+        return (
+            <div className="p-6 text-red-600">
+                There was a problem loading work orders: {error}
+            </div>
+        );
     }
 
     return (
-        <div>
-            <h2>Work Orders</h2>
+        <div className="p-6 max-w-6xl mx-auto">
+            <h1 className="text-2xl font-semibold mb-4">{title}</h1>
 
-            {customerIdFilter && (
-                <div
-                    style={{
-                        margin: '0.5rem 0 0.75rem',
-                        padding: '0.4rem 0.6rem',
-                        borderRadius: '4px',
-                        background: '#e6f0ff',
-                        border: '1px solid #b3ceff',
-                        fontSize: '0.85rem',
-                    }}
-                >
-                    Viewing work orders for:{' '}
-                    <strong>{customerName || customerIdFilter}</strong>
-                    <button
-                        type="button"
-                        onClick={clearCustomerFilter}
-                        style={{
-                            marginLeft: '0.6rem',
-                            padding: '0.1rem 0.4rem',
-                            fontSize: '0.75rem',
-                            borderRadius: '3px',
-                            border: '1px solid #666',
-                            background: '#fff',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Clear filter
-          </button>
-                </div>
-            )}
-
-            <div style={{ margin: '0.5rem 0 0.75rem' }}>
-                <label style={{ marginRight: '0.5rem', fontSize: '0.9rem' }}>Status:</label>
-                <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.85rem' }}
-                >
-                    {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                            {status === 'ALL' ? 'All' : status.replace('_', ' ')}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {loading && <p>Loading work orders...</p>}
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-
-            {!loading && !error && (
-                <>
-                    {workOrders.length === 0 ? (
-                        <p>No work orders found.</p>
-                    ) : (
-                            <table
-                                style={{
-                                    width: '100%',
-                                    borderCollapse: 'collapse',
-                                    marginTop: '0.5rem',
-                                    fontSize: '0.9rem',
-                                }}
-                            >
-                                <thead>
-                                    <tr style={{ background: '#f3f3f3' }}>
-                                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                                            ID
-                  </th>
-                                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                                            Description
-                  </th>
-                                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                                            Status
-                  </th>
-                                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                                            Total
-                  </th>
-                                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                                            Created
-                  </th>
+            {workOrders.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                    {customerId
+                        ? "No work orders found for this customer yet."
+                        : "No work orders found yet."}
+                </p>
+            ) : (
+                    <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        ID
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Customer
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Status
+                </th>
+                                    <th className="text-right px-4 py-2 font-medium text-slate-600">
+                                        Total
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Created
+                </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {workOrders.map((wo) => (
+                                    <tr
+                                        key={wo._id}
+                                        className="border-b border-slate-100 hover:bg-slate-50"
+                                    >
+                                        <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500 font-mono">
+                                            {wo._id}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            {wo.customer?.name || "—"}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            <span
+                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                    wo.status === "completed"
+                                                        ? "bg-green-100 text-green-700"
+                                                        : wo.status === "in-progress"
+                                                            ? "bg-yellow-100 text-yellow-700"
+                                                            : "bg-blue-100 text-blue-700"
+                                                    }`}
+                                            >
+                                                {wo.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-right">
+                                            {wo.total.toLocaleString("en-CA", {
+                                                style: "currency",
+                                                currency: "CAD",
+                                            })}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
+                                            {new Date(wo.createdAt).toLocaleDateString("en-CA")}
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {workOrders.map((wo, index) => {
-                                        const rowBg = index % 2 === 0 ? '#fff' : '#fafafa'
-                                        return (
-                                            <tr key={wo._id} style={{ background: rowBg }}>
-                                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>{wo._id}</td>
-                                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>{wo.description}</td>
-                                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                                    {wo.status.replace('_', ' ')}
-                                                </td>
-                                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                                    {typeof wo.totalAmount === 'number' ? `$${wo.totalAmount.toFixed(2)}` : '-'}
-                                                </td>
-                                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                                    {new Date(wo.createdAt).toLocaleDateString()}
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
-                </>
-            )}
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
         </div>
-    )
+    );
 }
-
-export default WorkOrdersPage

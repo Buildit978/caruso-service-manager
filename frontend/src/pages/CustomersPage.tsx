@@ -1,134 +1,122 @@
-// src/pages/CustomersPage.tsx
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import type { Customer } from '../types/api'
-import { fetchCustomers } from '../api/customers'
+// frontend/src/pages/CustomersPage.tsx
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-function CustomersPage() {
-    const [customers, setCustomers] = useState<Customer[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const navigate = useNavigate()
+type Customer = {
+    _id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    openWorkOrdersCount?: number; // optional – handy later if you add it to the API
+};
+
+export default function CustomersPage() {
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const load = async () => {
+        const fetchCustomers = async () => {
             try {
-                setLoading(true)
-                setError(null)
-                const data = await fetchCustomers()
-                setCustomers(data)
-            } catch (err) {
-                console.error(err)
-                setError('Unable to load customers.')
+                setLoading(true);
+                setError(null);
+
+                const res = await fetch("http://localhost:4000/api/customers");
+                if (!res.ok) {
+                    throw new Error(`Request failed with status ${res.status}`);
+                }
+
+                const data = await res.json();
+                setCustomers(data);
+            } catch (err: any) {
+                console.error("Error fetching customers:", err);
+                setError(err.message || "Failed to load customers");
             } finally {
-                setLoading(false)
+                setLoading(false);
             }
-        }
+        };
 
-        void load()
-    }, [])
+        fetchCustomers();
+    }, []);
 
-    const handleViewWorkOrders = (customer: Customer) => {
-        const fullName = `${customer.firstName} ${customer.lastName}`.trim()
-        const params = new URLSearchParams({
-            customerId: customer._id,
-            customerName: fullName,
-        })
-
-        navigate(`/work-orders?${params.toString()}`)
+    if (loading) {
+        return <div className="p-6">Loading customers...</div>;
     }
 
-    if (loading) return <p>Loading customers...</p>
-    if (error) return <p style={{ color: 'red' }}>{error}</p>
-
-    if (customers.length === 0) {
+    if (error) {
         return (
-            <div>
-                <h2>Customers</h2>
-                <p>No customers found.</p>
+            <div className="p-6 text-red-600">
+                There was a problem loading customers: {error}
             </div>
-        )
+        );
     }
 
     return (
-        <div>
-            <h2>Customers</h2>
-            <p style={{ margin: '0.25rem 0 1rem', color: '#555', fontSize: '0.9rem' }}>
-                Click &ldquo;View Work Orders&rdquo; to jump straight to this customer&apos;s jobs.
-      </p>
+        <div className="p-6 max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-semibold">Customers</h1>
+                {/* Placeholder for “Add Customer” later */}
+                {/* <button className="px-3 py-2 rounded bg-slate-900 text-white text-sm">
+          Add Customer
+        </button> */}
+            </div>
 
-            <table
-                style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    marginTop: '0.5rem',
-                    fontSize: '0.9rem',
-                }}
-            >
-                <thead>
-                    <tr style={{ background: '#f3f3f3' }}>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                            Name
-            </th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                            Contact
-            </th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                            Vehicle
-            </th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                            Created
-            </th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '0.4rem' }}>
-                            Actions
-            </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {customers.map((c, index) => {
-                        const fullName = `${c.firstName} ${c.lastName}`.trim()
-                        const vehicle =
-                            (c.vehicleYear ? `${c.vehicleYear} ` : '') +
-                            [c.vehicleMake, c.vehicleModel].filter(Boolean).join(' ')
-                        const rowBg = index % 2 === 0 ? '#fff' : '#fafafa'
-
-                        return (
-                            <tr key={c._id} style={{ background: rowBg }}>
-                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>{fullName}</td>
-                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                    <div>{c.phone || '-'}</div>
-                                    <div style={{ color: '#555' }}>{c.email || ''}</div>
-                                </td>
-                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                    {vehicle || '-'}
-                                </td>
-                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                    {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '-'}
-                                </td>
-                                <td style={{ borderBottom: '1px solid #eee', padding: '0.4rem' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleViewWorkOrders(c)}
-                                        style={{
-                                            padding: '0.25rem 0.6rem',
-                                            fontSize: '0.8rem',
-                                            borderRadius: '4px',
-                                            border: '1px solid #1f74d4',
-                                            background: '#1f74d4',
-                                            color: '#fff',
-                                            cursor: 'pointer',
-                                        }}
+            {customers.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                    No customers found yet. You can start by adding your first customer.
+                </p>
+            ) : (
+                    <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Name
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Phone
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Email
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        Open WOs
+                </th>
+                                    <th className="px-4 py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {customers.map((customer) => (
+                                    <tr
+                                        key={customer._id}
+                                        className="border-b border-slate-100 hover:bg-slate-50"
                                     >
-                                        View Work Orders
-                  </button>
-                                </td>
-                            </tr>
-                        )
-                    })}
-                </tbody>
-            </table>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            {customer.name}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            {customer.phone || "—"}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            {customer.email || "—"}
+                                        </td>
+                                        <td className="px-4 py-2 text-center">
+                                            {customer.openWorkOrdersCount ?? "—"}
+                                        </td>
+                                        <td className="px-4 py-2 text-right">
+                                            <Link
+                                                to={`/work-orders?customerId=${customer._id}`}
+                                                className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800"
+                                            >
+                                                View Work Orders →
+                    </Link>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
         </div>
-    )
+    );
 }
-
-export default CustomersPage

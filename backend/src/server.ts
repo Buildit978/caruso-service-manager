@@ -7,6 +7,7 @@ import { connectDB } from './config/db';
 import customerRoutes from './routes/customers.route';
 import workOrderRoutes from './routes/workOrders.route';
 import summaryRoutes from './routes/summary.route';
+import settingsRouter from "./routes/settings.route";
 
 
 const app = express();
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/customers', customerRoutes);
 app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/summary', summaryRoutes);
+app.use("/api/settings", settingsRouter);
 
 
 // (Optional) health check

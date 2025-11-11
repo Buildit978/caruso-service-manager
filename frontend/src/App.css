@@ -1,9 +1,11 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  width: 100%;
+  text-align: left;
 }
+
 
 .logo {
   height: 6em;
@@ -54,10 +56,11 @@ body {
   font-family: 'Inter', 'Roboto', 'Segoe UI', sans-serif;
 }
 
+
 /* Headings */
 h1 {
   font-weight: 600;
-  color: #000000;;
+  color: #ffffff;;
 },
 h2,
 h3,
@@ -159,3 +162,28 @@ td {
   margin-top: 12px;
 }
 
+/* Shared page layout for all main views */
+/* Make all tables inside pages use the full width of the content area */
+.page {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color:#ffffff;
+  text-align: center;
+}
+
+.page-subtitle {
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+  color: #9ca3af;
+  font-size: 0.95rem;
+  text-align: center;
+}

@@ -1,0 +1,158 @@
+/* Root dashboard container */
+.dashboard {
+    width: 100%;
+    min-height: 100%;
+    padding: 1.5rem 0;
+    background: #020617;
+    color: #e5e7eb;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+}
+
+/* Header */
+.dashboard__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.dashboard__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.dashboard__subtitle {
+    margin-top: 0.25rem;
+    color: #9ca3af;
+    font-size: 0.95rem;
+}
+
+/* Status text */
+.dashboard__status {
+    font-size: 1rem;
+    color: #e5e7eb;
+}
+
+.dashboard__status--error {
+    color: #fca5a5;
+}
+
+/* Stat cards grid: fill available width */
+.dashboard__grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+/* 1 column on very small screens */
+@media (min-width: 640px) {
+    .dashboard__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* 3 columns on wider screens so 6 cards = 2 rows */
+@media (min-width: 1024px) {
+    .dashboard__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Card base */
+.stat-card {
+    background: #020617;
+    border-radius: 0.9rem;
+    padding: 1.3rem 1.4rem;
+    border: 1px solid #1f2937;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Accent strip */
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    height: 3px;
+    top: 0;
+}
+
+/* Accent colors */
+.stat-card--customers::before {
+    background: #3b82f6;
+}
+
+.stat-card--open::before {
+    background: #f97316;
+}
+
+.stat-card--completed::before {
+    background: #22c55e;
+}
+
+.stat-card--revenue::before {
+    background: #a855f7;
+}
+
+.stat-card--weekly::before {
+    background: #0ea5e9;
+}
+
+.stat-card--aov::before {
+    background: #facc15;
+}
+
+/* Content */
+.stat-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.stat-card__icon {
+    font-size: 1.4rem;
+}
+
+.stat-card__label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+}
+
+.stat-card__value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+
+.stat-card__hint {
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+/* Safety for any white modals */
+.modal,
+.dialog,
+.workorder-modal {
+    background-color: #ffffff;
+    color: #111827;
+}
+
+/* Make clickable cards feel interactive */
+.stat-card--clickable {
+    cursor: pointer;
+    transition: transform 0.12s ease-out, box-shadow 0.12s ease-out,
+        border-color 0.12s ease-out;
+}
+
+.stat-card--clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 22px 55px rgba(0, 0, 0, 0.6);
+    border-color: #2563eb;
+    /* light blue hint */
+}

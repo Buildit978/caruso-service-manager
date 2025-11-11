@@ -5,7 +5,7 @@ import { Customer } from '../models/customer.model';
 
 const router = Router();
 
-// GET /api/work-orders?status=open&customerId=...&from=2025-11-01&to=2025-11-30
+// GET /api/work-orders?customerId=...
 router.get(
     '/',
     async (req: Request, res: Response, next: NextFunction) => {
@@ -14,14 +14,13 @@ router.get(
 
             const query: Record<string, unknown> = {};
 
-            // Filter by customer if query param exists
+            // Optional filter by customer
             if (customerId) {
-                query.customerId = customerId; // 👈 MUST match schema field name
+                query.customerId = customerId; // MUST match schema field
             }
 
             const workOrders = await WorkOrder.find(query)
-                // 👇 MUST match the field that has ref: 'Customer' in your schema
-                .populate('customerId')
+                .populate('customerId', 'name phone email') // populate linked customer
                 .sort({ createdAt: -1 });
 
             res.json(workOrders);
@@ -109,6 +108,23 @@ router.get(
     }
 );
 
+// ✅ New route: Get a single work order by ID
+router.get('/:id', async (req, res) => {
+    try {
+        const workOrder = await WorkOrder.findById(req.params.id)
+            .populate('customerId'); // populate linked customer info
+
+        if (!workOrder) {
+            return res.status(404).json({ message: 'Work order not found' });
+        }
+
+        res.json(workOrder);
+    } catch (error) {
+        console.error('Error fetching work order by ID:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 
 // GET /api/work-orders/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
@@ -125,6 +141,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         next(err);
     }
 });
+
+
 
 // POST /api/work-orders
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {

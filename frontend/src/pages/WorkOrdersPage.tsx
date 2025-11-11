@@ -1,6 +1,7 @@
 // src/pages/WorkOrdersPage.tsx
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { Link } from 'react-router-dom';
 
 type WorkOrderStatus = "open" | "in-progress" | "completed";
 
@@ -133,6 +134,9 @@ export default function WorkOrdersPage() {
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap">
                                             {wo.customer?.name || "—"}
+                                        </td>
+                                        <td>
+                                            <Link to={`/work-orders/${wo._id}`}>View</Link>
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap">
                                             <span

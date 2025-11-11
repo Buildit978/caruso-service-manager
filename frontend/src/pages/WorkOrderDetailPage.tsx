@@ -88,10 +88,26 @@ export default function WorkOrderDetailPage() {
     };
 
 
-    const handleGenerateInvoice = () => {
-        // TODO: navigate to /invoices/new?workOrderId=:id later
-        alert('Generate invoice – not implemented yet');
+    const handleGenerateInvoice = async () => {
+        if (!workOrder?._id) return;
+        try {
+            const res = await fetch(
+                `http://localhost:4000/api/invoices/from-workorder/${workOrder._id}`,
+                { method: 'POST' }
+            );
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to generate invoice');
+            }
+            const invoice = await res.json();
+            alert(`✅ Invoice #${invoice.invoiceId} created for ${invoice.customer.name}`);
+            // later: navigate(`/invoices/${invoice._id}`)
+        } catch (err: any) {
+            console.error(err);
+            alert(`❌ ${err.message}`);
+        }
     };
+
 
     if (loading) {
         return <div style={{ padding: '1rem' }}>Loading work order…</div>;

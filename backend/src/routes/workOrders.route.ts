@@ -1,5 +1,6 @@
 // src/routes/workOrders.routes.ts
 import { Router, Request, Response, NextFunction } from 'express';
+import { isValidObjectId } from 'mongoose';
 import { WorkOrder } from '../models/workOrder.model';
 import { Customer } from '../models/customer.model';
 
@@ -141,6 +142,41 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         next(err);
     }
 });
+
+/**
+ * GET /api/work-orders/:id
+ * Returns a single work order populated with customer
+ */
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({ message: 'Invalid work order id.' });
+        }
+
+        const wo = await WorkOrder.findById(id)
+            .populate('customerId') // ensure this matches your schema’s ref field
+            .lean();
+
+        if (!wo) {
+            return res.status(404).json({ message: 'Work order not found.' });
+        }
+
+        // Normalize shape so frontend can always use .customer
+        const normalized = {
+            ...wo,
+            customer:
+                (wo as any).customer ??
+                (typeof (wo as any).customerId === 'object' ? (wo as any).customerId : undefined),
+        };
+
+        return res.json(normalized);
+    } catch (err) {
+        next(err);
+    }
+});
+
 
 
 

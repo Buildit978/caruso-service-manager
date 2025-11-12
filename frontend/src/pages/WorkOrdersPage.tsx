@@ -1,7 +1,6 @@
-// src/pages/WorkOrdersPage.tsx
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { Link } from 'react-router-dom';
+import { useNavigate, useParams } from "react-router-dom";
+import { createInvoiceFromWorkOrder } from "../api/invoices";
 
 type WorkOrderStatus = "open" | "in-progress" | "completed";
 
@@ -22,150 +21,234 @@ type WorkOrder = {
     complaint?: string;
     notes?: string;
     customer?: Customer;
+    customerId?: Customer | string;
 };
 
-function useQuery() {
-    const { search } = useLocation();
-    return new URLSearchParams(search);
-}
+export default function WorkOrderDetailPage() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
 
-export default function WorkOrdersPage() {
-    const query = useQuery();
-    const customerId = query.get("customerId");
-
-    const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+    const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [creatingInvoice, setCreatingInvoice] = useState(false);
 
+    // ----------------------
+    // Load single work order
+    // ----------------------
     useEffect(() => {
-        const fetchWorkOrders = async () => {
+        if (!id) return;
+
+        const fetchWorkOrder = async () => {
             try {
                 setLoading(true);
                 setError(null);
 
-                const url = new URL("http://localhost:4000/api/work-orders");
-                if (customerId) {
-                    url.searchParams.set("customerId", customerId);
-                }
+                // ⬇️ Match the list endpoint: http://localhost:4000/api/work-orders
+                const res = await fetch(
+                    `http://localhost:4000/api/work-orders/${id}`
+                );
 
-                const res = await fetch(url.toString());
                 if (!res.ok) {
-                    throw new Error(`Request failed with status ${res.status}`);
+                    const text = await res.text();
+                    console.error(
+                        "Failed to load work order:",
+                        res.status,
+                        text
+                    );
+                    throw new Error(
+                        `Failed to load work order (status ${res.status})`
+                    );
                 }
 
                 const raw = await res.json();
 
-                // Normalize customer field so we can always use wo.customer
-                const normalized: WorkOrder[] = raw.map((wo: any) => ({
-                    ...wo,
+                // Normalize customer like in WorkOrdersPage
+                const normalized: WorkOrder = {
+                    ...raw,
                     customer:
-                        wo.customer ??
-                        (typeof wo.customerId === "object" ? wo.customerId : undefined),
-                }));
+                        raw.customer ??
+                        (typeof raw.customerId === "object" ? raw.customerId : undefined),
+                };
 
-                setWorkOrders(normalized);
+                setWorkOrder(normalized);
             } catch (err: any) {
-                console.error("Error fetching work orders:", err);
-                setError(err.message || "Failed to load work orders");
+                console.error(err);
+                setError(err.message || "Error loading work order.");
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchWorkOrders();
-    }, [customerId]);
+        fetchWorkOrder();
+    }, [id]);
 
-    const title = customerId
-        ? "Work Orders for Selected Customer"
-        : "All Work Orders";
+    // ----------------------
+    // Navigation
+    // ----------------------
+    const handleBack = () => {
+        navigate("/work-orders");
+    };
 
+    // ----------------------
+    // Generate Invoice
+    // ----------------------
+    const handleGenerateInvoice = async () => {
+        if (!workOrder?._id) return;
+
+        try {
+            setCreatingInvoice(true);
+
+            const invoice = await createInvoiceFromWorkOrder(workOrder._id);
+
+            alert(
+                `✅ Invoice #${invoice._id.slice(-6)} created for ${
+                workOrder.customer?.name ?? "customer"
+                }.`
+            );
+
+            navigate(`/invoices/${invoice._id}`);
+        } catch (err: any) {
+            console.error(err);
+            alert(`❌ ${err.message || "Failed to create invoice."}`);
+        } finally {
+            setCreatingInvoice(false);
+        }
+    };
+
+    // ----------------------
+    // States: loading / error / not found
+    // ----------------------
     if (loading) {
-        return <div className="p-6">Loading work orders...</div>;
+        return <div className="p-6">Loading work order…</div>;
     }
 
     if (error) {
         return (
-            <div className="p-6 text-red-600">
-                There was a problem loading work orders: {error}
+            <div className="p-6">
+                <p className="text-red-600 mb-3">{error}</p>
+                <button
+                    onClick={handleBack}
+                    className="px-3 py-1 border border-slate-400 rounded hover:bg-slate-100"
+                >
+                    Back to Work Orders
+        </button>
             </div>
         );
     }
 
-    return (
-        <div className="p-6 max-w-6xl mx-auto">
-            <h1 className="text-2xl font-semibold mb-4">{title}</h1>
+    if (!workOrder) {
+        return (
+            <div className="p-6">
+                <p className="mb-3">Work order not found.</p>
+                <button
+                    onClick={handleBack}
+                    className="px-3 py-1 border border-slate-400 rounded hover:bg-slate-100"
+                >
+                    Back to Work Orders
+        </button>
+            </div>
+        );
+    }
 
-            {workOrders.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                    {customerId
-                        ? "No work orders found for this customer yet."
-                        : "No work orders found yet."}
-                </p>
-            ) : (
-                    <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        ID
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Customer
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Status
-                </th>
-                                    <th className="text-right px-4 py-2 font-medium text-slate-600">
-                                        Total
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Created
-                </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {workOrders.map((wo) => (
-                                    <tr
-                                        key={wo._id}
-                                        className="border-b border-slate-100 hover:bg-slate-50"
-                                    >
-                                        <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500 font-mono">
-                                            {wo._id}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            {wo.customer?.name || "—"}
-                                        </td>
-                                        <td>
-                                            <Link to={`/work-orders/${wo._id}`}>View</Link>
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            <span
-                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    wo.status === "completed"
-                                                        ? "bg-green-100 text-green-700"
-                                                        : wo.status === "in-progress"
-                                                            ? "bg-yellow-100 text-yellow-700"
-                                                            : "bg-blue-100 text-blue-700"
-                                                    }`}
-                                            >
-                                                {wo.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-right">
-                                            {wo.total.toLocaleString("en-CA", {
-                                                style: "currency",
-                                                currency: "CAD",
-                                            })}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
-                                            {new Date(wo.createdAt).toLocaleDateString("en-CA")}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+    // ----------------------
+    // MAIN RENDER
+    // ----------------------
+    return (
+        <div className="p-6 max-w-4xl mx-auto flex flex-col gap-4">
+            {/* Header + Actions */}
+            <div className="flex items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-2xl font-semibold">
+                        Work Order #{workOrder._id}
+                    </h1>
+                    <p className="text-sm text-slate-500">
+                        Status: <span className="capitalize">{workOrder.status}</span>
+                    </p>
+                </div>
+
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleBack}
+                        className="px-3 py-1 border border-slate-400 rounded hover:bg-slate-100 text-sm"
+                    >
+                        Back
+          </button>
+
+                    <button
+                        onClick={handleGenerateInvoice}
+                        disabled={creatingInvoice}
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50 text-sm"
+                    >
+                        {creatingInvoice ? "Creating…" : "Generate Invoice"}
+                    </button>
+                </div>
+            </div>
+
+            {/* Customer Info */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <h2 className="text-lg font-medium mb-2">Customer</h2>
+                {workOrder.customer ? (
+                    <>
+                        <p className="font-medium">{workOrder.customer.name}</p>
+                        {workOrder.customer.phone && (
+                            <p className="text-sm text-slate-600">
+                                Phone: {workOrder.customer.phone}
+                            </p>
+                        )}
+                        {workOrder.customer.email && (
+                            <p className="text-sm text-slate-600">
+                                Email: {workOrder.customer.email}
+                            </p>
+                        )}
+                    </>
+                ) : (
+                        <p className="text-sm text-slate-500">No customer data available.</p>
+                    )}
+            </div>
+
+            {/* Work Order Details */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <h2 className="text-lg font-medium mb-2">Work Order Details</h2>
+
+                {workOrder.complaint && (
+                    <p className="mb-2">
+                        <span className="font-medium">Complaint:</span>{" "}
+                        {workOrder.complaint}
+                    </p>
                 )}
+
+                {workOrder.notes && (
+                    <p className="mb-2">
+                        <span className="font-medium">Notes:</span> {workOrder.notes}
+                    </p>
+                )}
+
+                {workOrder.odometer !== undefined && (
+                    <p className="mb-2 text-sm text-slate-600">
+                        Odometer: {workOrder.odometer} km
+                    </p>
+                )}
+
+                <p className="mt-2 text-sm text-slate-600">
+                    Created:{" "}
+                    {new Date(workOrder.createdAt).toLocaleString("en-CA", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}
+                </p>
+
+                <p className="mt-2 font-semibold">
+                    Total:{" "}
+                    {workOrder.total.toLocaleString("en-CA", {
+                        style: "currency",
+                        currency: "CAD",
+                    })}
+                </p>
+            </div>
         </div>
     );
 }

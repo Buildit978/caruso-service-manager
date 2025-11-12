@@ -23,6 +23,8 @@ app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/summary', summaryRoutes);
 app.use("/api/settings", settingsRouter);
 app.use('/api/invoices', invoiceRoutes);
+app.use(cors({ origin: 'http://localhost:5173' })); // allow your Vite origin
+app.use(express.json());
 
 
 // (Optional) health check

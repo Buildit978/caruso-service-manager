@@ -1,25 +1,24 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { createInvoiceFromWorkOrder } from '../api/invoices';
 
-type Customer = {
+interface Customer {
     _id: string;
     name: string;
-    phone?: string;
+    companyName?: string;
     email?: string;
-};
+    phone?: string;
+}
 
-type WorkOrder = {
+interface WorkOrder {
     _id: string;
-    customerId: Customer | string;
-    complaint: string;
-    notes?: string;
-    odometer?: number;
-    diagnosis?: string;
+    customerId: Customer | string; // allow string or populated object
+    description: string;
     status: string;
-    date?: string;
-    createdAt?: string;
-    updatedAt?: string;
-};
+    total: number;
+    createdAt: string;
+    updatedAt: string;
+}
 
 export default function WorkOrderDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -28,219 +27,199 @@ export default function WorkOrderDetailPage() {
     const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [creatingInvoice, setCreatingInvoice] = useState(false);
+
 
     useEffect(() => {
-        if (!id) return;
+        if (!id) {
+            console.warn('[WO Detail] No :id in route — skipping fetch');
+            return;
+        }
 
-        const fetchWorkOrder = async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        (async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/work-orders/${id}`);
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch work order (status ${res.status})`);
-                }
-                const data = await res.json();
-                setWorkOrder(data);
-            } catch (err: any) {
-                console.error(err);
-                setError(err.message || 'Failed to load work order');
-            } finally {
-                setLoading(false);
-            }
-        };
+                setLoading(true);
+                setError(null);
 
-        fetchWorkOrder();
+                const url = `/api/work-orders/${id}`; // ← proxied path
+                console.log('[WO Detail] id:', id);
+                console.log('[WO Detail] Fetching:', url);
+
+                const res = await fetch(url, { signal: controller.signal });
+                console.log('[WO Detail] Status:', res.status);
+
+                if (!res.ok) {
+                    const raw = await res.text();
+                    console.error('[WO Detail] Non-OK body:', raw);
+                    throw new Error(`Failed to load work order (status ${res.status})`);
+                }
+
+                const data = (await res.json()) as any;
+
+                const normalized = {
+                    ...data,
+                    customerId:
+                        typeof data.customerId === 'object'
+                            ? data.customerId
+                            : data.customer ?? data.customerId,
+                };
+
+                console.log('[WO Detail] Success. _id:', normalized._id);
+                setWorkOrder(normalized);
+            } catch (e: any) {
+                if (e?.name === 'AbortError') {
+                    setError('Request timed out. Server did not respond.');
+                    console.error('[WO Detail] Aborted (timeout)');
+                } else {
+                    setError(e.message || 'Error loading work order.');
+                    console.error('[WO Detail] Error:', e);
+                }
+            } finally {
+                clearTimeout(timeout);
+                setLoading(false);
+                console.log('[WO Detail] Done. loading=false');
+            }
+        })();
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
     }, [id]);
 
-    const handleBack = () => {
-        navigate('/work-orders');
-    };
 
-    const handleEdit = () => {
-        if (!workOrder?._id) return;
-        navigate(`/work-orders/${workOrder._id}/edit`);
-    };
-
-
-    const handleMarkComplete = async () => {
-        if (!workOrder?._id) return;
-        try {
-            const res = await fetch(
-                `http://localhost:4000/api/work-orders/${workOrder._id}/status`,
-                {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'completed' }),
-                }
-            );
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to update status');
-            }
-
-            const updated = await res.json();
-            setWorkOrder(updated); // refresh UI immediately
-            alert('✅ Work order marked complete!');
-        } catch (err: any) {
-            console.error(err);
-            alert(`Error: ${err.message}`);
-        }
-    };
-
+    const handleBack = () => navigate('/work-orders');
 
     const handleGenerateInvoice = async () => {
         if (!workOrder?._id) return;
+
         try {
-            const res = await fetch(
-                `http://localhost:4000/api/invoices/from-workorder/${workOrder._id}`,
-                { method: 'POST' }
-            );
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to generate invoice');
+            setCreatingInvoice(true);
+            const invoice = await createInvoiceFromWorkOrder(workOrder._id);
+
+            // figure out a display name even if customerId is a string
+            let customerName = 'customer';
+            if (workOrder.customerId && typeof workOrder.customerId === 'object') {
+                customerName =
+                    workOrder.customerId.companyName || workOrder.customerId.name || 'customer';
             }
-            const invoice = await res.json();
-            alert(`✅ Invoice #${invoice.invoiceId} created for ${invoice.customer.name}`);
-            // later: navigate(`/invoices/${invoice._id}`)
+
+            alert(`✅ Invoice #${invoice._id.slice(-6)} created for ${customerName}.`);
+            navigate(`/invoices/${invoice._id}`);
         } catch (err: any) {
             console.error(err);
-            alert(`❌ ${err.message}`);
+            alert(`❌ ${err.message || 'Failed to create invoice.'}`);
+        } finally {
+            setCreatingInvoice(false);
         }
     };
 
-
+    // Early returns
     if (loading) {
-        return <div style={{ padding: '1rem' }}>Loading work order…</div>;
+        return <div className="p-4">Loading work order…</div>;
     }
 
     if (error) {
         return (
-            <div style={{ padding: '1rem' }}>
-                <p style={{ color: 'red' }}>{error}</p>
-                <button onClick={handleBack}>Back to Work Orders</button>
+            <div className="p-4">
+                <div className="text-red-500 mb-3">{error}</div>
+                <button
+                    onClick={handleBack}
+                    className="px-3 py-1 border border-gray-600 rounded hover:bg-gray-700"
+                >
+                    Back to Work Orders
+        </button>
             </div>
         );
     }
 
     if (!workOrder) {
         return (
-            <div style={{ padding: '1rem' }}>
-                <p>Work order not found.</p>
-                <button onClick={handleBack}>Back to Work Orders</button>
+            <div className="p-4">
+                <div className="mb-3">Work order not found.</div>
+                <button
+                    onClick={handleBack}
+                    className="px-3 py-1 border border-gray-600 rounded hover:bg-gray-700"
+                >
+                    Back to Work Orders
+        </button>
             </div>
         );
     }
 
-    const customer =
-        typeof workOrder.customerId === 'string'
-            ? null
-            : (workOrder.customerId as Customer);
+    // Safe access to customer object
+    const customerObj =
+        workOrder.customerId && typeof workOrder.customerId === 'object'
+            ? (workOrder.customerId as Customer)
+            : undefined;
 
     return (
-        <div style={{ padding: '1.5rem', maxWidth: 800 }}>
-            <button onClick={handleBack} style={{ marginBottom: '1rem' }}>
-                ← Back to Work Orders
-      </button>
+        <div className="flex flex-col gap-4 p-4">
+            {/* tiny on-page debug strip */}
+            <div className="text-xs text-slate-400">
+                Debug — id: {id} · loading: {String(loading)} · error:{' '}
+                {error ?? 'none'} · got WO: {workOrder?._id ?? 'no'}
+            </div>
 
-            <h1 style={{ marginBottom: '0.5rem' }}>Work Order Detail</h1>
-            <p style={{ marginBottom: '1.5rem', color: '#666' }}>
-                ID: {workOrder._id}
-            </p>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-semibold">
+                    Work Order #{workOrder._id.slice(-6)}
+                </h1>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleBack}
+                        className="px-3 py-1 border border-gray-600 rounded hover:bg-gray-700"
+                    >
+                        Back
+          </button>
 
-            {/* Customer info */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Customer</h2>
-                {customer ? (
-                    <div>
-                        <div>
-                            <strong>Name:</strong> {customer.name}
-                        </div>
-                        {customer.phone && (
-                            <div>
-                                <strong>Phone:</strong> {customer.phone}
-                            </div>
-                        )}
-                        {customer.email && (
-                            <div>
-                                <strong>Email:</strong> {customer.email}
-                            </div>
-                        )}
-                    </div>
+                    <button
+                        onClick={handleGenerateInvoice}
+                        disabled={creatingInvoice}
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+                    >
+                        {creatingInvoice ? 'Creating…' : 'Generate Invoice'}
+                    </button>
+                </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-700 p-4">
+                <h2 className="text-lg font-medium mb-2">Customer Info</h2>
+                {customerObj ? (
+                    <>
+                        <p className="font-semibold">
+                            {customerObj.companyName || customerObj.name}
+                        </p>
+                        {customerObj.email && <p>Email: {customerObj.email}</p>}
+                        {customerObj.phone && <p>Phone: {customerObj.phone}</p>}
+                    </>
                 ) : (
-                        <p>No customer information.</p>
+                        <p className="text-sm text-slate-400">Customer details not populated.</p>
                     )}
-            </section>
+            </div>
 
-            {/* Complaint / notes / odometer / diagnosis */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Work Details</h2>
-                <div>
-                    <div>
-                        <strong>Complaint:</strong>{' '}
-                        {workOrder.complaint || (
-                            <span style={{ color: '#999' }}>Not set</span>
-                        )}
-                    </div>
-                    <div>
-                        <strong>Diagnosis:</strong>{' '}
-                        {workOrder.diagnosis || (
-                            <span style={{ color: '#999' }}>Not set</span>
-                        )}
-                    </div>
-                    <div>
-                        <strong>Odometer:</strong>{' '}
-                        {typeof workOrder.odometer === 'number' ? (
-                            workOrder.odometer
-                        ) : (
-                                <span style={{ color: '#999' }}>Not set</span>
-                            )}
-                    </div>
-                    <div>
-                        <strong>Notes:</strong>{' '}
-                        {workOrder.notes || (
-                            <span style={{ color: '#999' }}>No notes</span>
-                        )}
-                    </div>
+            <div className="rounded-lg border border-gray-700 p-4">
+                <h2 className="text-lg font-medium mb-2">Work Order Details</h2>
+                <p>{workOrder.description}</p>
+                <p className="mt-2 text-sm text-gray-400">
+                    Status: <span className="capitalize">{workOrder.status}</span>
+                </p>
+                <p className="mt-1 font-semibold">
+                    Total{' '}
+                    {workOrder.total.toLocaleString('en-CA', {
+                        style: 'currency',
+                        currency: 'CAD',
+                    })}
+                </p>
+                <div className="text-sm text-gray-500 mt-2">
+                    Created: {new Date(workOrder.createdAt).toLocaleString('en-CA')}
+                    <br />
+          Updated: {new Date(workOrder.updatedAt).toLocaleString('en-CA')}
                 </div>
-            </section>
-
-            {/* Status + dates */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Status & Dates</h2>
-                <div>
-                    <div>
-                        <strong>Status:</strong> {workOrder.status}
-                    </div>
-                    {workOrder.date && (
-                        <div>
-                            <strong>Date:</strong>{' '}
-                            {new Date(workOrder.date).toLocaleDateString()}
-                        </div>
-                    )}
-                    {workOrder.createdAt && (
-                        <div>
-                            <strong>Created:</strong>{' '}
-                            {new Date(workOrder.createdAt).toLocaleString()}
-                        </div>
-                    )}
-                    {workOrder.updatedAt && (
-                        <div>
-                            <strong>Last Updated:</strong>{' '}
-                            {new Date(workOrder.updatedAt).toLocaleString()}
-                        </div>
-                    )}
-                </div>
-            </section>
-
-            {/* Actions */}
-            <section>
-                <h2 style={{ marginBottom: '0.5rem' }}>Actions</h2>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button onClick={handleEdit}>Edit</button>
-                    <button onClick={handleMarkComplete}>Mark Complete</button>
-                    <button onClick={handleGenerateInvoice}>Generate Invoice</button>
-                </div>
-            </section>
+            </div>
         </div>
     );
 }

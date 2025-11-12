@@ -8,6 +8,9 @@ import CustomersPage from './pages/CustomersPage'
 import SettingsPage from './pages/SettingsPage';
 import WorkOrderDetailPage from './pages/WorkOrderDetailPage';
 import WorkOrderEditPage from './pages/WorkOrderEditPage';
+import InvoiceDetailPage from './pages/InvoiceDetailPage';
+import InvoicesPage from './pages/InvoicesPage';
+
 
 function App() {
   return (
@@ -19,6 +22,8 @@ function App() {
         <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
+        <Route path="/invoices" element={<InvoicesPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
       </Routes>
     </Layout>
   )

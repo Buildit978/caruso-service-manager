@@ -1,246 +1,201 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+    getWorkOrderById,
+    markWorkOrderComplete,
+    createInvoiceForWorkOrder,
 
-type Customer = {
-    _id: string;
-    name: string;
-    phone?: string;
-    email?: string;
-};
+} from "../types/api";
+import type { WorkOrder } from "../types/workOrder";
 
-type WorkOrder = {
-    _id: string;
-    customerId: Customer | string;
-    complaint: string;
-    notes?: string;
-    odometer?: number;
-    diagnosis?: string;
-    status: string;
-    date?: string;
-    createdAt?: string;
-    updatedAt?: string;
-};
+export const INVOICE_ENABLED =
+    import.meta.env.VITE_INVOICE_ENABLED === "true";
 
 export default function WorkOrderDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-
     const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
+    const customer = (workOrder as any)?.customerId;
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+    const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+
+    // 🔁 Shared loader so we can call it from useEffect AND after Mark Complete
+    async function loadWorkOrder() {
         if (!id) return;
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await getWorkOrderById(id);
+            console.log("[WO Detail] Loaded work order:", data);
+            setWorkOrder(data);
+        } catch (err) {
+            console.error("[WO Detail] Failed to load work order", err);
+            setError("Failed to load work order.");
+        } finally {
+            setLoading(false);
+        }
+    }
 
-        const fetchWorkOrder = async () => {
-            try {
-                const res = await fetch(`http://localhost:4000/api/work-orders/${id}`);
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch work order (status ${res.status})`);
-                }
-                const data = await res.json();
-                setWorkOrder(data);
-            } catch (err: any) {
-                console.error(err);
-                setError(err.message || 'Failed to load work order');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchWorkOrder();
+    useEffect(() => {
+        loadWorkOrder();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    const handleBack = () => {
-        navigate('/work-orders');
-    };
-
-    const handleEdit = () => {
-        if (!workOrder?._id) return;
+    // ✏️ Edit button (this you already have working)
+    function handleEdit() {
+        if (!workOrder) return;
         navigate(`/work-orders/${workOrder._id}/edit`);
-    };
+    }
 
-
-    const handleMarkComplete = async () => {
-        if (!workOrder?._id) return;
+    // ✅ Mark Complete
+    async function handleMarkComplete() {
+        if (!workOrder || !workOrder._id) return;
         try {
-            const res = await fetch(
-                `http://localhost:4000/api/work-orders/${workOrder._id}/status`,
-                {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'completed' }),
-                }
-            );
+            setIsMarkingComplete(true);
+            setError(null);
 
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to update status');
+            console.log("[WO Detail] Marking complete for:", workOrder._id);
+            const updated = await markWorkOrderComplete(workOrder._id);
+
+            // Option A: trust the API to return the updated work order
+            if (updated && updated.status) {
+                console.log("[WO Detail] Updated from API:", updated);
+                setWorkOrder(updated);
+            } else {
+                // Option B: be super-safe and reload from backend
+                await loadWorkOrder();
             }
 
-            const updated = await res.json();
-            setWorkOrder(updated); // refresh UI immediately
-            alert('✅ Work order marked complete!');
-        } catch (err: any) {
-            console.error(err);
-            alert(`Error: ${err.message}`);
+            alert("✅ Work order marked complete!");
+        } catch (err) {
+            console.error("[WO Detail] Error marking complete", err);
+            setError("Failed to mark work order complete.");
+            alert("❌ Failed to mark work order complete.");
+        } finally {
+            setIsMarkingComplete(false);
         }
-    };
+    }
 
-
-    const handleGenerateInvoice = async () => {
-        if (!workOrder?._id) return;
+    // 💸 Create Invoice (feature-flagged)
+    async function handleCreateInvoice() {
+        if (!workOrder || !workOrder._id) return;
         try {
-            const res = await fetch(
-                `http://localhost:4000/api/invoices/from-workorder/${workOrder._id}`,
-                { method: 'POST' }
-            );
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to generate invoice');
-            }
-            const invoice = await res.json();
-            alert(`✅ Invoice #${invoice.invoiceId} created for ${invoice.customer.name}`);
-            // later: navigate(`/invoices/${invoice._id}`)
-        } catch (err: any) {
-            console.error(err);
-            alert(`❌ ${err.message}`);
+            setIsCreatingInvoice(true);
+            setError(null);
+
+            console.log("[WO Detail] Creating invoice for:", workOrder._id);
+            const invoice = await createInvoiceForWorkOrder(workOrder._id);
+            console.log("[WO Detail] Invoice created:", invoice);
+
+            alert(`✅ Invoice #${invoice.invoiceNumber} created for ${workOrder.customer?.name}.`);
+            // optional: navigate(`/invoices/${invoice._id}`);
+        } catch (err) {
+            console.error("[WO Detail] Error creating invoice", err);
+            setError("Failed to create invoice.");
+            alert("❌ Failed to create invoice.");
+        } finally {
+            setIsCreatingInvoice(false);
         }
-    };
-
-
-    if (loading) {
-        return <div style={{ padding: '1rem' }}>Loading work order…</div>;
     }
 
-    if (error) {
-        return (
-            <div style={{ padding: '1rem' }}>
-                <p style={{ color: 'red' }}>{error}</p>
-                <button onClick={handleBack}>Back to Work Orders</button>
-            </div>
-        );
-    }
+    if (loading) return <p>Loading work order…</p>;
+    if (error) return <p className="text-red-600">{error}</p>;
+    if (!workOrder) return <p>Work order not found.</p>;
 
-    if (!workOrder) {
-        return (
-            <div style={{ padding: '1rem' }}>
-                <p>Work order not found.</p>
-                <button onClick={handleBack}>Back to Work Orders</button>
-            </div>
-        );
-    }
+    const isCompleted = workOrder.status === "completed";
+    const canCreateInvoice =
+        INVOICE_ENABLED && isCompleted && !isCreatingInvoice;
+    
+    console.log("[WO Detail] workOrder object:", workOrder);
 
-    const customer =
-        typeof workOrder.customerId === 'string'
-            ? null
-            : (workOrder.customerId as Customer);
 
     return (
-        <div style={{ padding: '1.5rem', maxWidth: 800 }}>
-            <button onClick={handleBack} style={{ marginBottom: '1rem' }}>
-                ← Back to Work Orders
-      </button>
+        <div className="page">
+            <header className="page-header">
+                <h1>Work Order Detail</h1>
+                <p>
+                    <strong>Status:</strong> {workOrder.status}
+                </p>
+            </header>
 
-            <h1 style={{ marginBottom: '0.5rem' }}>Work Order Detail</h1>
-            <p style={{ marginBottom: '1.5rem', color: '#666' }}>
-                ID: {workOrder._id}
-            </p>
+            <section className="page-body">
+                <p>
+                    <strong>Customer:</strong> {customer?.name}
+                </p>
+                <p>
+                    <strong>Phone:</strong> {customer?.phone}
+                </p>
+                <p>
+                    <strong>Email:</strong> {customer?.email}
+                </p>
+                <p>
+                    <strong>Address:</strong> {customer?.address}
+                </p>
 
-            {/* Customer info */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Customer</h2>
-                {customer ? (
-                    <div>
-                        <div>
-                            <strong>Name:</strong> {customer.name}
-                        </div>
-                        {customer.phone && (
-                            <div>
-                                <strong>Phone:</strong> {customer.phone}
-                            </div>
-                        )}
-                        {customer.email && (
-                            <div>
-                                <strong>Email:</strong> {customer.email}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                        <p>No customer information.</p>
-                    )}
+                <p>
+                    <strong>Date:</strong>{" "}
+                    {workOrder.date ? new Date(workOrder.date).toLocaleDateString() : ""}
+                </p>
+                <p>
+                    <strong>Odometer:</strong>{" "}
+                    {workOrder.odometer != null
+                        ? workOrder.odometer.toLocaleString()
+                        : ""}
+                </p>
+
+                <p>
+                    <strong>Complaint:</strong> {workOrder.complaint}
+                </p>
+                <p>
+                    <strong>Diagnosis:</strong> {workOrder.diagnosis || "—"}
+                </p>
+                <p>
+                    <strong>Notes:</strong> {workOrder.notes || "—"}
+                </p>
+
+                <p>
+                    <strong>Total:</strong>{" "}
+                    {workOrder.total != null ? `$${workOrder.total.toFixed(2)}` : ""}
+                </p>
             </section>
 
-            {/* Complaint / notes / odometer / diagnosis */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Work Details</h2>
-                <div>
-                    <div>
-                        <strong>Complaint:</strong>{' '}
-                        {workOrder.complaint || (
-                            <span style={{ color: '#999' }}>Not set</span>
-                        )}
-                    </div>
-                    <div>
-                        <strong>Diagnosis:</strong>{' '}
-                        {workOrder.diagnosis || (
-                            <span style={{ color: '#999' }}>Not set</span>
-                        )}
-                    </div>
-                    <div>
-                        <strong>Odometer:</strong>{' '}
-                        {typeof workOrder.odometer === 'number' ? (
-                            workOrder.odometer
-                        ) : (
-                                <span style={{ color: '#999' }}>Not set</span>
-                            )}
-                    </div>
-                    <div>
-                        <strong>Notes:</strong>{' '}
-                        {workOrder.notes || (
-                            <span style={{ color: '#999' }}>No notes</span>
-                        )}
-                    </div>
-                </div>
-            </section>
 
-            {/* Status + dates */}
-            <section style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Status & Dates</h2>
-                <div>
-                    <div>
-                        <strong>Status:</strong> {workOrder.status}
-                    </div>
-                    {workOrder.date && (
-                        <div>
-                            <strong>Date:</strong>{' '}
-                            {new Date(workOrder.date).toLocaleDateString()}
-                        </div>
-                    )}
-                    {workOrder.createdAt && (
-                        <div>
-                            <strong>Created:</strong>{' '}
-                            {new Date(workOrder.createdAt).toLocaleString()}
-                        </div>
-                    )}
-                    {workOrder.updatedAt && (
-                        <div>
-                            <strong>Last Updated:</strong>{' '}
-                            {new Date(workOrder.updatedAt).toLocaleString()}
-                        </div>
-                    )}
-                </div>
-            </section>
+            <footer className="page-actions">
+                <button type="button" onClick={handleEdit}>
+                    Edit
+        </button>
 
-            {/* Actions */}
-            <section>
-                <h2 style={{ marginBottom: '0.5rem' }}>Actions</h2>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button onClick={handleEdit}>Edit</button>
-                    <button onClick={handleMarkComplete}>Mark Complete</button>
-                    <button onClick={handleGenerateInvoice}>Generate Invoice</button>
-                </div>
-            </section>
+                <button
+                    type="button"
+                    onClick={handleMarkComplete}
+                    disabled={isMarkingComplete || isCompleted}
+                >
+                    {isCompleted
+                        ? "Completed"
+                        : isMarkingComplete
+                            ? "Marking…"
+                            : "Mark Complete"}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={handleCreateInvoice}
+                    disabled={!canCreateInvoice}
+                    title={
+                        INVOICE_ENABLED
+                            ? isCompleted
+                                ? "Create invoice for this work order"
+                                : "Complete the work order before invoicing"
+                            : "Invoice feature is disabled"
+                    }
+                >
+                    {INVOICE_ENABLED ? "Create Invoice" : "Invoice (Disabled)"}
+                </button>
+            </footer>
         </div>
     );
 }

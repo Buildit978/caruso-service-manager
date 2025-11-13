@@ -127,20 +127,22 @@ router.get('/:id', async (req, res) => {
 
 
 // GET /api/work-orders/:id
-router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', async (req, res) => {
     try {
         const workOrder = await WorkOrder.findById(req.params.id)
-            .populate('customerId', 'name phone email');
+            .populate('customerId', 'name phone email vehicle');
 
         if (!workOrder) {
             return res.status(404).json({ message: 'Work order not found' });
         }
 
         res.json(workOrder);
-    } catch (err) {
-        next(err);
+    } catch (error) {
+        console.error('Error fetching work order:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
+
 
 
 

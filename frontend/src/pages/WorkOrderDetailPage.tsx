@@ -112,90 +112,160 @@ export default function WorkOrderDetailPage() {
     
     console.log("[WO Detail] workOrder object:", workOrder);
 
+    const formattedDate = workOrder.date
+        ? new Date(workOrder.date).toLocaleDateString()
+        : "";
 
     return (
-        <div className="page">
-            <header className="page-header">
-                <h1>Work Order Detail</h1>
-                <p>
-                    <strong>Status:</strong> {workOrder.status}
+        <div className="page" style={{ padding: "16px" }}>
+            {/* HEADER */}
+            <header
+                style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    marginBottom: "16px",
+                }}
+            >
+                <h1 style={{ margin: 0 }}>Work Order Detail</h1>
+
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: "0.9rem",
+                        color: "#555",
+                    }}
+                >
+                    Work Order #{workOrder._id.slice(-6)}
+                    {formattedDate && <> • {formattedDate}</>}
                 </p>
             </header>
 
-            <section className="page-body">
-                <p>
-                    <strong>Customer:</strong> {customer?.name}
-                </p>
-                <p>
-                    <strong>Phone:</strong> {customer?.phone}
-                </p>
-                <p>
-                    <strong>Email:</strong> {customer?.email}
-                </p>
-                <p>
-                    <strong>Address:</strong> {customer?.address}
-                </p>
+            {/* TWO-COLUMN MAIN SECTION */}
+            <section
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "24px",
+                    marginTop: "20px",
+                }}
+            >
+                {/* LEFT COLUMN — CUSTOMER INFORMATION */}
+                <div>
+                    <h2 style={{ marginBottom: "8px" }}>Customer Information</h2>
 
-                <p>
-                    <strong>Date:</strong>{" "}
-                    {workOrder.date ? new Date(workOrder.date).toLocaleDateString() : ""}
-                </p>
-                <p>
-                    <strong>Odometer:</strong>{" "}
-                    {workOrder.odometer != null
-                        ? workOrder.odometer.toLocaleString()
-                        : ""}
-                </p>
+                    <p><strong>Name:</strong> {customer?.name}</p>
+                    <p><strong>Phone:</strong> {customer?.phone}</p>
+                    <p><strong>Email:</strong> {customer?.email}</p>
+                    <p><strong>Address:</strong> {customer?.address}</p>
+                </div>
 
-                <p>
-                    <strong>Complaint:</strong> {workOrder.complaint}
-                </p>
-                <p>
-                    <strong>Diagnosis:</strong> {workOrder.diagnosis || "—"}
-                </p>
-                <p>
-                    <strong>Notes:</strong> {workOrder.notes || "—"}
-                </p>
+                {/* RIGHT COLUMN — WORK ORDER DETAILS */}
+                <div>
+                    {/* Work Order Details Header + COMPLETE Badge */}
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "50px",        // distance between title and COMPLETE
+                            marginBottom: "8px",
+                        }}
+                    >
 
-                <p>
-                    <strong>Total:</strong>{" "}
-                    {workOrder.total != null ? `$${workOrder.total.toFixed(2)}` : ""}
-                </p>
+                
+                        <h2 style={{ margin: 0 }}>Work Order Details</h2>
+
+                        <span
+                            style={{
+                                display: "inline-block",
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                fontWeight: 600,
+                                backgroundColor:
+                                    workOrder.status === "completed" ? "#ffffff" : "#f9731622",
+                                color:
+                                    workOrder.status === "completed" ? "#059669" : "#9a3412",
+                                border:
+                                    workOrder.status === "completed"
+                                        ? "1px solid #05966933"
+                                        : "1px solid transparent",
+                                marginLeft: "12px",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {workOrder.status.toUpperCase()}
+                        </span>
+                    </div>
+
+                    <p>
+                        <strong>Date:</strong>{" "}
+                        {formattedDate}
+                    </p>
+                    <p><strong>Odometer:</strong> {workOrder.odometer?.toLocaleString()}</p>
+                    <p><strong>Complaint:</strong> {workOrder.complaint}</p>
+                    <p><strong>Diagnosis:</strong> {workOrder.diagnosis || "—"}</p>
+                    <p><strong>Notes:</strong> {workOrder.notes || "—"}</p>
+                    <p><strong>Total:</strong> ${workOrder.total?.toFixed(2)}</p>
+                </div>
             </section>
 
+            {/* FOOTER BUTTONS */}
+            <footer
+                style={{
+                    marginTop: "24px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                }}
+            >
+                {/* Back Link */}
+                <button
+                    type="button"
+                    onClick={() => navigate("/work-orders")}
+                    style={{ alignSelf: "flex-start" }}
+                >
+                    ← Back to Work Orders
+      </button>
 
-            <footer className="page-actions">
-                <button type="button" onClick={handleEdit}>
-                    Edit
+                {/* Action Buttons Row */}
+                <div
+                    style={{
+                        display: "flex",
+                        gap: "12px",
+                        flexWrap: "wrap",
+                    }}
+                >
+                    <button type="button" onClick={handleEdit}>
+                        Edit
         </button>
 
-                <button
-                    type="button"
-                    onClick={handleMarkComplete}
-                    disabled={isMarkingComplete || isCompleted}
-                >
-                    {isCompleted
-                        ? "Completed"
-                        : isMarkingComplete
-                            ? "Marking…"
-                            : "Mark Complete"}
-                </button>
+                    {!isCompleted && (
+                        <button
+                            type="button"
+                            onClick={handleMarkComplete}
+                            disabled={isMarkingComplete}
+                        >
+                            {isMarkingComplete ? "Marking…" : "Mark Complete"}
+                        </button>
+                    )}
 
-                <button
-                    type="button"
-                    onClick={handleCreateInvoice}
-                    disabled={!canCreateInvoice}
-                    title={
-                        INVOICE_ENABLED
-                            ? isCompleted
-                                ? "Create invoice for this work order"
-                                : "Complete the work order before invoicing"
-                            : "Invoice feature is disabled"
-                    }
-                >
-                    {INVOICE_ENABLED ? "Create Invoice" : "Invoice (Disabled)"}
-                </button>
+                    <button
+                        type="button"
+                        onClick={handleCreateInvoice}
+                        disabled={!canCreateInvoice}
+                        title={
+                            !INVOICE_ENABLED
+                                ? "Invoice feature is disabled"
+                                : !isCompleted
+                                    ? "Complete the work order before invoicing"
+                                    : "Create invoice for this work order"
+                        }
+                    >
+                        {INVOICE_ENABLED ? "Create Invoice" : "Invoice (Disabled)"}
+                    </button>
+                </div>
             </footer>
         </div>
     );
+
 }

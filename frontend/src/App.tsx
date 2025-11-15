@@ -8,6 +8,11 @@ import CustomersPage from './pages/CustomersPage'
 import SettingsPage from './pages/SettingsPage';
 import WorkOrderDetailPage from './pages/WorkOrderDetailPage';
 import WorkOrderEditPage from './pages/WorkOrderEditPage';
+import WorkOrderCreatePage from "./pages/WorkOrderCreatePage";
+import CustomerCreatePage from "./pages/CustomerCreatePage";
+import CustomerEditPage from "./pages/CustomerEditPage"; 
+
+
 
 function App() {
   return (
@@ -15,10 +20,13 @@ function App() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/work-orders" element={<WorkOrdersPage />} />
+        <Route path="/work-orders/new" element={<WorkOrderCreatePage />} />
         <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
         <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/customers/:id/edit" element={<CustomerEditPage />} />
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
+        <Route path="/customers/new" element={<CustomerCreatePage />} />
       </Routes>
     </Layout>
   )

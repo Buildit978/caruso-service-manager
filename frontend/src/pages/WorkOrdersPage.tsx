@@ -1,13 +1,14 @@
 // src/pages/WorkOrdersPage.tsx
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { Link } from 'react-router-dom';
+import { useLocation, Link } from "react-router-dom";
 
-type WorkOrderStatus = "open" | "in-progress" | "completed";
+type WorkOrderStatus = "open" | "in_progress" | "completed" | "invoiced";
 
 type Customer = {
     _id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
+    fullName?: string;
     phone?: string;
     email?: string;
 };
@@ -15,13 +16,14 @@ type Customer = {
 type WorkOrder = {
     _id: string;
     status: WorkOrderStatus;
-    total: number;
+    total?: number;
     createdAt: string;
     date?: string;
     odometer?: number;
     complaint?: string;
     notes?: string;
     customer?: Customer;
+    customerId?: Customer | string;
 };
 
 function useQuery() {
@@ -36,6 +38,17 @@ export default function WorkOrdersPage() {
     const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Helper: format customer name safely
+    const formatCustomerName = (customer?: Customer) => {
+        if (!customer) return "—";
+        return (
+            customer.name ||                                 // 👈 prefer this
+            customer.fullName ||
+            `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() ||
+            "(No name)"
+        );
+    };
 
     useEffect(() => {
         const fetchWorkOrders = async () => {
@@ -93,8 +106,33 @@ export default function WorkOrdersPage() {
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
-            <h1 className="text-2xl font-semibold mb-4">{title}</h1>
+            {/* Title + New Work Order button */}
+            <div
+                className="mb-4"
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "1rem",
+                }}
+            >
+                <h1 className="text-2xl font-semibold">{title}</h1>
 
+                <Link
+                    to="/work-orders/new"
+                    className="inline-block font-medium text-sm px-4 py-2 rounded"
+                    style={{
+                        backgroundColor: "#2563eb",
+                        color: "white",
+                        display: "inline-block",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    + New Work Order
+        </Link>
+            </div>
+
+            <div className="mt-6"></div>
             {workOrders.length === 0 ? (
                 <p className="text-sm text-slate-500">
                     {customerId
@@ -113,6 +151,9 @@ export default function WorkOrdersPage() {
                                         Customer
                 </th>
                                     <th className="text-left px-4 py-2 font-medium text-slate-600">
+                                        View
+                </th>
+                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
                                         Status
                 </th>
                                     <th className="text-right px-4 py-2 font-medium text-slate-600">
@@ -123,6 +164,7 @@ export default function WorkOrdersPage() {
                 </th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {workOrders.map((wo) => (
                                     <tr
@@ -133,26 +175,33 @@ export default function WorkOrdersPage() {
                                             {wo._id}
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap">
-                                            {wo.customer?.name || "—"}
+                                            {formatCustomerName(wo.customer)}
                                         </td>
-                                        <td>
-                                            <Link to={`/work-orders/${wo._id}`}>View</Link>
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            <Link
+                                                to={`/work-orders/${wo._id}`}
+                                                className="text-xs text-blue-600 hover:text-blue-800"
+                                            >
+                                                View
+                    </Link>
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap">
                                             <span
                                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                                     wo.status === "completed"
                                                         ? "bg-green-100 text-green-700"
-                                                        : wo.status === "in-progress"
+                                                        : wo.status === "in_progress"
                                                             ? "bg-yellow-100 text-yellow-700"
-                                                            : "bg-blue-100 text-blue-700"
+                                                            : wo.status === "invoiced"
+                                                                ? "bg-purple-100 text-purple-700"
+                                                                : "bg-blue-100 text-blue-700"
                                                     }`}
                                             >
                                                 {wo.status}
                                             </span>
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap text-right">
-                                            {wo.total.toLocaleString("en-CA", {
+                                            {(wo.total ?? 0).toLocaleString("en-CA", {
                                                 style: "currency",
                                                 currency: "CAD",
                                             })}

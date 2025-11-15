@@ -14,9 +14,8 @@ export const INVOICE_ENABLED =
 export default function WorkOrderDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
-    const customer = (workOrder as any)?.customerId;
 
+    const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +44,20 @@ export default function WorkOrderDetailPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    // ✏️ Edit button (this you already have working)
+    // Derive customer + display name from the loaded work order
+    const customer =
+        (workOrder as any)?.customerId ??
+        (workOrder as any)?.customer ??
+        null;
+
+    const displayName =
+        customer?.name ||                             // 👈 FIRST
+        customer?.fullName ||
+        `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() ||
+        "(No name)";
+
+
+    // ✏️ Edit button
     function handleEdit() {
         if (!workOrder) return;
         navigate(`/work-orders/${workOrder._id}/edit`);
@@ -91,7 +103,9 @@ export default function WorkOrderDetailPage() {
             const invoice = await createInvoiceForWorkOrder(workOrder._id);
             console.log("[WO Detail] Invoice created:", invoice);
 
-            alert(`✅ Invoice #${invoice.invoiceNumber} created for ${workOrder.customer?.name}.`);
+            alert(
+                `✅ Invoice #${invoice.invoiceNumber} created for ${displayName}.`
+            );
             // optional: navigate(`/invoices/${invoice._id}`);
         } catch (err) {
             console.error("[WO Detail] Error creating invoice", err);
@@ -109,12 +123,18 @@ export default function WorkOrderDetailPage() {
     const isCompleted = workOrder.status === "completed";
     const canCreateInvoice =
         INVOICE_ENABLED && isCompleted && !isCreatingInvoice;
-    
+
     console.log("[WO Detail] workOrder object:", workOrder);
 
     const formattedDate = workOrder.date
         ? new Date(workOrder.date).toLocaleDateString()
         : "";
+
+    // ⬅ from here down, keep your existing JSX, but use:
+    // - {displayName} wherever Name should show
+    // - customer?.phone / customer?.email / customer?.address
+    // in the Customer Information section.
+
 
     return (
         <div className="page" style={{ padding: "16px" }}>
@@ -154,10 +174,10 @@ export default function WorkOrderDetailPage() {
                 <div>
                     <h2 style={{ marginBottom: "8px" }}>Customer Information</h2>
 
-                    <p><strong>Name:</strong> {customer?.name}</p>
-                    <p><strong>Phone:</strong> {customer?.phone}</p>
-                    <p><strong>Email:</strong> {customer?.email}</p>
-                    <p><strong>Address:</strong> {customer?.address}</p>
+                    <p><strong>Name:</strong> {displayName}</p>
+                    <p><strong>Phone:</strong> {customer?.phone || "—"}</p>
+                    <p><strong>Email:</strong> {customer?.email || "—"}</p>
+                    <p><strong>Address:</strong> {customer?.address || "—"}</p>
                 </div>
 
                 {/* RIGHT COLUMN — WORK ORDER DETAILS */}
@@ -172,7 +192,7 @@ export default function WorkOrderDetailPage() {
                         }}
                     >
 
-                
+
                         <h2 style={{ margin: 0 }}>Work Order Details</h2>
 
                         <span

@@ -38,19 +38,15 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/customers
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, phone, email, address, notes } = req.body;
+        const { firstName, lastName, phone, email, address, notes } = req.body;
 
-        if (!name || name.trim() === '') {
-            return res.status(400).json({ message: 'Name is required' });
-        }
-
-        // 👇 this is where it was failing before
         const customer = await Customer.create({
-            name: name.trim(),
+            firstName,
+            lastName,
             phone,
             email,
             address,
-            notes,
+            notes
         });
 
         res.status(201).json(customer);
@@ -59,14 +55,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 });
 
+
 // PUT /api/customers/:id
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, phone, email, address, notes } = req.body;
+        const { firstName, lastName, phone, email, address, notes } = req.body;
 
         const customer = await Customer.findByIdAndUpdate(
             req.params.id,
-            { name, phone, email, address, notes },
+            { firstName, lastName, phone, email, address, notes },
             { new: true, runValidators: true }
         );
 
@@ -79,6 +76,8 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         next(err);
     }
 });
+
+
 
 // DELETE /api/customers/:id
 router.delete(

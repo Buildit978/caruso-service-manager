@@ -108,11 +108,14 @@ router.get(
     }
 );
 
-// ✅ New route: Get a single work order by ID
+// GET /api/work-orders/:id
 router.get('/:id', async (req, res) => {
     try {
         const workOrder = await WorkOrder.findById(req.params.id)
-            .populate('customerId'); // populate linked customer info
+            .populate(
+                'customerId',
+                'firstName lastName phone email address' // fields that actually exist now
+            );
 
         if (!workOrder) {
             return res.status(404).json({ message: 'Work order not found' });
@@ -124,25 +127,6 @@ router.get('/:id', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
-
-
-// GET /api/work-orders/:id
-router.get('/:id', async (req, res) => {
-    try {
-        const workOrder = await WorkOrder.findById(req.params.id)
-            .populate('customerId', 'name phone email vehicle');
-
-        if (!workOrder) {
-            return res.status(404).json({ message: 'Work order not found' });
-        }
-
-        res.json(workOrder);
-    } catch (error) {
-        console.error('Error fetching work order:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
 
 
 
@@ -178,6 +162,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         next(err);
     }
 });
+
+
 
 // PUT /api/work-orders/:id
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {

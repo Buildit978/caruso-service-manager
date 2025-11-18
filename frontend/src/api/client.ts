@@ -1,13 +1,21 @@
 // src/api/client.ts
-import axios from 'axios';
+import axios from "axios";
 
-console.log('API base URL:', import.meta.env.VITE_API_BASE_URL)  // 👈 add this
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
+
+console.log("API base URL:", API_BASE_URL);
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL,
+    baseURL: API_BASE_URL,
     headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
     },
 });
 
+// You can use either:
+//   import api from "./client";
+// or
+//   import { api } from "./client";
+export { api };
 export default api;

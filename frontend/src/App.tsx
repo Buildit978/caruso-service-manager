@@ -11,6 +11,7 @@ import WorkOrderEditPage from './pages/WorkOrderEditPage';
 import WorkOrderCreatePage from "./pages/WorkOrderCreatePage";
 import CustomerCreatePage from "./pages/CustomerCreatePage";
 import CustomerEditPage from "./pages/CustomerEditPage"; 
+import CustomerDetailPage from "./pages/CustomerDetailPage";
 
 
 
@@ -25,6 +26,7 @@ function App() {
         <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id/edit" element={<CustomerEditPage />} />
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
         <Route path="/customers/new" element={<CustomerCreatePage />} />
       </Routes>

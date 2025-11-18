@@ -1,16 +1,12 @@
 // frontend/src/pages/CustomersPage.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { WorkOrder } from "../types/workOrder";
+import type { Customer } from "../types/customer";
+import { fetchWorkOrders } from "../api/workOrders";
+import { fetchCustomers } from "../api/customers";
 
-type Customer = {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    fullName?: string; // from Mongoose virtual
-    phone?: string;
-    email?: string;
-    openWorkOrdersCount?: number;
-};
+
 
 export default function CustomersPage() {
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -19,137 +15,105 @@ export default function CustomersPage() {
 
     useEffect(() => {
         const load = async () => {
-            setLoading(true);
-            setError(null);
+            try {
+                setLoading(true);
+                setError(null);
 
-            const [custRes, woRes] = await Promise.all([
-                fetch("http://localhost:4000/api/customers"),
-                fetch("http://localhost:4000/api/work-orders"),
-            ]);
+                const [customersData, workOrdersData] = await Promise.all([
+                    fetchCustomers(),
+                    fetchWorkOrders(),
+                ]);
 
-            const customersData = await custRes.json();
-            const workOrdersData = await woRes.json();
+                // Debug one sample, optional:
+                // console.log("[CustomersPage] sample work order:", workOrdersData[0]);
 
-            // build lookup count per customer
-            const counts: Record<string, number> = {};
+                const openCountMap: Record<string, number> = {};
 
-            workOrdersData.forEach((wo: any) => {
-                if (!wo.customerId) return;
-                const id =
-                    typeof wo.customerId === "string" ? wo.customerId : wo.customerId._id;
-                if (!counts[id]) counts[id] = 0;
-                if (wo.status === "open" || wo.status === "in_progress") {
-                    counts[id] += 1;
+                for (const wo of workOrdersData) {
+                    const status = (wo.status || "").toLowerCase();
+                    const customerKey =
+                        wo.customerId || (wo.customer && wo.customer._id) || null;
+
+                    if (status === "open" && customerKey) {
+                        openCountMap[customerKey] =
+                            (openCountMap[customerKey] || 0) + 1;
+                    }
                 }
-            });
 
-            // attach count to each customer
-            const customersWithCounts = customersData.map((c: any) => ({
-                ...c,
-                openWorkOrdersCount: counts[c._id] ?? 0,
-            }));
+                const enrichedCustomers = customersData.map((c) => ({
+                    ...c,
+                    openWorkOrdersCount: openCountMap[c._id] || 0,
+                }));
 
-            setCustomers(customersWithCounts);
-            setLoading(false);
+                setCustomers(enrichedCustomers);
+            } catch (err) {
+                console.error("[CustomersPage] load error", err);
+                setError("Could not load customers.");
+            } finally {
+                setLoading(false);
+            }
         };
 
         load();
     }, []);
 
-
     if (loading) {
-        return <div className="p-6">Loading customers...</div>;
+        return <p>Loading customers…</p>;
     }
 
     if (error) {
-        return (
-            <div className="p-6 text-red-600">
-                There was a problem loading customers: {error}
-            </div>
-        );
+        return <p style={{ color: "red" }}>{error}</p>;
     }
 
-    const formatName = (customer: Customer) =>
-        customer.fullName ||
-        `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() ||
-        "(No name)";
-
     return (
-        <div className="p-6 max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-semibold">Customers</h1>
-
-                <Link
-                    to="/customers/new?returnTo=/customers"
-                    className="px-3 py-2 rounded bg-slate-900 text-white text-sm hover:bg-slate-800"
-                >
-                    Add Customer
-        </Link>
-            </div>
+        <div>
+            <h2>Customers</h2>
 
             {customers.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                    No customers found yet. You can start by adding your first customer.
-                </p>
+                <p>No customers yet.</p>
             ) : (
-                    <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Name
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Phone
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Email
-                </th>
-                                    <th className="text-left px-4 py-2 font-medium text-slate-600">
-                                        Open WOs
-                </th>
-                                    <th className="px-4 py-2"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {customers.map((customer) => (
-                                    <tr
-                                        key={customer._id}
-                                        className="border-b border-slate-100 hover:bg-slate-50"
-                                    >
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            {formatName(customer)}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            {customer.phone || "—"}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            {customer.email || "—"}
-                                        </td>
-                                        <td className="px-4 py-2 text-center">
-                                            {customer.openWorkOrdersCount}
-                                        </td>
-
-                                        <td className="px-4 py-2 text-right space-x-3">
-                                            <Link
-                                                to={`/work-orders?customerId=${customer._id}`}
-                                                className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800"
-                                            >
-                                                View Work Orders →
-                    </Link>
-                                            {/* Optional: quick edit link */}
-                                            {/* <Link
-                      to={`/customers/${customer._id}/edit?returnTo=/customers`}
-                      className="inline-flex items-center text-xs font-medium text-slate-600 hover:text-slate-800"
+                    <table
+                        style={{
+                            width: "100%",
+                            borderCollapse: "collapse",
+                            marginTop: "1rem",
+                        }}
                     >
-                      Edit
-                    </Link> */}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                        <thead>
+                            <tr>
+                                <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                                    Name
+              </th>
+                                <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                                    Phone
+              </th>
+                                <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                                    Email
+              </th>
+                                <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                                    Open WOs
+              </th>
+                                <th style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+                                    Actions
+              </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {customers.map((c) => (
+                                <tr key={c._id}>
+                                    <td style={{ padding: "0.5rem 0" }}>
+                                        {c.fullName || `${c.firstName} ${c.lastName}`}
+                                    </td>
+                                    <td>{c.phone || "-"}</td>
+                                    <td>{c.email || "-"}</td>
+                                    <td>{c.openWorkOrdersCount ?? 0}</td>
+                                    <td>
+                                        <Link to={`/customers/${c._id}`}>View</Link>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 )}
         </div>
     );

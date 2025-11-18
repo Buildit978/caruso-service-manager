@@ -1,28 +1,22 @@
 // src/pages/WorkOrderCreatePage.tsx
 import { useEffect, useState, FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-
-type Customer = {
-    _id: string;
-    firstName?: string;
-    lastName?: string;
-    fullName?: string;
-    name?: string;      // 👈 legacy support
-    phone?: string;
-    email?: string;
-};
+import { getCustomerVehicles, type Vehicle } from "../api/vehicles";
+import { fetchCustomers } from "../api/customers";
+import { createWorkOrder } from "../api/workOrders";
+import type { Customer } from "../types/customer";
 
 
-type NewWorkOrderForm = {
-    customerId: string;
-    complaint: string;
-    odometer: string;
-    notes: string;
-};
 
 export default function WorkOrderCreatePage() {
     const navigate = useNavigate();
     const location = useLocation();
+
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+    const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+    const [vehiclesLoading, setVehiclesLoading] = useState(false);
+    const [vehiclesError, setVehiclesError] = useState<string | null>(null);
 
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loadingCustomers, setLoadingCustomers] = useState(true);
@@ -34,6 +28,7 @@ export default function WorkOrderCreatePage() {
         complaint: "",
         odometer: "",
         notes: "",
+        vehicleId: "",   // 👈 NEW
     });
 
     // Helper to format customer name safely
@@ -53,12 +48,7 @@ export default function WorkOrderCreatePage() {
                 setLoadingCustomers(true);
                 setError(null);
 
-                const res = await fetch("http://localhost:4000/api/customers");
-                if (!res.ok) {
-                    throw new Error(`Failed to load customers (${res.status})`);
-                }
-
-                const data = await res.json();
+                const data = await fetchCustomers();
                 console.log("[Create WO] customers:", data); // 👈 add this
                 setCustomers(data);
             } catch (err: any) {
@@ -86,6 +76,48 @@ export default function WorkOrderCreatePage() {
         }
     }, [location.search]);
 
+    // Whenever the selected customer changes, load their vehicles
+    useEffect(() => {
+        if (!form.customerId) {
+            setVehicles([]);
+            setVehiclesError(null);
+            return;
+        }
+
+        let cancelled = false;
+        setVehiclesLoading(true);
+        setVehiclesError(null);
+
+        getCustomerVehicles(form.customerId)
+            .then((data) => {
+                if (!cancelled) {
+                    setVehicles(data);
+                    // Reset selected vehicle when customer changes
+                    setForm((prev) => ({
+                        ...prev,
+                        vehicleId: "",
+                    }));
+                }
+            })
+            .catch((err) => {
+                console.error("[Create WO] getCustomerVehicles error", err);
+                if (!cancelled) {
+                    setVehicles([]);
+                    setVehiclesError("Could not load vehicles for this customer.");
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setVehiclesLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [form.customerId, setForm]);
+
+
     const handleChange = (
         e: React.ChangeEvent<
             HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -94,6 +126,8 @@ export default function WorkOrderCreatePage() {
         const { name, value } = e.target;
         setForm((prev) => ({ ...prev, [name]: value }));
     };
+
+
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -123,25 +157,29 @@ export default function WorkOrderCreatePage() {
             }
         }
 
+        if (form.vehicleId) {
+            const v = vehicles.find((veh) => veh._id === form.vehicleId);
+            if (v) {
+                payload.vehicle = {
+                    vehicleId: v._id,
+                    year: v.year,
+                    make: v.make,
+                    model: v.model,
+                    vin: v.vin,
+                    licensePlate: v.licensePlate,
+                    color: v.color,
+                };
+            }
+        }
+
+
         try {
             setSaving(true);
 
-            const res = await fetch("http://localhost:4000/api/work-orders", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
+            console.log("[Create WO] payload:", payload);
 
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error(
-                    body.message || `Failed to create work order (${res.status})`
-                );
-            }
 
-            const created = await res.json();
+            const created = await createWorkOrder(payload);
 
             alert("✅ Work order created.");
 
@@ -253,10 +291,45 @@ export default function WorkOrderCreatePage() {
                                             {c.phone ? ` — ${c.phone}` : ""}
                                         </option>
                                     
-
-                                    
-                                    ))}
+                                   ))}
                                 </select>
+
+                                <div style={{ marginTop: "1rem" }}>
+                                    <label>
+                                        Vehicle
+        {vehiclesLoading && <p>Loading vehicles…</p>}
+                                        {vehiclesError && (
+                                            <p style={{ color: "red" }}>{vehiclesError}</p>
+                                        )}
+
+                                        {!vehiclesLoading && !vehiclesError && form.customerId && (
+                                            <>
+                                                {vehicles.length === 0 ? (
+                                                    <p style={{ fontSize: "0.9rem" }}>
+                                                        No vehicles on file for this customer yet.
+                                                        You can add vehicles from the customer page.
+                                                    </p>
+                                                ) : (
+                                                        <select
+                                                            name="vehicleId"
+                                                            value={form.vehicleId}
+                                                            onChange={handleChange}
+                                                        >
+                                                            <option value="">Select vehicle…</option>
+                                                            {vehicles.map((v) => (
+                                                                <option key={v._id} value={v._id}>
+                                                                    {v.year && `${v.year} `}
+                                                                    {v.make} {v.model}
+                                                                    {v.licensePlate && ` (${v.licensePlate})`}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                            </>
+                                        )}
+                                    </label>
+                                </div>
+
 
                                 <button
                                     type="button"

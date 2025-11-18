@@ -1,30 +1,10 @@
 // src/pages/WorkOrdersPage.tsx
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "react-router-dom";
+import type { WorkOrder } from "../types/workOrder";
+import type { Customer } from "../types/customer";
+import { fetchWorkOrders } from "../api/workOrders";
 
-type WorkOrderStatus = "open" | "in_progress" | "completed" | "invoiced";
-
-type Customer = {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    fullName?: string;
-    phone?: string;
-    email?: string;
-};
-
-type WorkOrder = {
-    _id: string;
-    status: WorkOrderStatus;
-    total?: number;
-    createdAt: string;
-    date?: string;
-    odometer?: number;
-    complaint?: string;
-    notes?: string;
-    customer?: Customer;
-    customerId?: Customer | string;
-};
 
 function useQuery() {
     const { search } = useLocation();
@@ -41,9 +21,9 @@ export default function WorkOrdersPage() {
 
     // Helper: format customer name safely
     const formatCustomerName = (customer?: Customer) => {
-        if (!customer) return "—";
+        if (!customer) return "No customer";
         return (
-            customer.name ||                                 // 👈 prefer this
+            customer.name || // optional precomputed name
             customer.fullName ||
             `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() ||
             "(No name)"
@@ -51,22 +31,14 @@ export default function WorkOrdersPage() {
     };
 
     useEffect(() => {
-        const fetchWorkOrders = async () => {
+        const loadWorkOrders = async () => {
             try {
                 setLoading(true);
                 setError(null);
 
-                const url = new URL("http://localhost:4000/api/work-orders");
-                if (customerId) {
-                    url.searchParams.set("customerId", customerId);
-                }
-
-                const res = await fetch(url.toString());
-                if (!res.ok) {
-                    throw new Error(`Request failed with status ${res.status}`);
-                }
-
-                const raw = await res.json();
+                const raw = await fetchWorkOrders({
+                    customerId: customerId || undefined,
+                });
 
                 // Normalize customer field so we can always use wo.customer
                 const normalized: WorkOrder[] = raw.map((wo: any) => ({
@@ -85,7 +57,7 @@ export default function WorkOrdersPage() {
             }
         };
 
-        fetchWorkOrders();
+        loadWorkOrders();
     }, [customerId]);
 
     const title = customerId

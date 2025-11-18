@@ -1,12 +1,15 @@
 // src/pages/CustomerCreatePage.tsx
 import { useState, FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { createCustomer } from "../api/customers";
+import type { CustomerPayload } from "../api/customers";
 
 type CustomerForm = {
     firstName: string;
     lastName: string;
     phone: string;
     email: string;
+    address: string;
 };
 
 
@@ -19,6 +22,7 @@ export default function CustomerCreatePage() {
         lastName: "",
         phone: "",
         email: "",
+        address: "",
     });
 
 
@@ -36,7 +40,7 @@ export default function CustomerCreatePage() {
         e.preventDefault();
         setError(null);
 
-        if (!form.name.trim()) {
+        if (!form.firstName.trim() && !form.lastName.trim()) {
             setError("Customer name is required.");
             return;
         }
@@ -44,25 +48,15 @@ export default function CustomerCreatePage() {
         try {
             setSaving(true);
 
-            const res = await fetch("http://localhost:4000/api/customers", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    firstName: form.firstName.trim(),
-                    lastName: form.lastName.trim(),
-                    phone: form.phone.trim() || undefined,
-                    email: form.email.trim() || undefined,
-                }),
-            });
+            const payload: CustomerPayload = {
+                firstName: form.firstName.trim(),
+                lastName: form.lastName.trim(),
+                phone: form.phone.trim() || undefined,
+                email: form.email.trim() || undefined,
+                address: form.address.trim() || undefined,
+            };
 
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error(body.message || `Failed to create customer (${res.status})`);
-            }
-
-            const created = await res.json();
+            const created = await createCustomer(payload);
 
             // Check if we came from "Create Work Order"
             const params = new URLSearchParams(location.search);
@@ -245,6 +239,34 @@ export default function CustomerCreatePage() {
                                 }}
                             />
                         </label>
+
+                        {/* Address */}
+                        <label
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.25rem",
+                                fontSize: "0.9rem",
+                            }}
+                        >
+                            <span>Address (optional)</span>
+                            <textarea
+                                name="address"
+                                value={form.address}
+                                onChange={handleChange}
+                                rows={3}
+                                style={{
+                                    width: "100%",
+                                    padding: "0.75rem 1rem",
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #475569",
+                                    fontSize: "1rem",
+                                    lineHeight: "1.4",
+                                    resize: "vertical",
+                                }}
+                            />
+                        </label>
+
 
                         {/* Actions */}
                         <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>

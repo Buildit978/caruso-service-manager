@@ -1,26 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import type { WorkOrder } from "../types/workOrder";
+import type { Customer } from "../types/customer";
+import { fetchWorkOrder, updateWorkOrder } from "../api/workOrders";
 
-type Customer = {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    fullName?: string;
-    phone?: string;
-    email?: string;
-    address?: string;
-};
 
-type WorkOrder = {
-    _id: string;
-    customerId?: Customer; // populated from backend
-    complaint: string;
-    diagnosis?: string;
-    notes?: string;
-    odometer?: number;
-    status: string;
-    // ... any other fields you already have
-};
+
 
 export default function WorkOrderEditPage() {
     const { id } = useParams<{ id: string }>();
@@ -35,6 +20,13 @@ export default function WorkOrderEditPage() {
         notes: '',
         odometer: '',
         status: '',
+        vehicleYear: '',
+        vehicleMake: '',
+        vehicleModel: '',
+        vehicleLicensePlate: '',
+        vehicleVin: '',
+        vehicleColor: '',
+        vehicleNotes: '',
     });
     const [loading, setLoading] = useState(true);
 
@@ -43,11 +35,7 @@ export default function WorkOrderEditPage() {
 
         const load = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/work-orders/${id}`);
-                if (!res.ok) {
-                    throw new Error(`Failed to load work order (${res.status})`);
-                }
-                const data = await res.json();
+                const data = await fetchWorkOrder(id);
 
                 // keep full work order (with customer) here
                 setWorkOrder(data);
@@ -62,6 +50,17 @@ export default function WorkOrderEditPage() {
                             ? String(data.odometer)
                             : '',
                     status: data.status || '',
+
+                    vehicleYear:
+                        data.vehicle?.year !== undefined && data.vehicle?.year !== null
+                            ? String(data.vehicle.year)
+                            : '',
+                    vehicleMake: data.vehicle?.make || '',
+                    vehicleModel: data.vehicle?.model || '',
+                    vehicleLicensePlate: data.vehicle?.licensePlate || '',
+                    vehicleVin: data.vehicle?.vin || '',
+                    vehicleColor: data.vehicle?.color || '',
+                    vehicleNotes: data.vehicle?.notes || '',
                 });
             } catch (err) {
                 console.error('Error loading work order', err);
@@ -74,7 +73,10 @@ export default function WorkOrderEditPage() {
     }, [id]);
 
     // 👉 derive customer + display name from workOrder
-    const customer = workOrder?.customerId;
+    const customer =
+        (workOrder?.customerId && typeof workOrder.customerId === "object"
+            ? workOrder.customerId
+            : workOrder?.customer) as Customer | undefined;
 
     const customerName =
         customer?.fullName ||
@@ -92,24 +94,48 @@ export default function WorkOrderEditPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const res = await fetch(`http://localhost:4000/api/work-orders/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...form,
-                odometer:
-                    form.odometer.trim() === ''
-                        ? undefined
-                        : Number(form.odometer.trim()),
-            }),
-        });
+        const payload = {
+            complaint: form.complaint,
+            diagnosis: form.diagnosis,
+            notes: form.notes,
+            odometer:
+                form.odometer.trim() === ''
+                    ? undefined
+                    : Number(form.odometer.trim()),
+            status: form.status ? (form.status as WorkOrder["status"]) : undefined,
+            vehicle: (() => {
+                const hasVehicleValues =
+                    form.vehicleYear ||
+                    form.vehicleMake ||
+                    form.vehicleModel ||
+                    form.vehicleLicensePlate ||
+                    form.vehicleVin ||
+                    form.vehicleColor ||
+                    form.vehicleNotes;
 
-        if (res.ok) {
-            alert('✅ Work order updated');
-            navigate(`/work-orders/${id}`);
-        } else {
-            alert('❌ Failed to update work order');
-        }
+                if (!hasVehicleValues) return undefined;
+
+                const yearNum =
+                    form.vehicleYear.trim() === ''
+                        ? undefined
+                        : Number(form.vehicleYear.trim());
+
+                return {
+                    year: Number.isNaN(yearNum) ? undefined : yearNum,
+                    make: form.vehicleMake || undefined,
+                    model: form.vehicleModel || undefined,
+                    licensePlate: form.vehicleLicensePlate || undefined,
+                    vin: form.vehicleVin || undefined,
+                    color: form.vehicleColor || undefined,
+                    notes: form.vehicleNotes || undefined,
+                };
+            })(),
+        };
+
+        await updateWorkOrder(id, payload);
+
+        alert('✅ Work order updated');
+        navigate(`/work-orders/${id}`);
     };
 
     if (loading) return <div style={{ padding: '1rem' }}>Loading...</div>;
@@ -166,11 +192,11 @@ export default function WorkOrderEditPage() {
                                 border: '1px solid #1f2937',
                                 background: '#020617',
                                 display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.25rem',
-                                fontSize: '0.9rem',
-                            }}
-                        >
+                        flexDirection: 'column',
+                        gap: '0.25rem',
+                        fontSize: '0.9rem',
+                    }}
+                >
                             <div
                                 style={{
                                     display: 'flex',
@@ -357,6 +383,143 @@ export default function WorkOrderEditPage() {
                                 <option value="invoiced">Invoiced</option>
                             </select>
                         </label>
+
+                        {/* Vehicle snapshot */}
+                        <div
+                            style={{
+                                border: '1px solid #1f2937',
+                                borderRadius: '0.5rem',
+                                padding: '1rem',
+                                display: 'grid',
+                                gap: '0.75rem',
+                            }}
+                        >
+                            <div style={{ fontWeight: 600 }}>Vehicle</div>
+
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gap: '0.5rem',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                }}
+                            >
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>Year</span>
+                                    <input
+                                        name="vehicleYear"
+                                        value={form.vehicleYear}
+                                        onChange={handleChange}
+                                        type="number"
+                                        min="1900"
+                                        max="2100"
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            border: '1px solid #475569',
+                                            fontSize: '1rem',
+                                        }}
+                                    />
+                                </label>
+
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>Make</span>
+                                    <input
+                                        name="vehicleMake"
+                                        value={form.vehicleMake}
+                                        onChange={handleChange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            border: '1px solid #475569',
+                                            fontSize: '1rem',
+                                        }}
+                                    />
+                                </label>
+
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>Model</span>
+                                    <input
+        name="vehicleModel"
+        value={form.vehicleModel}
+        onChange={handleChange}
+        style={{
+            width: '100%',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '0.5rem',
+            border: '1px solid #475569',
+            fontSize: '1rem',
+        }}
+    />
+                                </label>
+
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>License Plate</span>
+                                    <input
+                                        name="vehicleLicensePlate"
+                                        value={form.vehicleLicensePlate}
+                                        onChange={handleChange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            border: '1px solid #475569',
+                                            fontSize: '1rem',
+                                        }}
+                                    />
+                                </label>
+
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>VIN</span>
+                                    <input
+                                        name="vehicleVin"
+                                        value={form.vehicleVin}
+                                        onChange={handleChange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            border: '1px solid #475569',
+                                            fontSize: '1rem',
+                                        }}
+                                    />
+                                </label>
+
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <span>Color</span>
+                                    <input
+                                        name="vehicleColor"
+                                        value={form.vehicleColor}
+                                        onChange={handleChange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            border: '1px solid #475569',
+                                            fontSize: '1rem',
+                                        }}
+                                    />
+                                </label>
+                            </div>
+
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span>Vehicle Notes</span>
+                                <textarea
+                                    name="vehicleNotes"
+                                    value={form.vehicleNotes}
+                                    onChange={handleChange}
+                                    rows={2}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.5rem 0.75rem',
+                                        borderRadius: '0.5rem',
+                                        border: '1px solid #475569',
+                                        fontSize: '1rem',
+                                    }}
+                                />
+                            </label>
+                        </div>
 
                         <div
                             style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}

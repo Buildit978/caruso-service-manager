@@ -1,6 +1,7 @@
 // src/pages/CustomerEditPage.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { fetchCustomer, updateCustomer, type CustomerPayload } from "../api/customers";
 
 type CustomerForm = {
   firstName: string;
@@ -32,19 +33,12 @@ export default function CustomerEditPage() {
   useEffect(() => {
     if (!id) return;
 
-    const load = async () => {
+        const load = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(
-          `http://localhost:4000/api/customers/${id}`
-        );
-        if (!res.ok) {
-          throw new Error(`Failed to load customer (${res.status})`);
-        }
-
-        const data = await res.json();
+        const data = await fetchCustomer(id);
 
         setForm({
           firstName: data.firstName || "",
@@ -79,31 +73,15 @@ export default function CustomerEditPage() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(
-        `http://localhost:4000/api/customers/${id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-            phone: form.phone.trim() || undefined,
-            email: form.email.trim() || undefined,
-            address: form.address.trim() || undefined,
-          }),
-        }
-      );
+      const payload: Partial<CustomerPayload> = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        address: form.address.trim() || undefined,
+      };
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(
-          body.message || `Failed to update customer (${res.status})`
-        );
-      }
-
-      await res.json(); // not strictly needed, but fine
+      await updateCustomer(id, payload);
       alert("✅ Customer updated.");
       navigate(returnTo);
     } catch (err: any) {

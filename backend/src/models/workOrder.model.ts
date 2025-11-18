@@ -3,6 +3,17 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 export type WorkOrderStatus = 'open' | 'in_progress' | 'completed' | 'invoiced';
 
+export interface IWorkOrderVehicle {
+    vehicleId?: Types.ObjectId; // subdoc _id from customer.vehicles
+    year?: number;
+    make?: string;
+    model?: string;
+    vin?: string;
+    licensePlate?: string;
+    color?: string;
+}
+
+
 export interface IWorkOrder extends Document {
     customerId: Types.ObjectId;
     date: Date;
@@ -13,7 +24,21 @@ export interface IWorkOrder extends Document {
     status: WorkOrderStatus;
     createdAt: Date;
     updatedAt: Date;
+    vehicle?: IWorkOrderVehicle;
 }
+
+const workOrderVehicleSchema = new Schema<IWorkOrderVehicle>(
+    {
+        vehicleId: { type: Schema.Types.ObjectId },
+        year: Number,
+        make: String,
+        model: String,
+        vin: String,
+        licensePlate: String,
+        color: String,
+    },
+    { _id: false }
+);
 
 const workOrderSchema = new Schema<IWorkOrder>(
     {
@@ -28,6 +53,8 @@ const workOrderSchema = new Schema<IWorkOrder>(
             enum: ['open', 'in_progress', 'completed', 'invoiced'],
             default: 'open',
         },
+
+        vehicle: workOrderVehicleSchema,
     },
     {
         timestamps: true,

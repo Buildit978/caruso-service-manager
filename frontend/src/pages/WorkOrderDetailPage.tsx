@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-    getWorkOrderById,
-    markWorkOrderComplete,
-    createInvoiceForWorkOrder,
-
-} from "../types/api";
+    fetchWorkOrder,
+    updateWorkOrderStatus,
+    createInvoiceFromWorkOrder,
+    deleteWorkOrder,
+} from "../api/workOrders";
 import type { WorkOrder } from "../types/workOrder";
 
 export const INVOICE_ENABLED =
@@ -21,6 +21,9 @@ export default function WorkOrderDetailPage() {
 
     const [isMarkingComplete, setIsMarkingComplete] = useState(false);
     const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     // 🔁 Shared loader so we can call it from useEffect AND after Mark Complete
     async function loadWorkOrder() {
@@ -28,7 +31,7 @@ export default function WorkOrderDetailPage() {
         try {
             setLoading(true);
             setError(null);
-            const data = await getWorkOrderById(id);
+            const data = await fetchWorkOrder(id);
             console.log("[WO Detail] Loaded work order:", data);
             setWorkOrder(data);
         } catch (err) {
@@ -71,7 +74,7 @@ export default function WorkOrderDetailPage() {
             setError(null);
 
             console.log("[WO Detail] Marking complete for:", workOrder._id);
-            const updated = await markWorkOrderComplete(workOrder._id);
+            const updated = await updateWorkOrderStatus(workOrder._id, "completed");
 
             // Option A: trust the API to return the updated work order
             if (updated && updated.status) {
@@ -92,6 +95,8 @@ export default function WorkOrderDetailPage() {
         }
     }
 
+
+
     // 💸 Create Invoice (feature-flagged)
     async function handleCreateInvoice() {
         if (!workOrder || !workOrder._id) return;
@@ -100,19 +105,39 @@ export default function WorkOrderDetailPage() {
             setError(null);
 
             console.log("[WO Detail] Creating invoice for:", workOrder._id);
-            const invoice = await createInvoiceForWorkOrder(workOrder._id);
+            const invoice = await createInvoiceFromWorkOrder(workOrder._id);
             console.log("[WO Detail] Invoice created:", invoice);
 
-            alert(
-                `✅ Invoice #${invoice.invoiceNumber} created for ${displayName}.`
-            );
+            const invoiceLabel = invoice.invoiceNumber ?? invoice.invoiceId ?? "new";
+            console.log(`✅ Invoice #${invoiceLabel} created for ${displayName}.`);
             // optional: navigate(`/invoices/${invoice._id}`);
         } catch (err) {
             console.error("[WO Detail] Error creating invoice", err);
             setError("Failed to create invoice.");
-            alert("❌ Failed to create invoice.");
         } finally {
             setIsCreatingInvoice(false);
+        }
+    }
+
+    async function handleDelete() {
+        if (!workOrder?._id) return;
+        setShowDeleteConfirm(true);
+        setDeleteError(null);
+    }
+
+    async function confirmDelete() {
+        if (!workOrder?._id) return;
+        try {
+            setIsDeleting(true);
+            setDeleteError(null);
+            await deleteWorkOrder(workOrder._id);
+            navigate("/work-orders");
+        } catch (err) {
+            console.error("[WO Detail] Error deleting work order", err);
+            setDeleteError("Could not delete this work order. Please try again.");
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
         }
     }
 
@@ -192,7 +217,6 @@ export default function WorkOrderDetailPage() {
                         }}
                     >
 
-
                         <h2 style={{ margin: 0 }}>Work Order Details</h2>
 
                         <span
@@ -225,7 +249,28 @@ export default function WorkOrderDetailPage() {
                     <p><strong>Complaint:</strong> {workOrder.complaint}</p>
                     <p><strong>Diagnosis:</strong> {workOrder.diagnosis || "—"}</p>
                     <p><strong>Notes:</strong> {workOrder.notes || "—"}</p>
+
+                    {workOrder.vehicle && (
+                        <section style={{ marginTop: "1.5rem" }}>
+                            <h3 style={{ marginBottom: "0.5rem" }}>Vehicle</h3>
+
+                            <p>
+                                {workOrder.vehicle.year && `${workOrder.vehicle.year} `}
+                                {workOrder.vehicle.make} {workOrder.vehicle.model}
+                            </p>
+
+                            {workOrder.vehicle.licensePlate && (
+                                <p>Plate: {workOrder.vehicle.licensePlate}</p>
+                            )}
+                            {workOrder.vehicle.vin && <p>VIN: {workOrder.vehicle.vin}</p>}
+                            {workOrder.vehicle.color && <p>Color: {workOrder.vehicle.color}</p>}
+                            {workOrder.vehicle.notes && <p>Notes: {workOrder.vehicle.notes}</p>}
+                        </section>
+                    )}
+
                     <p><strong>Total:</strong> ${workOrder.total?.toFixed(2)}</p>
+
+
                 </div>
             </section>
 
@@ -283,6 +328,60 @@ export default function WorkOrderDetailPage() {
                     >
                         {INVOICE_ENABLED ? "Create Invoice" : "Invoice (Disabled)"}
                     </button>
+
+                    {/* Delete with inline confirmation */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            {!showDeleteConfirm ? (
+                                <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    style={{ border: "1px solid #b91c1c", color: "#b91c1c" }}
+                                >
+                                    Delete Work Order
+                                </button>
+                            ) : (
+                                <>
+                                    <span style={{ color: "#b91c1c", fontSize: "0.9rem" }}>
+                                        Are you sure you want to delete this work order?
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={confirmDelete}
+                                        disabled={isDeleting}
+                                        style={{
+                                            border: "1px solid #b91c1c",
+                                            color: "#b91c1c",
+                                            background: "transparent",
+                                            padding: "6px 10px",
+                                            borderRadius: "6px",
+                                        }}
+                                    >
+                                        {isDeleting ? "Deleting…" : "Yes, delete"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowDeleteConfirm(false);
+                                            setDeleteError(null);
+                                        }}
+                                        style={{
+                                            border: "1px solid #475569",
+                                            color: "#e5e7eb",
+                                            background: "transparent",
+                                            padding: "6px 10px",
+                                            borderRadius: "6px",
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        {deleteError && (
+                            <div style={{ color: "#ef4444", fontSize: "0.9rem" }}>{deleteError}</div>
+                        )}
+                    </div>
                 </div>
             </footer>
         </div>

@@ -20,7 +20,11 @@ router.get(
             }
 
             const workOrders = await WorkOrder.find(query)
-                .populate('customerId', 'name phone email') // populate linked customer
+                .populate(
+                    'customerId',
+                    // expose names + contact info; virtual fullName will be available when serialized
+                    'firstName lastName phone email address'
+                )
                 .sort({ createdAt: -1 });
 
             res.json(workOrders);
@@ -114,14 +118,40 @@ router.get('/:id', async (req, res) => {
         const workOrder = await WorkOrder.findById(req.params.id)
             .populate(
                 'customerId',
-                'firstName lastName phone email address' // fields that actually exist now
+                'firstName lastName phone email address vehicles' // include vehicles for lookup
             );
 
         if (!workOrder) {
             return res.status(404).json({ message: 'Work order not found' });
         }
 
-        res.json(workOrder);
+        // Ensure vehicle snapshot is present in the response. If missing but a vehicleId exists,
+        // try to hydrate from the customer's saved vehicles.
+        const woObj: any = workOrder.toObject();
+
+        const customer: any = woObj.customerId;
+        const hasVehicleSnapshot = Boolean(woObj.vehicle);
+        const vehicleId = woObj.vehicle?.vehicleId || woObj.vehicleId;
+
+        if (!hasVehicleSnapshot && customer?.vehicles?.length && vehicleId) {
+            const match = customer.vehicles.find(
+                (v: any) => v._id?.toString() === vehicleId.toString()
+            );
+            if (match) {
+                woObj.vehicle = {
+                    vehicleId: match._id,
+                    year: match.year,
+                    make: match.make,
+                    model: match.model,
+                    vin: match.vin,
+                    licensePlate: match.licensePlate,
+                    color: match.color,
+                    notes: match.notes,
+                };
+            }
+        }
+
+        res.json(woObj);
     } catch (error) {
         console.error('Error fetching work order by ID:', error);
         res.status(500).json({ message: 'Server error' });
@@ -133,7 +163,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/work-orders
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { customerId, complaint, odometer, notes } = req.body;
+        const { customerId, complaint, odometer, diagnosis, notes, vehicle } = req.body;
 
         if (!customerId) {
             return res.status(400).json({ message: 'customerId is required' });
@@ -152,10 +182,14 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
             customerId,
             complaint: complaint.trim(),
             odometer,
+            diagnosis,
             notes,
+            vehicle,   // 👈 save snapshot into schema
             status: 'open',
             date: new Date(),
         });
+
+        await workOrder.save();
 
         res.status(201).json(workOrder);
     } catch (err) {
@@ -168,7 +202,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 // PUT /api/work-orders/:id
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { complaint, diagnosis, notes, odometer, status } = req.body;
+        const { complaint, diagnosis, notes, odometer, status, vehicle } = req.body;
 
         const update: any = {
             complaint,
@@ -179,6 +213,19 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
         if (status) {
             update.status = status;
+        }
+
+        if (vehicle) {
+            update.vehicle = {
+                vehicleId: vehicle.vehicleId,
+                year: vehicle.year,
+                make: vehicle.make,
+                model: vehicle.model,
+                vin: vehicle.vin,
+                licensePlate: vehicle.licensePlate,
+                color: vehicle.color,
+                notes: vehicle.notes,
+            };
         }
 
         const workOrder = await WorkOrder.findByIdAndUpdate(
@@ -225,5 +272,24 @@ router.patch(
     }
 );
 
-export default router;
+router.delete(
+    "/:id",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { id } = req.params;
+            const deleted = await WorkOrder.findByIdAndDelete(id);
 
+            if (!deleted) {
+                return res.status(404).json({ message: "Work order not found" });
+            }
+
+            return res.status(204).send();
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+
+
+export default router;

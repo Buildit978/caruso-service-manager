@@ -1,4 +1,6 @@
 // frontend/src/api/settings.ts
+import api from "./client";
+
 export type DiscountType = "none" | "percent" | "flat";
 
 export type SettingsResponse = {
@@ -9,16 +11,6 @@ export type SettingsResponse = {
     discountValue: number;  // 0–100 if percent, or CAD if flat
 };
 
-const BASE_URL = "http://localhost:4000";
-
-export async function fetchSettings(): Promise<SettingsResponse> {
-    const res = await fetch(`${BASE_URL}/api/settings`);
-    if (!res.ok) {
-        throw new Error("Failed to load settings");
-    }
-    return res.json();
-}
-
 export type UpdateSettingsPayload = {
     shopName?: string;
     taxRate?: number;         // send as percent (e.g. 13)
@@ -26,20 +18,14 @@ export type UpdateSettingsPayload = {
     discountValue?: number;
 };
 
+export async function fetchSettings(): Promise<SettingsResponse> {
+    const res = await api.get<SettingsResponse>("/settings");
+    return res.data;
+}
+
 export async function updateSettings(
     payload: UpdateSettingsPayload
 ): Promise<SettingsResponse> {
-    const res = await fetch(`${BASE_URL}/api/settings`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-        throw new Error("Failed to update settings");
-    }
-
-    return res.json();
+    const res = await api.put<SettingsResponse>("/settings", payload);
+    return res.data;
 }

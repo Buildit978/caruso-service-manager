@@ -200,49 +200,86 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 
 // PUT /api/work-orders/:id
-router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.put(
+  "/:id",
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { complaint, diagnosis, notes, odometer, status, vehicle } = req.body;
+      const { id } = req.params;
+      const updates = req.body;
 
-        const update: any = {
-            complaint,
-            diagnosis,
-            notes,
-            odometer,
+      // 1) Load the existing work order
+      const workOrder = await WorkOrder.findById(id);
+      if (!workOrder) {
+        return res.status(404).json({ message: "Work order not found" });
+      }
+
+      // 2) Apply scalar field updates if provided
+      if (typeof updates.complaint !== "undefined") {
+        workOrder.complaint = updates.complaint;
+      }
+      if (typeof updates.diagnosis !== "undefined") {
+        workOrder.diagnosis = updates.diagnosis;
+      }
+      if (typeof updates.notes !== "undefined") {
+        workOrder.notes = updates.notes;
+      }
+      if (typeof updates.odometer !== "undefined") {
+        workOrder.odometer = updates.odometer;
+      }
+      if (typeof updates.status !== "undefined") {
+        workOrder.status = updates.status;
+      }
+
+      // 3) Vehicle snapshot (optional)
+      if (typeof updates.vehicle !== "undefined" && updates.vehicle) {
+        const v = updates.vehicle;
+        workOrder.vehicle = {
+          vehicleId: v.vehicleId,
+          year: v.year,
+          make: v.make,
+          model: v.model,
+          vin: v.vin,
+          licensePlate: v.licensePlate,
+          color: v.color,
+          notes: v.notes,
         };
+      }
 
-        if (status) {
-            update.status = status;
-        }
+      // 4) Line items + taxRate from the frontend
+      if (Array.isArray(updates.lineItems)) {
+        workOrder.lineItems = updates.lineItems;
+      }
+      if (typeof updates.taxRate !== "undefined") {
+        workOrder.taxRate = updates.taxRate;
+      }
 
-        if (vehicle) {
-            update.vehicle = {
-                vehicleId: vehicle.vehicleId,
-                year: vehicle.year,
-                make: vehicle.make,
-                model: vehicle.model,
-                vin: vehicle.vin,
-                licensePlate: vehicle.licensePlate,
-                color: vehicle.color,
-                notes: vehicle.notes,
-            };
-        }
+      // 5) If lineItems or taxRate changed, recalc money fields
+      if (Array.isArray(updates.lineItems) || typeof updates.taxRate !== "undefined") {
+        const items = workOrder.lineItems || [];
+        const taxRate = workOrder.taxRate ?? 13;
 
-        const workOrder = await WorkOrder.findByIdAndUpdate(
-            req.params.id,
-            update,
-            { new: true, runValidators: true }
+        const subtotal = items.reduce(
+          (sum: number, item: any) => sum + (item.lineTotal || 0),
+          0
         );
+        const taxAmount = subtotal * (taxRate / 100);
+        const total = subtotal + taxAmount;
 
-        if (!workOrder) {
-            return res.status(404).json({ message: 'Work order not found' });
-        }
+        (workOrder as any).subtotal = subtotal;
+        (workOrder as any).taxAmount = taxAmount;
+        (workOrder as any).total = total;
+      }
 
-        res.json(workOrder);
+      // 6) Save and return the full work order
+      const saved = await workOrder.save();
+      res.json(saved);
     } catch (err) {
-        next(err);
+      next(err);
     }
-});
+  }
+);
+
+
 
 // PATCH /api/work-orders/:id/status  (for quick status updates)
 router.patch(

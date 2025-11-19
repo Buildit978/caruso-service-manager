@@ -1,9 +1,7 @@
 // frontend/src/pages/CustomersPage.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { WorkOrder } from "../types/workOrder";
 import type { Customer } from "../types/customer";
-import { fetchWorkOrders } from "../api/workOrders";
 import { fetchCustomers } from "../api/customers";
 
 
@@ -19,33 +17,9 @@ export default function CustomersPage() {
                 setLoading(true);
                 setError(null);
 
-                const [customersData, workOrdersData] = await Promise.all([
-                    fetchCustomers(),
-                    fetchWorkOrders(),
-                ]);
+                const customersData = await fetchCustomers();
 
-                // Debug one sample, optional:
-                // console.log("[CustomersPage] sample work order:", workOrdersData[0]);
-
-                const openCountMap: Record<string, number> = {};
-
-                for (const wo of workOrdersData) {
-                    const status = (wo.status || "").toLowerCase();
-                    const customerKey =
-                        wo.customerId || (wo.customer && wo.customer._id) || null;
-
-                    if (status === "open" && customerKey) {
-                        openCountMap[customerKey] =
-                            (openCountMap[customerKey] || 0) + 1;
-                    }
-                }
-
-                const enrichedCustomers = customersData.map((c) => ({
-                    ...c,
-                    openWorkOrdersCount: openCountMap[c._id] || 0,
-                }));
-
-                setCustomers(enrichedCustomers);
+                setCustomers(customersData);
             } catch (err) {
                 console.error("[CustomersPage] load error", err);
                 setError("Could not load customers.");
@@ -101,12 +75,12 @@ export default function CustomersPage() {
                         <tbody>
                             {customers.map((c) => (
                                 <tr key={c._id}>
-                                    <td style={{ padding: "0.5rem 0" }}>
+                                    <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                                         {c.fullName || `${c.firstName} ${c.lastName}`}
                                     </td>
                                     <td>{c.phone || "-"}</td>
                                     <td>{c.email || "-"}</td>
-                                    <td>{c.openWorkOrdersCount ?? 0}</td>
+                                    <td>{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
                                     <td>
                                         <Link to={`/customers/${c._id}`}>View</Link>
                                     </td>

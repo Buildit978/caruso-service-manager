@@ -15,17 +15,38 @@ export interface IWorkOrderVehicle {
 
 
 export interface IWorkOrder extends Document {
-    customerId: Types.ObjectId;
-    date: Date;
-    odometer?: number;
-    complaint: string;
-    diagnosis?: string;
-    notes?: string;
-    status: WorkOrderStatus;
-    createdAt: Date;
-    updatedAt: Date;
-    vehicle?: IWorkOrderVehicle;
+  customerId: Types.ObjectId;
+  date: Date;
+  odometer?: number;
+  complaint: string;
+  diagnosis?: string;
+  notes?: string;
+  status: WorkOrderStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  vehicle?: IWorkOrderVehicle;
+
+  lineItems: ILineItem[];  // 👈 add this
+  taxRate: number;
+
+  subtotal?: number;
+  taxAmount?: number;
+  total?: number;  // 👈 add this
 }
+
+
+export type LineItemType = "labour" | "part" | "service";
+
+
+export interface ILineItem {
+  type: LineItemType;      // "labour" or "part"
+  description: string;
+  quantity: number;        // hours for labour, units for parts
+  unitPrice: number;       // rate per hour or price per unit
+  lineTotal: number;
+}
+
+
 
 const workOrderVehicleSchema = new Schema<IWorkOrderVehicle>(
     {
@@ -40,6 +61,27 @@ const workOrderVehicleSchema = new Schema<IWorkOrderVehicle>(
     { _id: false }
 );
 
+const lineItemSchema = new Schema<ILineItem>(
+  {
+    type: {
+      type: String,
+      enum: ["labour", "part", "service"],
+      required: true,
+    },
+
+    description: { type: String, default: "" },
+
+    quantity: { type: Number, default: 0 },
+
+    unitPrice: { type: Number, default: 0 },
+
+    lineTotal: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
+
+
 const workOrderSchema = new Schema<IWorkOrder>(
     {
         customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
@@ -52,7 +94,15 @@ const workOrderSchema = new Schema<IWorkOrder>(
             type: String,
             enum: ['open', 'in_progress', 'completed', 'invoiced'],
             default: 'open',
+            lowercase: true,  // normalize any incoming values
+            trim: true,
         },
+        lineItems: { type: [lineItemSchema], default: [] },
+        taxRate: { type: Number, default: 13 },
+        
+        subtotal: { type: Number, default: 0 },   // 👈
+        taxAmount: { type: Number, default: 0 },  // 👈
+        total: { type: Number, default: 0 },      // 👈
 
         vehicle: workOrderVehicleSchema,
     },
@@ -60,6 +110,7 @@ const workOrderSchema = new Schema<IWorkOrder>(
         timestamps: true,
     }
 );
+
 
 // helpful index for date-based queries
 workOrderSchema.index({ date: -1 });

@@ -1,6 +1,7 @@
 // src/routes/customers.routes.ts
 import { Router, Request, Response, NextFunction } from 'express';
 import { Customer } from '../models/customer.model';  // 👈 named import
+import { WorkOrder } from '../models/workOrder.model';
 
 const router = Router();
 
@@ -25,8 +26,51 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
             query = { name: regex };
         }
 
-        const customers = await Customer.find(query).sort({ createdAt: -1 });
-        res.json(customers);
+        const customers = await Customer.find(query).sort({ createdAt: -1 }).lean();
+
+        // Short-circuit if no customers
+        if (!customers.length) {
+            return res.json(customers);
+        }
+
+        // Compute active work order counts (open + in_progress), normalizing status casing/whitespace
+        const customerIds = customers.map((c) => c._id);
+        const activeCounts = await WorkOrder.aggregate([
+            { $match: { customerId: { $in: customerIds } } },
+            {
+                $group: {
+                    _id: {
+                        customerId: "$customerId",
+                        status: { $toLower: { $trim: { input: "$status" } } },
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+            {
+                $match: {
+                    "_id.status": { $in: ["open", "in_progress"] },
+                },
+            },
+            {
+                $group: {
+                    _id: "$_id.customerId",
+                    openWorkOrders: { $sum: "$count" },
+                },
+            },
+        ]);
+
+        const countsByCustomer: Record<string, number> = {};
+        for (const row of activeCounts) {
+            const key = row._id?.toString?.() ?? "";
+            if (key) countsByCustomer[key] = row.openWorkOrders ?? 0;
+        }
+
+        const enriched = customers.map((c: any) => ({
+            ...c,
+            openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
+        }));
+
+        res.json(enriched);
     } catch (err) {
         next(err);
     }

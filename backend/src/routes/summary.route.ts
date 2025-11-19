@@ -67,24 +67,44 @@ router.get("/", async (req, res) => {
         const startOfWeek = getStartOfWeek();
 
         const [
+            statusAgg,
             totalCustomers,
-            openWorkOrders,
-            completedWorkOrders,
             allTimeRevenueAgg,
             thisWeekAgg,
             settingsDoc,
         ] = await Promise.all([
-            Customer.countDocuments(),
-            WorkOrder.countDocuments({ status: "open" }),
-            WorkOrder.countDocuments({ status: "completed" }),
+            // Normalize status to lowercase + trimmed so we count legacy values consistently
             WorkOrder.aggregate([
-                { $match: { status: "completed" } },
+                {
+                    $group: {
+                        _id: { $toLower: { $trim: { input: "$status" } } },
+                        count: { $sum: 1 },
+                    },
+                },
+            ]),
+            Customer.countDocuments(),
+            WorkOrder.aggregate([
+                {
+                    $match: {
+                        $expr: {
+                            $eq: [
+                                { $toLower: { $trim: { input: "$status" } } },
+                                "completed",
+                            ],
+                        },
+                    },
+                },
                 { $group: { _id: null, total: { $sum: "$total" } } },
             ]),
             WorkOrder.aggregate([
                 {
                     $match: {
-                        status: "completed",
+                        $expr: {
+                            $eq: [
+                                { $toLower: { $trim: { input: "$status" } } },
+                                "completed",
+                            ],
+                        },
                         createdAt: { $gte: startOfWeek },
                     },
                 },
@@ -98,6 +118,26 @@ router.get("/", async (req, res) => {
             ]),
             Settings.findOne(), // 👈 fetch current shop settings
         ]);
+
+        const statusCounts = statusAgg.reduce(
+            (acc: Record<string, number>, row: any) => {
+                const key = typeof row._id === "string" ? row._id : "";
+                if (key in acc) {
+                    acc[key] = row.count;
+                }
+                return acc;
+            },
+            {
+                open: 0,
+                in_progress: 0,
+                completed: 0,
+                invoiced: 0,
+            }
+        );
+
+        // Treat "open" as any non-completed/non-invoiced active work order
+        const openWorkOrders = statusCounts.open + statusCounts.in_progress;
+        const completedWorkOrders = statusCounts.completed;
 
         const taxRateDecimal = settingsDoc?.taxRate ?? 0;
         const discountType = (settingsDoc?.discountType ?? "none") as DiscountType;

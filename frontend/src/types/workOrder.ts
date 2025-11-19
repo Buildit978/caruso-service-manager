@@ -33,3 +33,16 @@ export interface WorkOrder {
     customerId?: string | Customer;
     customer?: Customer;
 }
+
+export type WorkOrderLineItemType = "labour" | "part" | "service";
+
+export interface WorkOrderLineItem {
+  type: WorkOrderLineItemType;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  rawQuantity?: string;    // for UI only
+  rawUnitPrice?: string;   // for UI only
+}
+

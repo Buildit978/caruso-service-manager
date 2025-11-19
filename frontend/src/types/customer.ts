@@ -11,5 +11,6 @@ export interface Customer {
     address?: string;
     notes?: string;
 
+    openWorkOrders?: number;
     openWorkOrdersCount?: number;
 }

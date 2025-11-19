@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-    fetchWorkOrder,
-    updateWorkOrderStatus,
-    createInvoiceFromWorkOrder,
-    deleteWorkOrder,
-} from "../api/workOrders";
-import type { WorkOrder } from "../types/workOrder";
+import { fetchWorkOrder, updateWorkOrderStatus, createInvoiceFromWorkOrder, deleteWorkOrder, updateWorkOrder, } from "../api/workOrders";
+import type { WorkOrder, WorkOrderLineItem, } from "../types/workOrder";
+
+
 
 export const INVOICE_ENABLED =
     import.meta.env.VITE_INVOICE_ENABLED === "true";
@@ -24,6 +21,10 @@ export default function WorkOrderDetailPage() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    const [lineItems, setLineItems] = useState<WorkOrderLineItem[]>([]);
+    const [taxRate, setTaxRate] = useState<number>(13);
+    const [saving, setSaving] = useState(false);
 
     // 🔁 Shared loader so we can call it from useEffect AND after Mark Complete
     async function loadWorkOrder() {
@@ -46,6 +47,12 @@ export default function WorkOrderDetailPage() {
         loadWorkOrder();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    useEffect(() => {
+  if (!workOrder) return;
+  setLineItems(workOrder.lineItems ?? []);
+  setTaxRate(workOrder.taxRate ?? 13);
+}, [workOrder]);
 
     // Derive customer + display name from the loaded work order
     const customer =
@@ -119,11 +126,118 @@ export default function WorkOrderDetailPage() {
         }
     }
 
+  const parseQuantityInput = (raw: string): number => {
+  const trimmed = raw.trim();
+  if (!trimmed) return 0;
+
+  // Handle "H:MM" format, e.g. "1:15"
+  if (trimmed.includes(":")) {
+    const [hStr, mStr] = trimmed.split(":");
+    const hours = Number(hStr) || 0;
+    const minutes = Number(mStr) || 0;
+    return hours + minutes / 60;
+  }
+
+  // Fallback to simple decimal, e.g. "1.5"
+  return Number(trimmed) || 0;
+  };
+  
+    const handleLineItemChange = (
+  index: number,
+  field: keyof WorkOrderLineItem | "rawQuantity" | "rawUnitPrice",
+  value: string
+) => {
+  setLineItems((prev) => {
+    const next = [...prev];
+    const item = { ...next[index] };
+
+    if (field === "rawQuantity") {
+      // Store what the user typed (e.g. "1:25")
+      item.rawQuantity = value;
+      // Parse to a decimal number for math
+      item.quantity = parseQuantityInput(value);
+    } else if (field === "rawUnitPrice") {
+      // Store what the user typed (e.g. "120.50")
+      item.rawUnitPrice = value;
+      // Strip non-numeric stuff except dot, then parse
+      const cleaned = value.replace(/[^0-9.]/g, "");
+      item.unitPrice = Number(cleaned) || 0;
+    } else if (field === "type") {
+      item.type = value as WorkOrderLineItem["type"];
+    } else if (field === "description") {
+      item.description = value;
+    } else {
+      // fallback for any other fields
+      (item as any)[field] = value;
+    }
+
+    const qty = item.quantity ?? 0;
+    const price = item.unitPrice ?? 0;
+    item.lineTotal = qty * price;
+
+    next[index] = item;
+    return next;
+  });
+};
+
+
+    
+    const handleAddLineItem = () => {
+  setLineItems((prev) => [
+    ...prev,
+    {
+      type: "labour",              // default
+      description: "",
+      quantity: 1,
+      unitPrice: 0,
+      lineTotal: 0,
+    },
+  ]);
+};
+
+const handleRemoveLineItem = (index: number) => {
+  setLineItems((prev) => prev.filter((_, i) => i !== index));
+};
+
+const computedSubtotal = lineItems.reduce(
+  (sum, item) => sum + (item.lineTotal || 0),
+  0
+);
+const computedTaxAmount = computedSubtotal * (taxRate / 100);
+const computedTotal = computedSubtotal + computedTaxAmount;
+
+const handleSaveLineItems = async () => {
+  if (!workOrder?._id) return;
+  setSaving(true);
+  try {
+    // 1) Save to backend
+    await updateWorkOrder(workOrder._id, {
+      lineItems,
+      taxRate,
+    });
+
+    // 2) Reload the full work order (with customer populated, etc.)
+    await loadWorkOrder();
+
+    alert("✅ Line items saved.");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Failed to save line items.");
+  } finally {
+    setSaving(false);
+  }
+};
+
+  
+
+
+
     async function handleDelete() {
         if (!workOrder?._id) return;
         setShowDeleteConfirm(true);
         setDeleteError(null);
     }
+
 
     async function confirmDelete() {
         if (!workOrder?._id) return;
@@ -268,11 +382,314 @@ export default function WorkOrderDetailPage() {
                         </section>
                     )}
 
-                    <p><strong>Total:</strong> ${workOrder.total?.toFixed(2)}</p>
+                    <p><strong>Total:</strong> ${computedTotal.toFixed(2)}</p>
 
 
                 </div>
             </section>
+
+        
+
+{/* LINE ITEMS SECTION */}
+<section style={{ marginTop: "32px" }}>
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: "12px",
+ 
+    }}
+  >
+    <h3 style={{ margin: 0 }}>Line Items</h3>
+
+    <button
+      type="button"
+      onClick={handleAddLineItem}
+      style={{
+         padding: "6px 12px ",
+         borderRadius: "4px",
+         border: "1px solid #111827",
+         backgroundColor: "#111827",
+         color: "#ffffff",          // <- force white text
+         fontSize: "0.85rem",
+         cursor: "pointer",
+      }}
+    >
+      + Add Line
+    </button>
+  </div>
+
+  <div style={{ overflowX: "auto" }}>
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse",
+        fontSize: "0.9rem",
+      }}
+    >
+      <thead>
+        <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+          <th
+            style={{
+    textAlign: "left",
+    padding: "8px 25px",
+    fontWeight: 600,
+        }}
+          >
+            Type
+          </th>
+          <th
+            style={{
+              textAlign: "left",
+              padding: "8px 8px 8px 0px",
+              fontWeight: 600,
+            }}
+          >
+            Description
+          </th>
+          <th
+            style={{
+              textAlign: "right",
+              padding: "8px",
+              fontWeight: 600,
+            }}
+          >
+            Qty / Hours
+          </th>
+          <th
+            style={{
+              textAlign: "right",
+              padding: "8px",
+              fontWeight: 600,
+            }}
+          >
+            Unit Price
+          </th>
+          <th
+            style={{
+              textAlign: "right",
+              padding: "8px",
+              fontWeight: 600,
+            }}
+          >
+            Line Total
+          </th>
+          <th style={{ padding: "8px", width: "1%" }} />
+        </tr>
+      </thead>
+      <tbody>
+        {lineItems.length === 0 && (
+          <tr>
+            <td
+              colSpan={6}
+              style={{
+                padding: "12px 12px",
+                textAlign: "center",
+                color: "#6b7280",
+              }}
+            >
+              No line items yet. Click &ldquo;Add Line&rdquo; to get started.
+            </td>
+          </tr>
+        )}
+
+        {lineItems.map((item, index) => (
+          <tr key={index} style={{ borderTop: "1px solid #f3f4f6" }}>
+            {/* Type */}
+            <td style={{ padding: "8px 8px 8px 0" }}>
+              <select
+                value={item.type}
+                onChange={(e) =>
+                  handleLineItemChange(index, "type", e.target.value)
+                }
+                style={{
+                  border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    marginLeft: "25px",
+                  padding: "4px 6px",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <option value="labour">Labour</option>
+                <option value="part">Part</option>
+                <option value="service">Service</option>
+              </select>
+            </td>
+
+            {/* Description */}
+            <td style={{ padding: "8px 8px 8px 0" }}>
+              <input
+                type="text"
+                value={item.description}
+                onChange={(e) =>
+                  handleLineItemChange(index, "description", e.target.value)
+                }
+                placeholder={
+                  item.type === "labour"
+                    ? "e.g. Brake inspection"
+                    : "e.g. Brake pads"
+                }
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  fontSize: "0.85rem",
+                }}
+              />
+            </td>
+
+            {/* Quantity */}
+            <td style={{ padding: "8px", textAlign: "right" }}>
+             <input
+                    type="text"
+                    value={item.rawQuantity ?? ""}
+                    onChange={(e) =>
+                      handleLineItemChange(index, "rawQuantity", e.target.value)
+                    }
+                    style={{
+                      width: "80px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      padding: "4px 8px",
+                      fontSize: "0.85rem",
+                      textAlign: "right",
+                    }}
+                    placeholder={item.type === "labour" ? "e.g. 1:25" : "Qty"}
+                  />
+
+
+
+
+            </td>
+
+            {/* Unit Price */}
+            <td style={{ padding: "8px", textAlign: "right" }}>
+              <input
+                      type="text"
+                      value={item.rawUnitPrice ?? ""}
+                      onChange={(e) =>
+                        handleLineItemChange(index, "rawUnitPrice", e.target.value)
+                      }
+                      style={{
+                        width: "100px",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        padding: "4px 8px",
+                        fontSize: "0.85rem",
+                        textAlign: "right",
+                      }}
+                      placeholder="$0.00"
+                    />
+
+
+            </td>
+
+            {/* Line Total */}
+            <td style={{ padding: "8px", textAlign: "right" }}>
+              {item.lineTotal.toFixed(2)} 
+            
+            </td>
+
+            {/* Remove */}
+            <td style={{ padding: "8px", textAlign: "right" }}>
+              <button
+                type="button"
+                onClick={() => handleRemoveLineItem(index)}
+                style={{
+                  border: "none",
+                  background: "none",
+                  color: "#dc2626",
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                }}
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {/* Totals block */}
+  <div
+    style={{
+      marginTop: "16px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-end",
+      gap: "4px",
+      fontSize: "0.9rem",
+    }}
+  >
+    <div style={{ display: "flex", gap: "12px" }}>
+      <span style={{ fontWeight: 600 }}>Subtotal:</span>
+      <span>${computedSubtotal.toFixed(2)}</span>
+    </div>
+
+    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <span style={{ fontWeight: 600 }}>Tax Rate:</span>
+      <input
+        type="number"
+        min={0}
+        step="0.1"
+        value={taxRate}
+        onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+        style={{
+          width: "80px",
+          border: "1px solid #d1d5db",
+          borderRadius: "4px",
+          padding: "4px 8px",
+          fontSize: "0.85rem",
+          textAlign: "right",
+        }}
+      />
+      <span>%</span>
+    </div>
+
+    <div style={{ display: "flex", gap: "12px" }}>
+      <span style={{ fontWeight: 600 }}>Tax Amount:</span>
+      <span>${computedTaxAmount.toFixed(2)}</span>
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        gap: "12px",
+        fontWeight: 700,
+        fontSize: "1rem",
+        marginTop: "4px",
+      }}
+    >
+      <span>Total:</span>
+      <span>${computedTotal.toFixed(2)}</span>
+    </div>
+  </div>
+
+  <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+    <button
+      type="button"
+      onClick={handleSaveLineItems}
+      disabled={saving}
+      style={{
+        padding: "8px 16px",
+        borderRadius: "4px",
+        border: "1px solid #4b5563",
+        backgroundColor: saving ? "#e5e7eb" : "#111827",
+        color: saving ? "#6b7280" : "#ffffff",
+        fontSize: "0.9rem",
+        cursor: saving ? "default" : "pointer",
+      }}
+    >
+      {saving ? "Saving..." : "Save Line Items"}
+    </button>
+  </div>
+</section>
+
+
 
             {/* FOOTER BUTTONS */}
             <footer

@@ -49,10 +49,10 @@ export default function WorkOrderDetailPage() {
     }, [id]);
 
     useEffect(() => {
-  if (!workOrder) return;
-  setLineItems(workOrder.lineItems ?? []);
-  setTaxRate(workOrder.taxRate ?? 13);
-}, [workOrder]);
+        if (!workOrder) return;
+        setLineItems(workOrder.lineItems ?? []);
+        setTaxRate(workOrder.taxRate ?? 13);
+    }, [workOrder]);
 
     // Derive customer + display name from the loaded work order
     const customer =
@@ -199,21 +199,74 @@ const handleRemoveLineItem = (index: number) => {
   setLineItems((prev) => prev.filter((_, i) => i !== index));
 };
 
-const computedSubtotal = lineItems.reduce(
-  (sum, item) => sum + (item.lineTotal || 0),
-  0
-);
-const computedTaxAmount = computedSubtotal * (taxRate / 100);
-const computedTotal = computedSubtotal + computedTaxAmount;
+    const normalizedLineItems = Array.isArray(lineItems)
+        ? lineItems.map((item) => {
+              const quantity = Number(item?.quantity) || 0;
+              const unitPrice = Number(item?.unitPrice) || 0;
+              const lineTotal =
+                  typeof item?.lineTotal === "number"
+                      ? item.lineTotal
+                      : quantity * unitPrice;
+              return {
+                  ...item,
+                  type: item?.type ?? "labour",
+                  description: item?.description ?? "",
+                  rawQuantity:
+                      item?.rawQuantity ??
+                      (item?.quantity !== undefined && item?.quantity !== null
+                          ? String(item.quantity)
+                          : ""),
+                  rawUnitPrice:
+                      item?.rawUnitPrice ??
+                      (item?.unitPrice !== undefined && item?.unitPrice !== null
+                          ? String(item.unitPrice)
+                          : ""),
+                  quantity,
+                  unitPrice,
+                  lineTotal,
+              };
+          })
+        : [];
+
+    const computedSubtotal = normalizedLineItems.reduce(
+        (sum, item) => sum + (item.lineTotal || 0),
+        0
+    );
+    const taxRateToUse =
+        typeof taxRate === "number" && !Number.isNaN(taxRate)
+            ? taxRate
+            : 13;
+    const computedTaxAmount = computedSubtotal * (taxRateToUse / 100);
+    const computedTotal = computedSubtotal + computedTaxAmount;
+
+    const effectiveSubtotal =
+        typeof workOrder?.subtotal === "number"
+            ? workOrder.subtotal
+            : computedSubtotal;
+
+    const effectiveTaxAmount =
+        typeof workOrder?.taxAmount === "number"
+            ? workOrder.taxAmount
+            : computedTaxAmount;
+
+    const effectiveTotal =
+        typeof workOrder?.total === "number"
+            ? workOrder.total
+            : computedTotal;
+
 
 const handleSaveLineItems = async () => {
   if (!workOrder?._id) return;
   setSaving(true);
   try {
+    const payloadLineItems = normalizedLineItems.map(
+      ({ rawQuantity, rawUnitPrice, ...rest }) => rest
+    );
+
     // 1) Save to backend
     await updateWorkOrder(workOrder._id, {
-      lineItems,
-      taxRate,
+      lineItems: payloadLineItems,
+      taxRate: taxRateToUse,
     });
 
     // 2) Reload the full work order (with customer populated, etc.)
@@ -382,7 +435,7 @@ const handleSaveLineItems = async () => {
                         </section>
                     )}
 
-                    <p><strong>Total:</strong> ${computedTotal.toFixed(2)}</p>
+                    <p><strong>Total:</strong> ${effectiveTotal.toFixed(2)}</p>
 
 
                 </div>
@@ -391,7 +444,7 @@ const handleSaveLineItems = async () => {
         
 
 {/* LINE ITEMS SECTION */}
-<section style={{ marginTop: "32px" }}>
+        <section style={{ marginTop: "32px", padding: "50px"  }}>
   <div
     style={{
       display: "flex",
@@ -479,7 +532,7 @@ const handleSaveLineItems = async () => {
         </tr>
       </thead>
       <tbody>
-        {lineItems.length === 0 && (
+        {normalizedLineItems.length === 0 && (
           <tr>
             <td
               colSpan={6}
@@ -494,7 +547,7 @@ const handleSaveLineItems = async () => {
           </tr>
         )}
 
-        {lineItems.map((item, index) => (
+        {normalizedLineItems.map((item, index) => (
           <tr key={index} style={{ borderTop: "1px solid #f3f4f6" }}>
             {/* Type */}
             <td style={{ padding: "8px 8px 8px 0" }}>
@@ -627,7 +680,7 @@ const handleSaveLineItems = async () => {
   >
     <div style={{ display: "flex", gap: "12px" }}>
       <span style={{ fontWeight: 600 }}>Subtotal:</span>
-      <span>${computedSubtotal.toFixed(2)}</span>
+              <span>${effectiveSubtotal.toFixed(2)}</span>
     </div>
 
     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -652,7 +705,7 @@ const handleSaveLineItems = async () => {
 
     <div style={{ display: "flex", gap: "12px" }}>
       <span style={{ fontWeight: 600 }}>Tax Amount:</span>
-      <span>${computedTaxAmount.toFixed(2)}</span>
+      <span>${effectiveTaxAmount.toFixed(2)}</span>
     </div>
 
     <div
@@ -665,7 +718,7 @@ const handleSaveLineItems = async () => {
       }}
     >
       <span>Total:</span>
-      <span>${computedTotal.toFixed(2)}</span>
+      <span>${effectiveTotal.toFixed(2)}</span>
     </div>
   </div>
 

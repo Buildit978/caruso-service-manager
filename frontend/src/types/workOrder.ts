@@ -17,7 +17,6 @@ export interface WorkOrderVehicle {
 export interface WorkOrder {
     _id: string;
     status: WorkOrderStatus;
-    total?: number;
     createdAt: string;
     date?: string;
     odometer?: number;
@@ -32,17 +31,23 @@ export interface WorkOrder {
     // normalized: separate customerId + optional populated customer
     customerId?: string | Customer;
     customer?: Customer;
+
+    // pricing
+    lineItems?: WorkOrderLineItem[];
+    taxRate?: number;
+    subtotal?: number;
+    taxAmount?: number;
+    total?: number;
 }
 
 export type WorkOrderLineItemType = "labour" | "part" | "service";
 
 export interface WorkOrderLineItem {
-  type: WorkOrderLineItemType;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
+  type?: WorkOrderLineItemType;
+  description?: string;
+  quantity?: number;
+  unitPrice?: number;
+  lineTotal?: number;
   rawQuantity?: string;    // for UI only
   rawUnitPrice?: string;   // for UI only
 }
-

@@ -151,6 +151,48 @@ router.get('/:id', async (req, res) => {
             }
         }
 
+        // Normalize line items + money fields so older work orders (without the new schema)
+        // still return a consistent shape to the frontend.
+        const rawLineItems: any[] = Array.isArray(woObj.lineItems) ? woObj.lineItems : [];
+        const normalizedLineItems = rawLineItems.map((item) => {
+            const quantity = Number(item?.quantity) || 0;
+            const unitPrice = Number(item?.unitPrice) || 0;
+            const lineTotal =
+                typeof item?.lineTotal === "number" ? item.lineTotal : quantity * unitPrice;
+            return {
+                type: item?.type,
+                description: item?.description ?? "",
+                quantity,
+                unitPrice,
+                lineTotal,
+            };
+        });
+
+        const subtotal =
+            typeof woObj.subtotal === "number"
+                ? woObj.subtotal
+                : normalizedLineItems.reduce(
+                      (sum: number, item: any) => sum + (item.lineTotal || 0),
+                      0
+                  );
+
+        const taxRate =
+            typeof woObj.taxRate === "number" && !Number.isNaN(woObj.taxRate)
+                ? woObj.taxRate
+                : 13;
+        const taxAmount =
+            typeof woObj.taxAmount === "number"
+                ? woObj.taxAmount
+                : subtotal * (taxRate / 100);
+        const total =
+            typeof woObj.total === "number" ? woObj.total : subtotal + taxAmount;
+
+        woObj.lineItems = normalizedLineItems;
+        woObj.taxRate = taxRate;
+        woObj.subtotal = subtotal;
+        woObj.taxAmount = taxAmount;
+        woObj.total = total;
+
         res.json(woObj);
     } catch (error) {
         console.error('Error fetching work order by ID:', error);

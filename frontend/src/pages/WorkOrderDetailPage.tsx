@@ -5,6 +5,8 @@ import type { WorkOrder, WorkOrderLineItem, } from "../types/workOrder";
 
 
 
+
+
 export const INVOICE_ENABLED =
     import.meta.env.VITE_INVOICE_ENABLED === "true";
 
@@ -25,6 +27,8 @@ export default function WorkOrderDetailPage() {
     const [lineItems, setLineItems] = useState<WorkOrderLineItem[]>([]);
     const [taxRate, setTaxRate] = useState<number>(13);
     const [saving, setSaving] = useState(false);
+ 
+
 
     // 🔁 Shared loader so we can call it from useEffect AND after Mark Complete
     async function loadWorkOrder() {
@@ -105,26 +109,35 @@ export default function WorkOrderDetailPage() {
 
 
     // 💸 Create Invoice (feature-flagged)
-    async function handleCreateInvoice() {
-        if (!workOrder || !workOrder._id) return;
-        try {
-            setIsCreatingInvoice(true);
-            setError(null);
+   async function handleCreateInvoice() {
+  if (!workOrder || !workOrder._id) return;
 
-            console.log("[WO Detail] Creating invoice for:", workOrder._id);
-            const invoice = await createInvoiceFromWorkOrder(workOrder._id);
-            console.log("[WO Detail] Invoice created:", invoice);
+  try {
+    setIsCreatingInvoice(true);
+    setError(null);
 
-            const invoiceLabel = invoice.invoiceNumber ?? invoice.invoiceId ?? "new";
-            console.log(`✅ Invoice #${invoiceLabel} created for ${displayName}.`);
-            // optional: navigate(`/invoices/${invoice._id}`);
-        } catch (err) {
-            console.error("[WO Detail] Error creating invoice", err);
-            setError("Failed to create invoice.");
-        } finally {
-            setIsCreatingInvoice(false);
-        }
-    }
+    console.log("[WO Detail] Creating invoice for:", workOrder._id);
+
+    const invoice = await createInvoiceFromWorkOrder(workOrder._id, {
+      notes: workOrder.notes ?? undefined,
+      // dueDate: "2025-01-30" // optional if you want to set manually later
+    });
+
+    console.log("[WO Detail] Invoice created:", invoice);
+
+    const invoiceLabel = invoice.invoiceNumber ?? invoice._id;
+    alert(`✅ Invoice #${invoiceLabel} created.`);
+
+    // redirect to invoice detail page
+    navigate(`/invoices/${invoice._id}`);
+  } catch (err) {
+    console.error("[WO Detail] Error creating invoice", err);
+    setError("Failed to create invoice.");
+  } finally {
+    setIsCreatingInvoice(false);
+  }
+}
+
 
   const parseQuantityInput = (raw: string): number => {
   const trimmed = raw.trim();
@@ -281,9 +294,6 @@ const handleSaveLineItems = async () => {
   }
 };
 
-  
-
-
 
     async function handleDelete() {
         if (!workOrder?._id) return;
@@ -291,8 +301,7 @@ const handleSaveLineItems = async () => {
         setDeleteError(null);
     }
 
-
-    async function confirmDelete() {
+   async function confirmDelete() {
         if (!workOrder?._id) return;
         try {
             setIsDeleting(true);
@@ -773,6 +782,18 @@ const handleSaveLineItems = async () => {
                     <button type="button" onClick={handleEdit}>
                         Edit
         </button>
+
+                    {workOrder && workOrder.status !== "invoiced" && (
+                          <button
+                            type="button"
+                            onClick={handleCreateInvoice}
+                            disabled={isCreatingInvoice}
+                            style={{ marginLeft: "0.5rem" }}
+                          >
+                            {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
+                          </button>
+                        )}
+
 
                     {!isCompleted && (
                         <button

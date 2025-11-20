@@ -69,7 +69,11 @@ export async function deleteWorkOrder(id: string): Promise<void> {
     await api.delete(`/work-orders/${id}`);
 }
 
-export async function createInvoiceFromWorkOrder(id: string) {
-    const res = await api.post(`/invoices/from-workorder/${id}`);
-    return res.data;
+export async function createInvoiceFromWorkOrder(
+  id: string,
+  opts?: { notes?: string; dueDate?: string }
+) {
+  const res = await api.post(`/invoices/from-work-order/${id}`, opts ?? {});
+  return res.data;
 }
+

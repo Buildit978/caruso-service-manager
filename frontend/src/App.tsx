@@ -12,6 +12,7 @@ import WorkOrderCreatePage from "./pages/WorkOrderCreatePage";
 import CustomerCreatePage from "./pages/CustomerCreatePage";
 import CustomerEditPage from "./pages/CustomerEditPage"; 
 import CustomerDetailPage from "./pages/CustomerDetailPage";
+import InvoiceDetailPage from "./pages/InvoiceDetailPage";
 
 
 
@@ -29,6 +30,7 @@ function App() {
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
         <Route path="/customers/new" element={<CustomerCreatePage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
       </Routes>
     </Layout>
   )

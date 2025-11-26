@@ -1,6 +1,7 @@
 // src/models/customer.model.ts
 import { Schema, model, Document, Types } from "mongoose";
 
+
 export interface IVehicle {
     _id?: Types.ObjectId;
     year?: number;
@@ -13,6 +14,7 @@ export interface IVehicle {
 }
 
 export interface ICustomer extends Document {
+    accountId?: Types.ObjectId;
     firstName: string;
     lastName: string;
     phone?: string;
@@ -40,6 +42,13 @@ const vehicleSchema = new Schema<IVehicle>(
 
 const customerSchema = new Schema<ICustomer>(
     {
+   accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      index: true,
+      required: false, // change to true after you’ve backfilled old records
+        },
+    
         firstName: { type: String, required: true, trim: true },
         lastName: { type: String, required: true, trim: true },
         phone: { type: String, trim: true },

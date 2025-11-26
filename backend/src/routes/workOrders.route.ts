@@ -205,6 +205,9 @@ router.get('/:id', async (req, res) => {
 // POST /api/work-orders
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
+
+        const { accountId } = req;
+
         const { customerId, complaint, odometer, diagnosis, notes, vehicle } = req.body;
 
         if (!customerId) {
@@ -221,6 +224,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         }
 
         const workOrder = await WorkOrder.create({
+            accountId, 
             customerId,
             complaint: complaint.trim(),
             odometer,

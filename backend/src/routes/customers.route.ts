@@ -16,27 +16,49 @@ interface VehicleBody {
 }
 
 // GET /api/customers?search=...
+// GET /api/customers?search=...
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { search } = req.query;
 
-        let query = {};
-        if (typeof search === 'string' && search.trim() !== '') {
-            const regex = new RegExp(search.trim(), 'i'); // case-insensitive
-            query = { name: regex };
+        // 🔹 Base query, scoped by account
+        const baseQuery: any = {};
+        if (req.accountId) {
+            baseQuery.accountId = req.accountId;
         }
 
-        const customers = await Customer.find(query).sort({ createdAt: -1 }).lean();
+        // 🔹 Optional search by name
+        if (typeof search === 'string' && search.trim() !== '') {
+            const regex = new RegExp(search.trim(), 'i'); // case-insensitive
+            baseQuery.$or = [
+                { firstName: regex },
+                { lastName: regex },
+            ];
+        }
+
+        const customers = await Customer.find(baseQuery)
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Short-circuit if no customers
         if (!customers.length) {
             return res.json(customers);
         }
 
-        // Compute active work order counts (open + in_progress), normalizing status casing/whitespace
+        // 🔹 Compute active work order counts (open + in_progress)
         const customerIds = customers.map((c) => c._id);
+
+        const matchStage: any = {
+            customerId: { $in: customerIds },
+        };
+
+        // also scope work orders by account if present
+        if (req.accountId) {
+            matchStage.accountId = req.accountId;
+        }
+
         const activeCounts = await WorkOrder.aggregate([
-            { $match: { customerId: { $in: customerIds } } },
+            { $match: matchStage },
             {
                 $group: {
                     _id: {
@@ -76,6 +98,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 });
 
+
 // GET /api/customers/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -110,9 +133,13 @@ router.get(
 // POST /api/customers
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
+
+        const { accountId } = req;
+        
         const { firstName, lastName, phone, email, address, notes } = req.body;
 
         const customer = await Customer.create({
+            accountId,
             firstName,
             lastName,
             phone,

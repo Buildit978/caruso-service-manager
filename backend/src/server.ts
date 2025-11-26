@@ -9,6 +9,7 @@ import workOrderRoutes from './routes/workOrders.route';
 import summaryRoutes from './routes/summary.route';
 import settingsRouter from "./routes/settings.route";
 import invoiceRoutes from './routes/invoice.routes';
+import { attachAccountId } from "./middleware/account.middleware";
 
 
 const app = express();
@@ -16,6 +17,7 @@ const app = express();
 // 🔹 Global middleware
 app.use(cors());          // ✅ allow requests from http://localhost:5173
 app.use(express.json());
+app.use(attachAccountId);
 
 // 🔹 API routes (keep /api prefix to match the frontend)
 app.use('/api/customers', customerRoutes);

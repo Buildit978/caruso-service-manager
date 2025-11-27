@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "seed:account": "ts-node src/scripts/seedDefaultAccount.ts",
+    "backfill:account": "ts-node src/scripts/backfillAccountId.ts"
   },
   "keywords": [],
   "author": "Keith Evanson",

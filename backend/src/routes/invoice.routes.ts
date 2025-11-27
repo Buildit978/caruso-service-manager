@@ -2,8 +2,11 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { WorkOrder } from "../models/workOrder.model";
 import { Invoice } from "../models/invoice.model";
+import { attachAccountId } from "../middleware/account.middleware";
 
 const router = Router();
+
+router.use(attachAccountId);
 
 /**
  * Simple helper to generate the next invoice number.
@@ -38,6 +41,12 @@ router.post(
   "/from-work-order/:id",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+
+      const accountId = req.accountId; // My accountId Edit 
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
       const { id } = req.params;
 
       // 1) Load work order with customer populated
@@ -190,6 +199,12 @@ router.get(
   "/",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      
+       const accountId = req.accountId; // My accountId Edit 
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
       const invoices = await Invoice.find()
         .sort({ createdAt: -1 })
         .populate("customerId", "firstName lastName")
@@ -210,6 +225,11 @@ router.get(
   "/:id",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+
+      const accountId = req.accountId;  // My accountId Edit 
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
       const invoice = await Invoice.findById(req.params.id)
         .populate("customerId", "firstName lastName")
         .populate("workOrderId", "status");

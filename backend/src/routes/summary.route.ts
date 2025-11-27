@@ -1,9 +1,13 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, Router, NextFunction } from 'express';
 import { Customer } from '../models/customer.model';
 import { WorkOrder } from '../models/workOrder.model';
-import { Settings } from "../models/settings.model"; // 👈 NEW
+import { Settings } from "../models/settings.model"; 
+import { attachAccountId } from "../middleware/account.middleware"; // my accountId edit
+
 
 const router = express.Router();
+
+router.use(attachAccountId); // my accountId edit
 
 /**
  * Get the start of the current week (Monday, 00:00:00)
@@ -64,60 +68,82 @@ function applyTaxAndDiscount(
 // then router.get('/') is correct.
 router.get("/", async (req, res) => {
     try {
+
+        const accountId = req.accountId; // My accountId Edit 
+        if (!accountId) {
+            return res.status(400).json({ message: "Missing accountId" });
+        }   
+
         const startOfWeek = getStartOfWeek();
 
-        const [
+       const completedExpr = {
+            $eq: [
+                { $toLower: { $trim: { input: "$status" } } },
+                "completed",
+            ],
+            };
+
+            const [
             statusAgg,
             totalCustomers,
             allTimeRevenueAgg,
             thisWeekAgg,
             settingsDoc,
-        ] = await Promise.all([
-            // Normalize status to lowercase + trimmed so we count legacy values consistently
+            ] = await Promise.all([
+            // 1) Status counts, but only for this account
             WorkOrder.aggregate([
                 {
-                    $group: {
-                        _id: { $toLower: { $trim: { input: "$status" } } },
-                        count: { $sum: 1 },
-                    },
+                $match: { accountId }, // 👈 scope by account
+                },
+                {
+                $group: {
+                    _id: { $toLower: { $trim: { input: "$status" } } },
+                    count: { $sum: 1 },
+                },
                 },
             ]),
-            Customer.countDocuments(),
+
+            // 2) Customers for this account only
+            Customer.countDocuments({ accountId }), // 👈 scope
+
+            // 3) All-time revenue for completed work orders, scoped by account
             WorkOrder.aggregate([
                 {
-                    $match: {
-                        $expr: {
-                            $eq: [
-                                { $toLower: { $trim: { input: "$status" } } },
-                                "completed",
-                            ],
-                        },
-                    },
+                $match: {
+                    accountId, // 👈 scope
+                    $expr: completedExpr,
                 },
-                { $group: { _id: null, total: { $sum: "$total" } } },
+                },
+                {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$total" },
+                },
+                },
             ]),
+
+            // 4) This week's completed work orders + revenue, scoped by account
             WorkOrder.aggregate([
                 {
-                    $match: {
-                        $expr: {
-                            $eq: [
-                                { $toLower: { $trim: { input: "$status" } } },
-                                "completed",
-                            ],
-                        },
-                        createdAt: { $gte: startOfWeek },
-                    },
+                $match: {
+                    accountId, // 👈 scope
+                    createdAt: { $gte: startOfWeek },
+                    $expr: completedExpr,
+                },
                 },
                 {
-                    $group: {
-                        _id: null,
-                        count: { $sum: 1 },
-                        revenue: { $sum: "$total" },
-                    },
+                $group: {
+                    _id: null,
+                    count: { $sum: 1 },
+                    revenue: { $sum: "$total" },
+                },
                 },
             ]),
-            Settings.findOne(), // 👈 fetch current shop settings
-        ]);
+
+            // 5) Settings for this account (if Settings is per-account)
+            Settings.findOne({ accountId }), // 👈 scope (or leave bare if global)
+            ]);
+
 
         const statusCounts = statusAgg.reduce(
             (acc: Record<string, number>, row: any) => {

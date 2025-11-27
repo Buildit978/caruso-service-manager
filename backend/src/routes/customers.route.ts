@@ -1,6 +1,7 @@
 // src/routes/customers.routes.ts
 import { Router, Request, Response, NextFunction } from 'express';
 import { Customer } from '../models/customer.model';  // 👈 named import
+import { Vehicle } from '../models/vehicle.model';
 import { WorkOrder } from '../models/workOrder.model';
 
 const router = Router();
@@ -15,126 +16,152 @@ interface VehicleBody {
     notes ?: string;
 }
 
-// GET /api/customers?search=...
-// GET /api/customers?search=...
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { search } = req.query;
+            // GET /api/customers?search=...
+            // GET /api/customers?search=...
+            router.get(
+            "/",
+            async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                    return res.status(400).json({ message: "Missing accountId" });
+                }
 
-        // 🔹 Base query, scoped by account
-        const baseQuery: any = {};
-        if (req.accountId) {
-            baseQuery.accountId = req.accountId;
-        }
+                const { search } = req.query;
 
-        // 🔹 Optional search by name
-        if (typeof search === 'string' && search.trim() !== '') {
-            const regex = new RegExp(search.trim(), 'i'); // case-insensitive
-            baseQuery.$or = [
-                { firstName: regex },
-                { lastName: regex },
-            ];
-        }
+                // 🔹 Base query, fully scoped by account
+                const baseQuery: any = { accountId };
 
-        const customers = await Customer.find(baseQuery)
-            .sort({ createdAt: -1 })
-            .lean();
+                // 🔹 Optional search by name
+                if (typeof search === "string" && search.trim() !== "") {
+                    const regex = new RegExp(search.trim(), "i"); // case-insensitive
+                    baseQuery.$or = [{ firstName: regex }, { lastName: regex }];
+                }
 
-        // Short-circuit if no customers
-        if (!customers.length) {
-            return res.json(customers);
-        }
+                const customers = await Customer.find(baseQuery)
+                    .sort({ createdAt: -1 })
+                    .lean();
 
-        // 🔹 Compute active work order counts (open + in_progress)
-        const customerIds = customers.map((c) => c._id);
+                if (!customers.length) {
+                    return res.json(customers);
+                }
 
-        const matchStage: any = {
-            customerId: { $in: customerIds },
-        };
+                // 🔹 Compute active work order counts (open + in_progress) per customer
+                const customerIds = customers.map((c) => c._id);
 
-        // also scope work orders by account if present
-        if (req.accountId) {
-            matchStage.accountId = req.accountId;
-        }
+                const matchStage: any = {
+                    accountId, // 👈 always scope work orders by account
+                    customerId: { $in: customerIds },
+                };
 
-        const activeCounts = await WorkOrder.aggregate([
-            { $match: matchStage },
-            {
-                $group: {
-                    _id: {
+                const activeCounts = await WorkOrder.aggregate([
+                    { $match: matchStage },
+                    {
+                    $group: {
+                        _id: {
                         customerId: "$customerId",
                         status: { $toLower: { $trim: { input: "$status" } } },
+                        },
+                        count: { $sum: 1 },
                     },
-                    count: { $sum: 1 },
-                },
-            },
-            {
-                $match: {
-                    "_id.status": { $in: ["open", "in_progress"] },
-                },
-            },
-            {
-                $group: {
-                    _id: "$_id.customerId",
-                    openWorkOrders: { $sum: "$count" },
-                },
-            },
-        ]);
+                    },
+                    {
+                    $match: {
+                        "_id.status": { $in: ["open", "in_progress"] },
+                    },
+                    },
+                    {
+                    $group: {
+                        _id: "$_id.customerId",
+                        openWorkOrders: { $sum: "$count" },
+                    },
+                    },
+                ]);
 
-        const countsByCustomer: Record<string, number> = {};
-        for (const row of activeCounts) {
-            const key = row._id?.toString?.() ?? "";
-            if (key) countsByCustomer[key] = row.openWorkOrders ?? 0;
-        }
+                const countsByCustomer: Record<string, number> = {};
+                for (const row of activeCounts) {
+                    const key = row._id?.toString?.() ?? "";
+                    if (key) countsByCustomer[key] = row.openWorkOrders ?? 0;
+                }
 
-        const enriched = customers.map((c: any) => ({
-            ...c,
-            openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
-        }));
+                const enriched = customers.map((c: any) => ({
+                    ...c,
+                    openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
+                }));
 
-        res.json(enriched);
-    } catch (err) {
-        next(err);
-    }
-});
+                res.json(enriched);
+                } catch (err) {
+                next(err);
+                }
+            }
+            );
 
 
 // GET /api/customers/:id
-router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const customer = await Customer.findById(req.params.id);
-        if (!customer) {
-            return res.status(404).json({ message: 'Customer not found' });
-        }
-        res.json(customer);
-    } catch (err) {
-        next(err);
-    }
-});
+            router.get("/:id", async (req, res, next) => {
+            try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+                }
 
-router.get(
-    "/:id/vehicles",
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const customer = await Customer.findById(req.params.id);
+                const customer = await Customer.findOne({
+                _id: req.params.id,
+                accountId,
+                }).lean();
 
-            if (!customer) {
+                if (!customer) {
                 return res.status(404).json({ message: "Customer not found" });
-            }
+                }
 
-            return res.json(customer.vehicles || []);
-        } catch (err) {
-            next(err);
-        }
-    }
-);
+                res.json(customer);
+            } catch (err) {
+                next(err);
+            }
+            });
+
+
+// GET /api/customers/:id/vehicles
+            router.get(
+            "/:id/vehicles",
+            async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                    return res.status(400).json({ message: "Missing accountId" });
+                }
+
+                const customerId = req.params.id;
+
+                // Optional but nice: ensure the customer belongs to this account
+                const customer = await Customer.findOne({ _id: customerId, accountId }).lean();
+                if (!customer) {
+                    return res.status(404).json({ message: "Customer not found" });
+                }
+
+                const vehicles = await Vehicle.find({
+                    accountId,
+                    customerId,
+                })
+                    .sort({ createdAt: -1 })
+                    .lean();
+
+                res.json(vehicles);
+                } catch (err) {
+                next(err);
+                }
+            }
+            );
 
 
 // POST /api/customers
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
 
-        const { accountId } = req;
+         const accountId = req.accountId;
+            if (!accountId) {
+            return res.status(400).json({ message: "Missing accountId" });
+            }
         
         const { firstName, lastName, phone, email, address, notes } = req.body;
 
@@ -155,143 +182,161 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 
-router.post(
-    "/:id/vehicles",
-    async (req: Request<{}, {}, VehicleBody>, res: Response, next: NextFunction) => {
-        try {
-            const customer = await Customer.findById(req.params.id);
+// POST /api/customers/:id/vehicles
+            router.post(
+            "/:id/vehicles",
+            async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                    return res.status(400).json({ message: "Missing accountId" });
+                }
 
-            if (!customer) {
-                return res.status(404).json({ message: "Customer not found" });
+                const customerId = req.params.id;
+
+                // Ensure the customer exists for this account
+                const customer = await Customer.findOne({ _id: customerId, accountId }).lean();
+                if (!customer) {
+                    return res.status(404).json({ message: "Customer not found" });
+                }
+
+                const { vin, year, make, model, licensePlate, color, notes } = req.body;
+
+                const vehicle = await Vehicle.create({
+                    accountId,
+                    customerId,
+                    vin,
+                    year,
+                    make,
+                    model,
+                    licensePlate,
+                    color,
+                    notes,
+                });
+
+                res.status(201).json(vehicle);
+                } catch (err) {
+                next(err);
+                }
             }
-
-            const { year, make, model, vin, licensePlate, color, notes } = req.body;
-
-            const newVehicle = {
-                year,
-                make,
-                model,
-                vin,
-                licensePlate,
-                color,
-                notes,
-            };
-
-            customer.vehicles.push(newVehicle as any);
-            await customer.save();
-
-            // last pushed vehicle
-            const created = customer.vehicles[customer.vehicles.length - 1];
-
-            return res.status(201).json(created);
-        } catch (err) {
-            next(err);
-        }
-    }
-);
+            );
 
 
-// Update a vehicle for a customer
-router.patch(
-    "/:customerId/vehicles/:vehicleId",
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { customerId, vehicleId } = req.params;
 
-            const customer = await Customer.findById(customerId);
-            if (!customer) {
-                return res.status(404).json({ message: "Customer not found" });
+// PATCH /api/customers/:customerId/vehicles/:vehicleId
+            router.patch(
+            "/:customerId/vehicles/:vehicleId",
+            async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                    return res.status(400).json({ message: "Missing accountId" });
+                }
+
+                const { customerId, vehicleId } = req.params;
+                const update = { ...req.body, accountId, customerId };
+
+                const vehicle = await Vehicle.findOneAndUpdate(
+                    {
+                    _id: vehicleId,
+                    accountId,
+                    customerId,
+                    },
+                    update,
+                    { new: true }
+                );
+
+                if (!vehicle) {
+                    return res.status(404).json({ message: "Vehicle not found" });
+                }
+
+                res.json(vehicle);
+                } catch (err) {
+                next(err);
+                }
             }
+            );
 
-            const vehicle = customer.vehicles.id(vehicleId);
-            if (!vehicle) {
-                return res.status(404).json({ message: "Vehicle not found" });
+
+// DELETE /api/customers/:customerId/vehicles/:vehicleId
+            router.delete(
+            "/:customerId/vehicles/:vehicleId",
+            async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                    return res.status(400).json({ message: "Missing accountId" });
+                }
+
+                const { customerId, vehicleId } = req.params;
+
+                const result = await Vehicle.deleteOne({
+                    _id: vehicleId,
+                    accountId,
+                    customerId,
+                });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ message: "Vehicle not found" });
+                }
+
+                res.status(204).end();
+                } catch (err) {
+                next(err);
+                }
             }
+            );
 
-            const { year, make, model, vin, licensePlate, color, notes } = req.body;
-
-            if (typeof year !== "undefined") vehicle.year = year;
-            if (typeof make !== "undefined") vehicle.make = make;
-            if (typeof model !== "undefined") vehicle.model = model;
-            if (typeof vin !== "undefined") vehicle.vin = vin;
-            if (typeof licensePlate !== "undefined") vehicle.licensePlate = licensePlate;
-            if (typeof color !== "undefined") vehicle.color = color;
-            if (typeof notes !== "undefined") vehicle.notes = notes;
-
-            await customer.save();
-
-            return res.json(vehicle);
-        } catch (err) {
-            next(err);
-        }
-    }
-);
-
-// Delete a vehicle from a customer
-router.delete(
-    "/:customerId/vehicles/:vehicleId",
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { customerId, vehicleId } = req.params;
-
-            const customer = await Customer.findById(customerId);
-            if (!customer) {
-                return res.status(404).json({ message: "Customer not found" });
-            }
-
-            const vehicle = customer.vehicles.id(vehicleId);
-            if (!vehicle) {
-                return res.status(404).json({ message: "Vehicle not found" });
-            }
-
-            vehicle.deleteOne(); // remove the subdocument
-            await customer.save();
-
-            return res.status(204).send();
-        } catch (err) {
-            next(err);
-        }
-    }
-);
 
 
 // PUT /api/customers/:id
-router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { firstName, lastName, phone, email, address, notes } = req.body;
+            router.put("/:id", async (req, res, next) => {
+            try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+                }
 
-        const customer = await Customer.findByIdAndUpdate(
-            req.params.id,
-            { firstName, lastName, phone, email, address, notes },
-            { new: true, runValidators: true }
-        );
+                const customer = await Customer.findOneAndUpdate(
+                { _id: req.params.id, accountId },
+                req.body,
+                { new: true }
+                );
 
-        if (!customer) {
-            return res.status(404).json({ message: 'Customer not found' });
-        }
+                if (!customer) {
+                return res.status(404).json({ message: "Customer not found" });
+                }
 
-        res.json(customer);
-    } catch (err) {
-        next(err);
-    }
-});
+                res.json(customer);
+            } catch (err) {
+                next(err);
+            }
+            });
+
 
 
 
 // DELETE /api/customers/:id
-router.delete(
-    '/:id',
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const customer = await Customer.findByIdAndDelete(req.params.id);
-            if (!customer) {
-                return res.status(404).json({ message: 'Customer not found' });
+            router.delete("/:id", async (req, res, next) => {
+            try {
+                const accountId = req.accountId;
+                if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+                }
+
+                const result = await Customer.deleteOne({
+                _id: req.params.id,
+                accountId,
+                });
+
+                if (result.deletedCount === 0) {
+                return res.status(404).json({ message: "Customer not found" });
+                }
+
+                res.status(204).end();
+            } catch (err) {
+                next(err);
             }
-            res.status(204).send();
-        } catch (err) {
-            next(err);
-        }
-    }
-);
+            });
 
 export default router;

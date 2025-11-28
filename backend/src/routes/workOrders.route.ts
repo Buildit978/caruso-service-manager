@@ -5,38 +5,32 @@ import { Customer } from '../models/customer.model';
 
 const router = Router();
 
-// GET /api/work-orders?customerId=...
-router.get(
-    '/',
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const customerId = req.query.customerId as string | undefined;
-
-            const query: Record<string, unknown> = {};
-
-            // Optional filter by customer
-            if (customerId) {
-                query.customerId = customerId; // MUST match schema field
-            }
-
-            const workOrders = await WorkOrder.find(query)
-                .populate(
-                    'customerId',
-                    // expose names + contact info; virtual fullName will be available when serialized
-                    'firstName lastName phone email address'
-                )
-                .sort({ createdAt: -1 });
-
-            res.json(workOrders);
-        } catch (err) {
-            console.error('Error fetching work orders:', err);
-            res.status(500).json({
-                message: 'Failed to fetch work orders',
-                error: (err as Error).message,
-            });
-        }
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
     }
-);
+
+    const { status } = req.query;
+
+    const filter: any = { accountId };
+
+    if (typeof status === "string" && status.trim() !== "" && status !== "all") {
+      filter.status = status;
+    }
+
+    const workOrders = await WorkOrder.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("customerId")
+      .lean();
+
+    res.json(workOrders);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 
 
@@ -45,9 +39,14 @@ router.get(
     '/summary',
     async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const accountId = req.accountId;
+            if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+            }
+
             const { status, customerId, from, to } = req.query;
 
-            const match: any = {};
+            const match: any = { accountId };
 
             // Optional filter: status
             if (typeof status === 'string' && status.trim() !== '') {
@@ -113,13 +112,20 @@ router.get(
 );
 
 // GET /api/work-orders/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response) => {
     try {
-        const workOrder = await WorkOrder.findById(req.params.id)
-            .populate(
-                'customerId',
-                'firstName lastName phone email address vehicles' // include vehicles for lookup
-            );
+        const accountId = req.accountId;
+        if (!accountId) {
+            return res.status(400).json({ message: "Missing accountId" });
+        }
+
+        const workOrder = await WorkOrder.findOne({
+            _id: req.params.id,
+            accountId,
+        }).populate(
+            'customerId',
+            'firstName lastName phone email address vehicles' // include vehicles for lookup
+        );
 
         if (!workOrder) {
             return res.status(404).json({ message: 'Work order not found' });
@@ -202,11 +208,15 @@ router.get('/:id', async (req, res) => {
 
 
 
+
 // POST /api/work-orders
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
 
-        const { accountId } = req;
+        const accountId = req.accountId;
+        if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+        }
 
         const { customerId, complaint, odometer, diagnosis, notes, vehicle } = req.body;
 
@@ -246,15 +256,21 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 
 // PUT /api/work-orders/:id
+// PUT /api/work-orders/:id
 router.put(
   "/:id",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
       const { id } = req.params;
       const updates = req.body;
 
-      // 1) Load the existing work order
-      const workOrder = await WorkOrder.findById(id);
+      // 1) Load the existing work order scoped by account
+      const workOrder = await WorkOrder.findOne({ _id: id, accountId });
       if (!workOrder) {
         return res.status(404).json({ message: "Work order not found" });
       }
@@ -300,7 +316,10 @@ router.put(
       }
 
       // 5) If lineItems or taxRate changed, recalc money fields
-      if (Array.isArray(updates.lineItems) || typeof updates.taxRate !== "undefined") {
+      if (
+        Array.isArray(updates.lineItems) ||
+        typeof updates.taxRate !== "undefined"
+      ) {
         const items = workOrder.lineItems || [];
         const taxRate = workOrder.taxRate ?? 13;
 
@@ -326,20 +345,50 @@ router.put(
 );
 
 
+router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
+    }
+
+    const workOrder = await WorkOrder.findOneAndUpdate(
+      { _id: req.params.id, accountId },
+      req.body,
+      { new: true }
+    );
+
+    if (!workOrder) {
+      return res.status(404).json({ message: "Work order not found" });
+    }
+
+    res.json(workOrder);
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 
 // PATCH /api/work-orders/:id/status  (for quick status updates)
 router.patch(
     '/:id/status',
     async (req: Request, res: Response, next: NextFunction) => {
         try {
+
+            const accountId = req.accountId;
+            if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+            }
+            
             const { status } = req.body;
 
             if (!status) {
                 return res.status(400).json({ message: 'status is required' });
             }
 
-            const workOrder = await WorkOrder.findByIdAndUpdate(
-                req.params.id,
+            const workOrder = await WorkOrder.findOneAndUpdate(
+                { _id: req.params.id, accountId },
                 { status },
                 { new: true, runValidators: true }
             );
@@ -359,8 +408,16 @@ router.delete(
     "/:id",
     async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const accountId = req.accountId;
+            if (!accountId) {
+                return res.status(400).json({ message: "Missing accountId" });
+            }
+
             const { id } = req.params;
-            const deleted = await WorkOrder.findByIdAndDelete(id);
+            const deleted = await WorkOrder.findOneAndDelete({
+                _id: id,
+                accountId,
+            });
 
             if (!deleted) {
                 return res.status(404).json({ message: "Work order not found" });

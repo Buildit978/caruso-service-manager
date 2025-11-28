@@ -11,6 +11,7 @@ export interface IWorkOrderVehicle {
     vin?: string;
     licensePlate?: string;
     color?: string;
+    notes?: string;
 }
 
 
@@ -58,6 +59,7 @@ const workOrderVehicleSchema = new Schema<IWorkOrderVehicle>(
         vin: String,
         licensePlate: String,
         color: String,
+        notes: String,
     },
     { _id: false }
 );

@@ -26,9 +26,9 @@ export interface InvoiceCustomerSnapshot {
 export interface Invoice {
   _id: string;
   invoiceNumber: string;            // human-visible number, e.g. "1001" or "2025-001"
-  status: InvoiceStatus;
+  status: "draft" | "sent" | "paid" | "void";
 
-  workOrderId: string;
+  workOrderId: string | { _id: string };  // for quick reference
   customerSnapshot: InvoiceCustomerSnapshot;
   vehicleSnapshot?: WorkOrderVehicle;
 

@@ -1,8 +1,31 @@
 // frontend/src/pages/InvoiceDetailPage.tsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
 import { fetchInvoiceById } from "../api/invoices";
+
+
+function resolveWorkOrderId(invoice: any): string | null {
+  if (!invoice) return null;
+
+  const wo = invoice.workOrderId;
+
+  // Case: stored as plain string
+  if (typeof wo === "string") return wo;
+
+  // Case: populated object {_id: "..."} or ObjectId
+  if (wo && typeof wo === "object") {
+    if (typeof wo._id === "string") return wo._id;
+    if (wo._id && typeof wo._id.toString === "function") {
+      return wo._id.toString();
+    }
+    if (typeof wo.id === "string") return wo.id;
+  }
+
+  return null;
+}
+
+
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +34,9 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const resolvedWorkOrderId = resolveWorkOrderId(invoice);
+  console.log("[InvoiceDetail] resolvedWorkOrderId:", resolvedWorkOrderId);
 
   useEffect(() => {
     if (!id) {
@@ -47,12 +73,15 @@ export default function InvoiceDetailPage() {
     );
   }
 
+
   const customerName = [
     invoice.customerSnapshot.firstName,
     invoice.customerSnapshot.lastName,
   ]
     .filter(Boolean)
     .join(" ");
+  
+  
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "800px", margin: "0 auto" }}>
@@ -185,7 +214,19 @@ export default function InvoiceDetailPage() {
       )}
 
       <div style={{ marginTop: "1.5rem" }}>
-        <Link to="/invoices">Back to Invoices</Link>
+       <button
+  type="button"
+  disabled={!resolvedWorkOrderId}
+  onClick={() => {
+    if (!resolvedWorkOrderId) return;
+    navigate(`/work-orders/${resolvedWorkOrderId}`);
+  }}
+>
+  Back to Work Order
+</button>
+
+
+
       </div>
     </div>
   );

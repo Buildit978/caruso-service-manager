@@ -18,6 +18,7 @@ export interface IWorkOrderVehicle {
 export interface IWorkOrder extends Document {
   accountId?: Types.ObjectId;
   customerId: Types.ObjectId;
+  invoiceId?: Types.ObjectId;
   date: Date;
   odometer?: number;
   complaint: string;
@@ -86,13 +87,18 @@ const lineItemSchema = new Schema<ILineItem>(
 
 
 const workOrderSchema = new Schema<IWorkOrder>(
-  {
-      
+  { 
     accountId: {
       type: Schema.Types.ObjectId,
       ref: "Account",
       index: true,
+      required: true,
+    },
+    invoiceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Invoice",
       required: false,
+      index: true,
     },
         customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
         date: { type: Date, default: Date.now },

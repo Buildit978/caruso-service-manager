@@ -320,10 +320,18 @@ const handleSaveLineItems = async () => {
     if (loading) return <p>Loading work order…</p>;
     if (error) return <p className="text-red-600">{error}</p>;
     if (!workOrder) return <p>Work order not found.</p>;
+  
 
-    const isCompleted = workOrder.status === "completed";
-    const canCreateInvoice =
-        INVOICE_ENABLED && isCompleted && !isCreatingInvoice;
+      const isCompleted = workOrder.status === "completed";
+      const isInvoiced = workOrder.status === "invoiced";
+      const hasInvoice = !!workOrder.invoiceId;
+
+      const canCreateInvoice =
+        INVOICE_ENABLED &&
+        isCompleted &&
+        !hasInvoice &&
+        !isCreatingInvoice;
+
 
     console.log("[WO Detail] workOrder object:", workOrder);
 
@@ -334,9 +342,10 @@ const handleSaveLineItems = async () => {
     // ⬅ from here down, keep your existing JSX, but use:
     // - {displayName} wherever Name should show
     // - customer?.phone / customer?.email / customer?.address
-    // in the Customer Information section.
-
-
+    
+    // in the Customer Information section
+  
+  
     return (
         <div className="page" style={{ padding: "16px" }}>
             {/* HEADER */}
@@ -753,128 +762,147 @@ const handleSaveLineItems = async () => {
 
 
 
-            {/* FOOTER BUTTONS */}
-            <footer
-                style={{
-                    marginTop: "24px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                }}
-            >
-                {/* Back Link */}
-                <button
-                    type="button"
-                    onClick={() => navigate("/work-orders")}
-                    style={{ alignSelf: "flex-start" }}
-                >
-                    ← Back to Work Orders
+{/* FOOTER BUTTONS */}
+<footer
+  style={{
+    marginTop: "24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  }}
+>
+          {/* Back Link */}
+          <button
+  type="button"
+  onClick={() => navigate("/work-orders")}
+  style={{ alignSelf: "flex-start" }}
+>
+  ← Back to Work Orders
+</button>
+
+
+
+
+  {/* Action Buttons Row */}
+  <div
+    style={{
+      display: "flex",
+      gap: "12px",
+      flexWrap: "wrap",
+    }}
+  >
+    {/* Edit always available */}
+    <button type="button" onClick={handleEdit}>
+      Edit
+    </button>
+
+    {/* Only show Mark Complete if not completed or invoiced */}
+    {!isCompleted && !isInvoiced && (
+      <button
+        type="button"
+        onClick={handleMarkComplete}
+        disabled={isMarkingComplete}
+      >
+        {isMarkingComplete ? "Marking…" : "Mark Complete"}
       </button>
+    )}
 
-                {/* Action Buttons Row */}
-                <div
-                    style={{
-                        display: "flex",
-                        gap: "12px",
-                        flexWrap: "wrap",
-                    }}
-                >
-                    <button type="button" onClick={handleEdit}>
-                        Edit
-        </button>
+    {/* Invoice-related button */}
+    {INVOICE_ENABLED && (
+      <>
+        {/* CASE 1: Invoiced AND we know the invoiceId → show View Invoice */}
+        {isInvoiced && workOrder.invoiceId ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/invoices/${workOrder.invoiceId}`)}
+            title="View the invoice for this work order."
+          >
+            View Invoice
+          </button>
+        ) : /* CASE 2: Invoiced but no invoiceId (older data) → show disabled status */
+        isInvoiced && !workOrder.invoiceId ? (
+          <button
+            type="button"
+            disabled
+            title="An invoice already exists for this work order."
+          >
+            Invoice Created
+          </button>
+        ) : (
+          /* CASE 3: Only show Create Invoice when completed and no invoice */
+          isCompleted && !hasInvoice && (
+            <button
+              type="button"
+              onClick={handleCreateInvoice}
+              disabled={!canCreateInvoice}
+              title={
+                !isCompleted
+                  ? "Complete the work order before creating an invoice."
+                  : "Create an invoice for this work order."
+              }
+            >
+              {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
+            </button>
+          )
+        )}
+      </>
+    )}
 
-                    {workOrder && workOrder.status !== "invoiced" && (
-                          <button
-                            type="button"
-                            onClick={handleCreateInvoice}
-                            disabled={isCreatingInvoice}
-                            style={{ marginLeft: "0.5rem" }}
-                          >
-                            {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
-                          </button>
-                        )}
-
-
-                    {!isCompleted && (
-                        <button
-                            type="button"
-                            onClick={handleMarkComplete}
-                            disabled={isMarkingComplete}
-                        >
-                            {isMarkingComplete ? "Marking…" : "Mark Complete"}
-                        </button>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={handleCreateInvoice}
-                        disabled={!canCreateInvoice}
-                        title={
-                            !INVOICE_ENABLED
-                                ? "Invoice feature is disabled"
-                                : !isCompleted
-                                    ? "Complete the work order before invoicing"
-                                    : "Create invoice for this work order"
-                        }
-                    >
-                        {INVOICE_ENABLED ? "Create Invoice" : "Invoice (Disabled)"}
-                    </button>
-
-                    {/* Delete with inline confirmation */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            {!showDeleteConfirm ? (
-                                <button
-                                    type="button"
-                                    onClick={handleDelete}
-                                    style={{ border: "1px solid #b91c1c", color: "#b91c1c" }}
-                                >
-                                    Delete Work Order
-                                </button>
-                            ) : (
-                                <>
-                                    <span style={{ color: "#b91c1c", fontSize: "0.9rem" }}>
-                                        Are you sure you want to delete this work order?
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={confirmDelete}
-                                        disabled={isDeleting}
-                                        style={{
-                                            border: "1px solid #b91c1c",
-                                            color: "#b91c1c",
-                                            background: "transparent",
-                                            padding: "6px 10px",
-                                            borderRadius: "6px",
-                                        }}
-                                    >
-                                        {isDeleting ? "Deleting…" : "Yes, delete"}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowDeleteConfirm(false);
-                                            setDeleteError(null);
-                                        }}
-                                        style={{
-                                            border: "1px solid #475569",
-                                            color: "#e5e7eb",
-                                            background: "transparent",
-                                            padding: "6px 10px",
-                                            borderRadius: "6px",
-                                        }}
-                                    >
-                                        Cancel
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        {deleteError && (
-                            <div style={{ color: "#ef4444", fontSize: "0.9rem" }}>{deleteError}</div>
-                        )}
-                    </div>
-                </div>
-            </footer>
+    {/* Delete with inline confirmation (unchanged) */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        {!showDeleteConfirm ? (
+          <button
+            type="button"
+            onClick={handleDelete}
+            style={{ border: "1px solid #b91c1c", color: "#b91c1c" }}
+          >
+            Delete Work Order
+          </button>
+        ) : (
+          <>
+            <span style={{ color: "#b91c1c", fontSize: "0.9rem" }}>
+              Are you sure you want to delete this work order?
+            </span>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              style={{
+                border: "1px solid #b91c1c",
+                color: "#b91c1c",
+                background: "transparent",
+                padding: "6px 10px",
+                borderRadius: "6px",
+              }}
+            >
+              {isDeleting ? "Deleting…" : "Yes, delete"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeleteError(null);
+              }}
+              style={{
+                border: "1px solid #475569",
+                color: "#e5e7eb",
+                background: "transparent",
+                padding: "6px 10px",
+                borderRadius: "6px",
+              }}
+            >
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+      {deleteError && (
+        <div style={{ color: "#ef4444", fontSize: "0.9rem" }}>{deleteError}</div>
+      )}
+    </div>
+  </div>
+</footer>
         </div>
     );
 

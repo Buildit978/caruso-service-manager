@@ -1,9 +1,13 @@
 // src/routes/workOrders.routes.ts
+import { Types } from 'mongoose';
 import { Router, Request, Response, NextFunction } from 'express';
 import { WorkOrder } from '../models/workOrder.model';
 import { Customer } from '../models/customer.model';
+import { attachAccountId } from '../middleware/account.middleware';
 
 const router = Router();
+
+router.use(attachAccountId);
 
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -113,97 +117,113 @@ router.get(
 
 // GET /api/work-orders/:id
 router.get('/:id', async (req: Request, res: Response) => {
-    try {
-        const accountId = req.accountId;
-        if (!accountId) {
-            return res.status(400).json({ message: "Missing accountId" });
-        }
-
-        const workOrder = await WorkOrder.findOne({
-            _id: req.params.id,
-            accountId,
-        }).populate(
-            'customerId',
-            'firstName lastName phone email address vehicles' // include vehicles for lookup
-        );
-
-        if (!workOrder) {
-            return res.status(404).json({ message: 'Work order not found' });
-        }
-
-        // Ensure vehicle snapshot is present in the response. If missing but a vehicleId exists,
-        // try to hydrate from the customer's saved vehicles.
-        const woObj: any = workOrder.toObject();
-
-        const customer: any = woObj.customerId;
-        const hasVehicleSnapshot = Boolean(woObj.vehicle);
-        const vehicleId = woObj.vehicle?.vehicleId || woObj.vehicleId;
-
-        if (!hasVehicleSnapshot && customer?.vehicles?.length && vehicleId) {
-            const match = customer.vehicles.find(
-                (v: any) => v._id?.toString() === vehicleId.toString()
-            );
-            if (match) {
-                woObj.vehicle = {
-                    vehicleId: match._id,
-                    year: match.year,
-                    make: match.make,
-                    model: match.model,
-                    vin: match.vin,
-                    licensePlate: match.licensePlate,
-                    color: match.color,
-                    notes: match.notes,
-                };
-            }
-        }
-
-        // Normalize line items + money fields so older work orders (without the new schema)
-        // still return a consistent shape to the frontend.
-        const rawLineItems: any[] = Array.isArray(woObj.lineItems) ? woObj.lineItems : [];
-        const normalizedLineItems = rawLineItems.map((item) => {
-            const quantity = Number(item?.quantity) || 0;
-            const unitPrice = Number(item?.unitPrice) || 0;
-            const lineTotal =
-                typeof item?.lineTotal === "number" ? item.lineTotal : quantity * unitPrice;
-            return {
-                type: item?.type,
-                description: item?.description ?? "",
-                quantity,
-                unitPrice,
-                lineTotal,
-            };
-        });
-
-        const subtotal =
-            typeof woObj.subtotal === "number"
-                ? woObj.subtotal
-                : normalizedLineItems.reduce(
-                      (sum: number, item: any) => sum + (item.lineTotal || 0),
-                      0
-                  );
-
-        const taxRate =
-            typeof woObj.taxRate === "number" && !Number.isNaN(woObj.taxRate)
-                ? woObj.taxRate
-                : 13;
-        const taxAmount =
-            typeof woObj.taxAmount === "number"
-                ? woObj.taxAmount
-                : subtotal * (taxRate / 100);
-        const total =
-            typeof woObj.total === "number" ? woObj.total : subtotal + taxAmount;
-
-        woObj.lineItems = normalizedLineItems;
-        woObj.taxRate = taxRate;
-        woObj.subtotal = subtotal;
-        woObj.taxAmount = taxAmount;
-        woObj.total = total;
-
-        res.json(woObj);
-    } catch (error) {
-        console.error('Error fetching work order by ID:', error);
-        res.status(500).json({ message: 'Server error' });
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: 'Missing accountId' });
     }
+
+    const { id } = req.params;
+
+    console.log('[workOrders GET/:id] accountId:', accountId.toString());
+    console.log('[workOrders GET/:id] id param:', id);
+
+    // 🔒 Guard: id must be a valid ObjectId
+    if (!Types.ObjectId.isValid(id)) {
+      console.warn('[workOrders GET/:id] Invalid ObjectId param received:', id);
+      return res.status(400).json({ message: 'Invalid work order id' });
+    }
+
+    const workOrder = await WorkOrder.findOne({
+      _id: id,
+      accountId,
+    })
+      .populate(
+        'customerId',
+        'firstName lastName phone email address vehicles' // include vehicles for lookup
+      );
+
+    if (!workOrder) {
+      return res.status(404).json({ message: 'Work order not found' });
+    }
+
+    // Ensure vehicle snapshot is present in the response. If missing but a vehicleId exists,
+    // try to hydrate from the customer's saved vehicles.
+    const woObj: any = workOrder.toObject();
+
+    const customer: any = woObj.customerId;
+    const hasVehicleSnapshot = Boolean(woObj.vehicle);
+    const vehicleId = woObj.vehicle?.vehicleId || woObj.vehicleId;
+
+    if (!hasVehicleSnapshot && customer?.vehicles?.length && vehicleId) {
+      const match = customer.vehicles.find(
+        (v: any) => v._id?.toString() === vehicleId.toString()
+      );
+      if (match) {
+        woObj.vehicle = {
+          vehicleId: match._id,
+          year: match.year,
+          make: match.make,
+          model: match.model,
+          vin: match.vin,
+          licensePlate: match.licensePlate,
+          color: match.color,
+          notes: match.notes,
+        };
+      }
+    }
+
+    // Normalize line items + money fields so older work orders (without the new schema)
+    // still return a consistent shape to the frontend.
+    const rawLineItems: any[] = Array.isArray(woObj.lineItems)
+      ? woObj.lineItems
+      : [];
+    const normalizedLineItems = rawLineItems.map((item) => {
+      const quantity = Number(item?.quantity) || 0;
+      const unitPrice = Number(item?.unitPrice) || 0;
+      const lineTotal =
+        typeof item?.lineTotal === 'number'
+          ? item.lineTotal
+          : quantity * unitPrice;
+      return {
+        type: item?.type,
+        description: item?.description ?? '',
+        quantity,
+        unitPrice,
+        lineTotal,
+      };
+    });
+
+    const subtotal =
+      typeof woObj.subtotal === 'number'
+        ? woObj.subtotal
+        : normalizedLineItems.reduce(
+            (sum: number, item: any) => sum + (item.lineTotal || 0),
+            0
+          );
+
+    const taxRate =
+      typeof woObj.taxRate === 'number' && !Number.isNaN(woObj.taxRate)
+        ? woObj.taxRate
+        : 13;
+    const taxAmount =
+      typeof woObj.taxAmount === 'number'
+        ? woObj.taxAmount
+        : subtotal * (taxRate / 100);
+    const total =
+      typeof woObj.total === 'number' ? woObj.total : subtotal + taxAmount;
+
+    woObj.lineItems = normalizedLineItems;
+    woObj.taxRate = taxRate;
+    woObj.subtotal = subtotal;
+    woObj.taxAmount = taxAmount;
+    woObj.total = total;
+
+    res.json(woObj);
+  } catch (error) {
+    console.error('Error fetching work order by ID:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 

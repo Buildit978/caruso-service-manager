@@ -32,6 +32,9 @@ export interface IInvoiceVehicleSnapshot {
 }
 
 export interface IInvoice extends Document {
+ 
+  accountId: Types.ObjectId; 
+ 
   invoiceNumber: string;
   status: InvoiceStatus;
 
@@ -65,7 +68,7 @@ const InvoiceLineItemSchema = new Schema<IInvoiceLineItem>(
     },
     description: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     quantity: {
@@ -119,10 +122,18 @@ const InvoiceVehicleSnapshotSchema = new Schema<IInvoiceVehicleSnapshot>(
 
 const InvoiceSchema = new Schema<IInvoice>(
   {
+    // 👇 NEW: accountId for multi-tenant scoping
+    accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      required: true,
+      index: true,
+    },
+
     invoiceNumber: {
       type: String,
       required: true,
-      unique: true,
+      // unique: true,  // ❌ remove this — we'll do a compound index instead
       trim: true,
     },
     status: {
@@ -198,4 +209,21 @@ const InvoiceSchema = new Schema<IInvoice>(
   }
 );
 
+// Unique per-account invoice numbers
+InvoiceSchema.index(
+  { accountId: 1, invoiceNumber: 1 },
+  { unique: true }
+);
+
+// 🚨 Unique invoice per work order
+InvoiceSchema.index(
+  { accountId: 1, workOrderId: 1 },
+  { unique: true }
+);
+
+// Optional, helpful for list pages
+InvoiceSchema.index({ accountId: 1, createdAt: -1 });
+
+
 export const Invoice = model<IInvoice>("Invoice", InvoiceSchema);
+

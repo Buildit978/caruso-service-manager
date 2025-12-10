@@ -1,32 +1,57 @@
 // backend/src/routes/invoices.routes.ts
+import { Types } from "mongoose";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { WorkOrder } from "../models/workOrder.model";
 import { Invoice } from "../models/invoice.model";
 import { attachAccountId } from "../middleware/account.middleware";
+import { Vehicle } from "../models/vehicle.model";
+
 
 const router = Router();
 
 router.use(attachAccountId);
 
+// backend/src/routes/invoices.routes.ts
+
 /**
- * Simple helper to generate the next invoice number.
- * For now: numeric sequence as a string, starting at 1001.
+  * Generate the next invoice number for a given account.
  */
-async function getNextInvoiceNumber(): Promise<string> {
-  const lastInvoice = await Invoice.findOne().sort({ createdAt: -1 }).lean();
+async function getNextInvoiceNumber(accountId: Types.ObjectId): Promise<string> {
+  const [lastInvoice] = await Invoice.aggregate<{ invoiceNumberInt: number }>([
+    { $match: { accountId } },
+    {
+      $addFields: {
+        invoiceNumberInt: {
+          $convert: {
+            input: "$invoiceNumber",
+            to: "int",
+            onError: null,
+            onNull: null,
+          },
+        },
+      },
+    },
+    { $match: { invoiceNumberInt: { $ne: null } } },
+    { $sort: { invoiceNumberInt: -1 } },
+    { $limit: 1 },
+  ]);
 
-  if (!lastInvoice) {
-    return "1001";
-  }
+  const start = 1001;
+  const lastNum =
+    typeof lastInvoice?.invoiceNumberInt === "number"
+      ? lastInvoice.invoiceNumberInt
+      : null;
 
-  const lastNum = parseInt(lastInvoice.invoiceNumber, 10);
-  if (Number.isNaN(lastNum)) {
-    // Fallback if someone ever changes invoiceNumber format
-    return String(Date.now());
-  }
+  let next = lastNum !== null ? lastNum + 1 : start;
 
-  return String(lastNum + 1);
+  // Protect against duplicate key errors if a number was reused anywhere
+  while (await Invoice.exists({ accountId, invoiceNumber: String(next) })) {
+  next += 1;
 }
+
+  return String(next);
+}
+
 
 /**
  * POST /api/invoices/from-work-order/:id
@@ -37,20 +62,36 @@ async function getNextInvoiceNumber(): Promise<string> {
  * - Generate invoiceNumber
  * - Mark work order as "invoiced"
  */
+// POST /api/invoices/from-work-order/:workOrderId
 router.post(
-  "/from-work-order/:id",
+  "/from-work-order/:workOrderId",
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-
-      const accountId = req.accountId; // My accountId Edit 
+      const accountId = req.accountId;
       if (!accountId) {
         return res.status(400).json({ message: "Missing accountId" });
       }
 
-      const { id } = req.params;
+      const { workOrderId } = req.params;
 
-      // 1) Load work order with customer populated
-      const workOrder = await WorkOrder.findById(id).populate(
+      console.log("[invoice] accountId:", accountId.toString());
+      console.log("[invoice] workOrderId param:", workOrderId);
+
+      // debug: see if the work order exists at all, and what accountId it has
+      const woById = await WorkOrder.findById(workOrderId).lean();
+      console.log("[invoice] debug woById:", {
+        exists: !!woById,
+        id: woById?._id?.toString(),
+        accountId: woById?.accountId?.toString(),
+        status: woById?.status,
+      });
+
+
+      // 1) Load work order with customer populated, scoped by account
+      const workOrder = await WorkOrder.findOne({
+        _id: workOrderId,
+        accountId,
+      }).populate(
         "customerId",
         "firstName lastName phone email address vehicles"
       );
@@ -66,6 +107,21 @@ router.post(
           message: `Cannot create invoice from work order with status "${workOrder.status}".`,
         });
       }
+       
+      // 🔒 2b) PREVENT DUPLICATE INVOICES FOR THIS WORK ORDER
+      const existingInvoice = await Invoice.findOne({
+        accountId,
+        workOrderId: workOrder._id,
+      }).lean();
+
+      if (existingInvoice) {
+        return res.status(400).json({
+          message: "An invoice already exists for this work order.",
+          invoiceId: existingInvoice._id,
+          invoiceNumber: existingInvoice.invoiceNumber,
+        });
+      }
+      
 
       // 3) Ensure we have a customer
       const customer: any = workOrder.customerId;
@@ -75,7 +131,7 @@ router.post(
           .json({ message: "Work order has no valid customer" });
       }
 
-      // 4) Normalize line items and money fields (mirror your GET /:id logic)
+      // 4) Normalize line items and money fields
       const rawLineItems: any[] = Array.isArray(workOrder.lineItems)
         ? workOrder.lineItems
         : [];
@@ -101,13 +157,13 @@ router.post(
         typeof (workOrder as any).subtotal === "number"
           ? (workOrder as any).subtotal
           : normalizedLineItems.reduce(
-              (sum: number, item: any) => sum + (item.lineTotal || 0),
-              0
-            );
+            (sum: number, item: any) => sum + (item.lineTotal || 0),
+            0
+          );
 
       const taxRate =
         typeof (workOrder as any).taxRate === "number" &&
-        !Number.isNaN((workOrder as any).taxRate)
+          !Number.isNaN((workOrder as any).taxRate)
           ? (workOrder as any).taxRate
           : 13;
 
@@ -122,6 +178,7 @@ router.post(
           : subtotal + taxAmount;
 
       // 5) Build snapshots
+      // 5) Build snapshots
       const customerSnapshot = {
         customerId: customer._id,
         firstName: customer.firstName,
@@ -131,41 +188,54 @@ router.post(
         address: customer.address,
       };
 
-      const vehicleSnapshot = workOrder.vehicle
-        ? {
-            vehicleId: (workOrder as any).vehicle?.vehicleId,
-            year: (workOrder as any).vehicle?.year,
-            make: (workOrder as any).vehicle?.make,
-            model: (workOrder as any).vehicle?.model,
-            vin: (workOrder as any).vehicle?.vin,
-            licensePlate: (workOrder as any).vehicle?.licensePlate,
-            color: (workOrder as any).vehicle?.color,
-            notes: (workOrder as any).vehicle?.notes,
-          }
-        : undefined;
+      // 🔍 NEW: pull the first vehicle for this customer from the Vehicle collection
+      let vehicleSnapshot: any = undefined;
+
+      const vehicles = await Vehicle.find({
+        accountId,
+        customerId: customer._id,
+      })
+        .sort({ createdAt: 1 }) // oldest first, or change to -1 for most recent
+        .limit(1)
+        .lean();
+
+      const primaryVehicle = vehicles[0];
+
+      if (primaryVehicle) {
+        vehicleSnapshot = {
+          vehicleId: primaryVehicle._id.toString(),
+          year: primaryVehicle.year,
+          make: primaryVehicle.make,
+          model: primaryVehicle.model,
+          vin: primaryVehicle.vin,
+          licensePlate: primaryVehicle.licensePlate,
+          color: primaryVehicle.color,
+          notes: primaryVehicle.notes,
+        };
+      }
+
 
       // 6) Generate invoice number + dates
-      const invoiceNumber = await getNextInvoiceNumber();
+      const invoiceNumber = await getNextInvoiceNumber(accountId);
       const issueDate = new Date();
 
       let dueDate: Date | undefined;
       if (req.body.dueDate) {
-        // allow override from body if you want
         const parsed = new Date(req.body.dueDate);
         if (!Number.isNaN(parsed.getTime())) {
           dueDate = parsed;
         }
       }
       if (!dueDate) {
-        // default: 30 days after issue
         dueDate = new Date(issueDate.getTime());
         dueDate.setDate(issueDate.getDate() + 30);
       }
 
       // 7) Create invoice
       const invoice = await Invoice.create({
+        accountId,
         invoiceNumber,
-        status: "sent", // or "draft" if you prefer
+        status: "sent",
         workOrderId: workOrder._id,
         customerId: customer._id,
         customerSnapshot,
@@ -182,14 +252,31 @@ router.post(
 
       // 8) Update work order status -> invoiced
       workOrder.status = "invoiced";
+      workOrder.invoiceId = invoice._id;
       await workOrder.save();
 
       return res.status(201).json(invoice);
-    } catch (err) {
-      next(err);
+    } catch (err: any) {
+      console.error("[invoice] Create from work order failed:", err);
+
+      if (err?.code === 11000) {
+        return res.status(400).json({
+          message: "Duplicate key error while creating invoice.",
+          details: err.keyValue ?? null,
+        });
+      }
+
+      return res.status(500).json({
+        message: "Failed to create invoice.",
+        error: err?.message ?? null,
+      });
     }
   }
 );
+
+
+
+
 
 /**
  * GET /api/invoices
@@ -205,10 +292,13 @@ router.get(
         return res.status(400).json({ message: "Missing accountId" });
       }
 
-      const invoices = await Invoice.find()
+      const filters = { accountId };
+
+      const invoices = await Invoice.find(filters)
         .sort({ createdAt: -1 })
         .populate("customerId", "firstName lastName")
-        .populate("workOrderId", "status");
+        .populate("workOrderId", "status")
+        .lean();
 
       res.json(invoices);
     } catch (err) {
@@ -230,9 +320,17 @@ router.get(
       if (!accountId) {
         return res.status(400).json({ message: "Missing accountId" });
       }
-      const invoice = await Invoice.findById(req.params.id)
-        .populate("customerId", "firstName lastName")
-        .populate("workOrderId", "status");
+
+      console.log("[invoice GET] accountId:", accountId.toString());
+      console.log("[invoice GET] invoiceId param:", req.params.id);
+      
+      const invoice = await Invoice.findOne({
+        _id: req.params.id,
+        accountId,
+      })
+        .populate("customerId", "firstName lastName phone email address vehicles")
+        .populate("workOrderId", "status")
+        .lean();
 
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });

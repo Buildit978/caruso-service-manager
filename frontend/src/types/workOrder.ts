@@ -22,6 +22,7 @@ export interface WorkOrder {
     odometer?: number;
     complaint?: string;
     diagnosis?: string;
+    invoiceId?: string; 
 
     // vehicle snapshot
     vehicle?: WorkOrderVehicle;

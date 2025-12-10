@@ -4,11 +4,12 @@ import mongoose, { Types } from "mongoose";
 import { Customer } from "../models/customer.model";
 import { WorkOrder } from "../models/workOrder.model";
 import { Settings } from "../models/settings.model";
-// import { Vehicle } from "../models/vehicle.model";   // uncomment if you have it
-// import { Invoice } from "../models/invoice.model";   // uncomment if you have it
+import { Invoice } from "../models/invoice.model";
+// import { Vehicle } from "../models/vehicle.model";   // uncomment if/when needed
 
 const MONGODB_URI =
-  process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/caruso-service-manager";
+  process.env.MONGODB_URI ??
+  "mongodb://127.0.0.1:27017/caruso-service-manager";
 
 async function main() {
   const envId = process.env.DEFAULT_ACCOUNT_ID;
@@ -24,35 +25,31 @@ async function main() {
   await mongoose.connect(MONGODB_URI);
   console.log("✅ Connected to MongoDB");
 
-  const results = await Promise.all([
-    Customer.updateMany(
-      { accountId: { $exists: false } },
-      { $set: { accountId } }
-    ),
-    WorkOrder.updateMany(
-      { accountId: { $exists: false } },
-      { $set: { accountId } }
-    ),
-    Settings.updateMany(
-      { accountId: { $exists: false } },
-      { $set: { accountId } }
-    ),
-    // Vehicle.updateMany(
-    //   { accountId: { $exists: false } },
-    //   { $set: { accountId } }
-    // ),
-    // Invoice.updateMany(
-    //   { accountId: { $exists: false } },
-    //   { $set: { accountId } }
-    // ),
+  // include docs where accountId is missing OR explicitly null
+  const missingAccountFilter = {
+    $or: [{ accountId: { $exists: false } }, { accountId: null }],
+  };
+
+  const [
+    customerResult,
+    workOrderResult,
+    settingsResult,
+    invoiceResult,
+    // vehicleResult,
+  ] = await Promise.all([
+    Customer.updateMany(missingAccountFilter, { $set: { accountId } }),
+    WorkOrder.updateMany(missingAccountFilter, { $set: { accountId } }),
+    Settings.updateMany(missingAccountFilter, { $set: { accountId } }),
+    Invoice.updateMany(missingAccountFilter, { $set: { accountId } }),
+    // Vehicle.updateMany(missingAccountFilter, { $set: { accountId } }),
   ]);
 
   console.log("Backfill results:");
-  console.log("Customers:", results[0]);
-  console.log("WorkOrders:", results[1]);
-  console.log("Settings:", results[2]);
-  // console.log("Vehicles:", results[3]);
-  // console.log("Invoices:", results[4]);
+  console.log("👤 Customers:", customerResult);
+  console.log("🧰 WorkOrders:", workOrderResult);
+  console.log("⚙️ Settings:", settingsResult);
+  console.log("💸 Invoices:", invoiceResult);
+  // console.log("🚗 Vehicles:", vehicleResult);
 
   await mongoose.disconnect();
   console.log("🔌 Disconnected.");

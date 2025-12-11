@@ -17,84 +17,105 @@ interface VehicleBody {
 }
 
             // GET /api/customers?search=...
-            // GET /api/customers?search=...
-            router.get(
-            "/",
-            async (req: Request, res: Response, next: NextFunction) => {
-                try {
-                const accountId = req.accountId;
-                if (!accountId) {
-                    return res.status(400).json({ message: "Missing accountId" });
-                }
+           router.get(
+  "/",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
 
-                const { search } = req.query;
+      const { search, sortBy, sortDir } = req.query;
 
-                // 🔹 Base query, fully scoped by account
-                const baseQuery: any = { accountId };
+      // 🔹 Base query, fully scoped by account
+      const baseQuery: any = { accountId };
 
-                // 🔹 Optional search by name
-                if (typeof search === "string" && search.trim() !== "") {
-                    const regex = new RegExp(search.trim(), "i"); // case-insensitive
-                    baseQuery.$or = [{ firstName: regex }, { lastName: regex }];
-                }
+      // 🔹 Optional search by name (first + last)
+      if (typeof search === "string" && search.trim() !== "") {
+        const regex = new RegExp(search.trim(), "i"); // case-insensitive
+        baseQuery.$or = [{ firstName: regex }, { lastName: regex }];
+      }
 
-                const customers = await Customer.find(baseQuery)
-                    .sort({ createdAt: -1 })
-                    .lean();
+      // 🔹 Sorting: default to createdAt desc (newest first)
+      // sortBy: "name" | "createdAt"
+      // sortDir: "asc" | "desc"
+      let sort: Record<string, 1 | -1>;
 
-                if (!customers.length) {
-                    return res.json(customers);
-                }
+      const dir: 1 | -1 =
+        sortDir === "asc"
+          ? 1
+          : sortDir === "desc"
+          ? -1
+          : -1; // default desc
 
-                // 🔹 Compute active work order counts (open + in_progress) per customer
-                const customerIds = customers.map((c) => c._id);
+      if (sortBy === "name") {
+        // We don't have a single "name" field, so we sort by lastName then firstName
+        sort = { lastName: dir, firstName: dir };
+      } else if (sortBy === "createdAt") {
+        sort = { createdAt: dir };
+      } else {
+        // default: newest customers first
+        sort = { createdAt: -1 };
+      }
 
-                const matchStage: any = {
-                    accountId, // 👈 always scope work orders by account
-                    customerId: { $in: customerIds },
-                };
+      const customers = await Customer.find(baseQuery)
+        .sort(sort)
+        .lean();
 
-                const activeCounts = await WorkOrder.aggregate([
-                    { $match: matchStage },
-                    {
-                    $group: {
-                        _id: {
-                        customerId: "$customerId",
-                        status: { $toLower: { $trim: { input: "$status" } } },
-                        },
-                        count: { $sum: 1 },
-                    },
-                    },
-                    {
-                    $match: {
-                        "_id.status": { $in: ["open", "in_progress"] },
-                    },
-                    },
-                    {
-                    $group: {
-                        _id: "$_id.customerId",
-                        openWorkOrders: { $sum: "$count" },
-                    },
-                    },
-                ]);
+      if (!customers.length) {
+        return res.json(customers);
+      }
 
-                const countsByCustomer: Record<string, number> = {};
-                for (const row of activeCounts) {
-                    const key = row._id?.toString?.() ?? "";
-                    if (key) countsByCustomer[key] = row.openWorkOrders ?? 0;
-                }
+      // 🔹 Compute active work order counts (open + in_progress) per customer
+      const customerIds = customers.map((c) => c._id);
 
-                const enriched = customers.map((c: any) => ({
-                    ...c,
-                    openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
-                }));
+      const matchStage: any = {
+        accountId, // 👈 always scope work orders by account
+        customerId: { $in: customerIds },
+      };
 
-                res.json(enriched);
-                } catch (err) {
-                next(err);
-                }
-            }
-            );
+      const activeCounts = await WorkOrder.aggregate([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: {
+              customerId: "$customerId",
+              status: { $toLower: { $trim: { input: "$status" } } },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $match: {
+            "_id.status": { $in: ["open", "in_progress"] },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.customerId",
+            openWorkOrders: { $sum: "$count" },
+          },
+        },
+      ]);
+
+      const countsByCustomer: Record<string, number> = {};
+      for (const row of activeCounts) {
+        const key = row._id?.toString?.() ?? "";
+        if (key) countsByCustomer[key] = row.openWorkOrders ?? 0;
+      }
+
+      const enriched = customers.map((c: any) => ({
+        ...c,
+        openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 
 // GET /api/customers/:id

@@ -1,0 +1,107 @@
+// backend/src/routes/vehicles.route.ts
+
+import { Router, Request, Response, NextFunction } from "express";
+import { Vehicle } from "../models/vehicle.model";
+
+const router = Router();
+
+// Helper to resolve accountId (SaaS)
+// Uses req.user.accountId if present, otherwise DEFAULT_ACCOUNT_ID from env
+function getAccountId(req: Request): string | undefined {
+  const userAccountId = (req as any).user?.accountId;
+  if (userAccountId) return String(userAccountId);
+
+  if (process.env.DEFAULT_ACCOUNT_ID) {
+    return process.env.DEFAULT_ACCOUNT_ID;
+  }
+
+  return undefined;
+}
+
+/**
+ * GET /api/vehicles?customerId=123
+ * Returns all vehicles for a given customer
+ */
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { customerId } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "customerId is required" });
+    }
+
+    const accountId = getAccountId(req);
+
+    const query: any = { customerId };
+    if (accountId) {
+      query.accountId = accountId;
+    }
+
+    const vehicles = await Vehicle.find(query).sort({ createdAt: -1 });
+    return res.json(vehicles);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/vehicles
+ * Creates a new vehicle for a customer
+ */
+router.post("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = getAccountId(req);
+    if (!accountId) {
+      console.error("[POST /api/vehicles] Missing accountId");
+      return res
+        .status(500)
+        .json({ message: "Account context missing for vehicle creation" });
+    }
+
+    const {
+      customerId,
+      year,
+      make,
+      model,
+      vin,
+      licensePlate,
+      color,
+      notes,
+      odometer,
+    } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "customerId is required" });
+    }
+    if (!make || !model) {
+      return res.status(400).json({ message: "make and model are required" });
+    }
+
+    const vehicle = await Vehicle.create({
+      accountId,
+      customerId,
+      year,
+      make,
+      model,
+      vin,
+      licensePlate,
+      color,
+      notes,
+      currentOdometer:
+        typeof odometer === "number"
+          ? odometer
+          : odometer
+          ? Number(odometer)
+          : null,
+    });
+
+    console.log("[POST /api/vehicles] created", vehicle._id);
+
+    return res.status(201).json(vehicle);
+  } catch (err) {
+    console.error("[POST /api/vehicles] error", err);
+    next(err);
+  }
+});
+
+export default router;

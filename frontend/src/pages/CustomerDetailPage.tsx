@@ -1,6 +1,6 @@
 // frontend/src/pages/CustomerDetailPage.tsx
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import CustomerVehiclesSection from "../components/CustomerVehiclesSection";
 import type { Customer } from "../types/customer";
 import { fetchCustomer } from "../api/customers";
@@ -11,6 +11,7 @@ export default function CustomerDetailPage() {
     const [customer, setCustomer] = useState<Customer | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (!id) {
@@ -54,13 +55,47 @@ export default function CustomerDetailPage() {
         : `${customer.firstName} ${customer.lastName}`.trim();
 
     return (
-        <div>
-            <div style={{ marginBottom: "1rem" }}>
-                <Link to="/customers">&larr; Back to Customers</Link>
+        <div style={{ padding: "2rem" }}>
+            {/* Header row: Back + Name + Edit button */}
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "1.5rem",
+                }}
+            >
+                <div>
+                    <div style={{ marginBottom: "0.5rem" }}>
+                        <Link to="/customers">&larr; Back to Customers</Link>
+                    </div>
+                    <h2 style={{ marginBottom: "0.5rem", fontSize: "1.6rem", fontWeight: 600 }}>
+                        {name}
+                    </h2>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                        navigate(
+                            `/customers/${customer._id}/edit?returnTo=/customers/${customer._id}`
+                        )
+                    }
+                    style={{
+                        fontSize: "0.9rem",
+                        padding: "0.4rem 0.9rem",
+                        borderRadius: "0.4rem",
+                        border: "1px solid #cbd5e1",
+                        background: "#0f172a",
+                        color: "#e5e7eb",
+                        cursor: "pointer",
+                    }}
+                >
+                    Edit Customer
+                </button>
             </div>
 
-            <h2 style={{ marginBottom: "0.5rem" }}>{name}</h2>
-
+            {/* Contact info */}
             <div style={{ marginBottom: "1rem" }}>
                 {customer.phone && <p>Phone: {customer.phone}</p>}
                 {customer.email && <p>Email: {customer.email}</p>}

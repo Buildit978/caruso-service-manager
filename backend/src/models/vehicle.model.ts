@@ -11,6 +11,7 @@ export interface IVehicle extends Document {
   licensePlate?: string;
   color?: string;
   notes?: string;
+  currentOdometer?: number | null;
 }
 
 const vehicleSchema = new Schema<IVehicle>(
@@ -34,6 +35,11 @@ const vehicleSchema = new Schema<IVehicle>(
     licensePlate: { type: String, trim: true },
     color: { type: String, trim: true },
     notes: { type: String, trim: true },
+    
+    currentOdometer: {
+      type: Number,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -35,6 +35,15 @@ const Sidebar: React.FC = () => {
                 >
                     Customers
         </NavLink>
+                <NavLink
+                    to="/vehicles"
+                    className={({ isActive }) =>
+                        `${linkBase} ${isActive ? 'bg-gray-300 dark:bg-gray-800' : ''}`
+                    }
+                    >
+                    Vehicles
+                 </NavLink>
+
             </nav>
         </aside>
     );

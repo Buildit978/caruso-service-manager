@@ -104,3 +104,7 @@ export async function deleteCustomerVehicle(
 ): Promise<void> {
   await api.delete(`/vehicles/${vehicleId}`);
 }
+export async function fetchVehicleById(id: string) {
+  const res = await client.get(`/vehicles/${id}`);
+  return res.data;
+}

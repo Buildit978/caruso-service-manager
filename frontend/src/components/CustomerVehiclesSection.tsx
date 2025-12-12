@@ -1,5 +1,6 @@
 // src/components/CustomerVehiclesSection.tsx
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
     getCustomerVehicles,
     addCustomerVehicle,
@@ -173,11 +174,15 @@ export default function CustomerVehiclesSection({
                             <ul style={{ paddingLeft: "1.25rem", marginBottom: "1rem" }}>
                                 {vehicles.map((v) => (
                                     <li key={v._id} style={{ marginBottom: "0.25rem" }}>
-                                        <span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                        <Link
+                                            to={`/vehicles/${v._id}`}
+                                            style={{ textDecoration: "none", color: "inherit" }}
+                                        >
                                             {v.year && `${v.year} `}
                                             {v.make} {v.model}
                                             {v.licensePlate && ` (${v.licensePlate})`}
-                                        </span>{" "}
+                                        </Link>
                                         <button
                                             type="button"
                                             style={{ marginLeft: "0.5rem" }}
@@ -192,10 +197,11 @@ export default function CustomerVehiclesSection({
                                         >
                                             Delete
               </button>
-                                    </li>
+                                        </div>
+                                    </li> 
                                 ))}
                             </ul>
-                        )}
+                        )} 
 
             <h4 style={{ margin: "1rem 0 0.5rem" }}>
                 {editingVehicleId ? "Edit Vehicle" : "Add Vehicle"}

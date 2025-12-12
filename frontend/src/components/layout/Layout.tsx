@@ -57,11 +57,16 @@ function Layout({ children }: LayoutProps) {
           </Link>
                     <Link to="/customers" style={linkStyle('/customers')}>
                         Customers
-          </Link>
+         </Link>
+
+                    <Link to="/vehicles" style={linkStyle('/vehicles')}>
+                        Vehicles
+         </Link>  
+                    
                     <Link to="/settings" style={linkStyle('/settings')}>
                         Settings
           </Link>
-       
+                    
                 </nav>
                 <p
                     style={{

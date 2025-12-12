@@ -1,6 +1,6 @@
 // src/App.tsx
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-//import { Routes, Route } from 'react-router-dom'
+//import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import DashboardPage from './pages/DashboardPage'
 import WorkOrdersPage from './pages/WorkOrdersPage'
@@ -13,6 +13,8 @@ import CustomerCreatePage from "./pages/CustomerCreatePage";
 import CustomerEditPage from "./pages/CustomerEditPage"; 
 import CustomerDetailPage from "./pages/CustomerDetailPage";
 import InvoiceDetailPage from "./pages/InvoiceDetailPage";
+import VehicleDetailPage from "./pages/VehicleDetailPage";
+import VehiclesPage from "./pages/VehiclesPage.tsx";
 
 
 
@@ -31,6 +33,9 @@ function App() {
         <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
         <Route path="/customers/new" element={<CustomerCreatePage />} />
         <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
+        <Route path="/vehicles" element={<VehiclesPage />} />
+
       </Routes>
     </Layout>
   )

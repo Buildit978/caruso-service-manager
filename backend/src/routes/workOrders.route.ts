@@ -9,111 +9,182 @@ const router = Router();
 
 router.use(attachAccountId);
 
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) {
-      return res.status(400).json({ message: "Missing accountId" });
+
+
+
+
+
+// GET /api/work-orders/summary
+router.get(
+  "/summary",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
+      const {
+        status,
+        customerId,
+        from,
+        to,
+      } = req.query as {
+        status?: string;
+        customerId?: string;
+        from?: string;
+        to?: string;
+      };
+
+      // 🔹 Base match scoped by account
+      const match: any = { accountId };
+
+      if (status && status.trim() !== "") {
+        match.status = status.trim();
+      }
+
+      if (customerId && customerId.trim() !== "") {
+        match.customerId = customerId.trim();
+      }
+
+      // 🔹 Optional filter: date range
+      // (Using `date` here because that’s what your original snippet used and it *was* working)
+      if (typeof from === "string" || typeof to === "string") {
+        match.date = {};
+
+        if (typeof from === "string" && from.trim() !== "") {
+          const fromDate = new Date(from);
+          if (!isNaN(fromDate.getTime())) {
+            match.date.$gte = fromDate;
+          }
+        }
+
+        if (typeof to === "string" && to.trim() !== "") {
+          const toDate = new Date(to);
+          if (!isNaN(toDate.getTime())) {
+            match.date.$lte = toDate;
+          }
+        }
+
+        // If nothing valid ended up in match.date, remove it
+        if (Object.keys(match.date).length === 0) {
+          delete match.date;
+        }
+      }
+
+      // 🔹 Aggregate counts by status
+      const result = await WorkOrder.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      // 🔹 Normalize into a fixed shape
+      const summary: Record<string, number> = {
+        open: 0,
+        in_progress: 0,
+        completed: 0,
+        invoiced: 0,
+      };
+
+      for (const row of result as any[]) {
+        if (row?._id && typeof row.count === "number") {
+          summary[row._id] = row.count;
+        }
+      }
+
+      res.json(summary);
+    } catch (err) {
+      next(err);
     }
+  }
+);
 
-    const { status } = req.query;
 
-    const filter: any = { accountId };
+ // GET /api/work-orders
+router.get(
+  "/",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
 
-    if (typeof status === "string" && status.trim() !== "" && status !== "all") {
-      filter.status = status;
-    }
+      const {
+        status,
+        customerId,
+        sortBy,
+        sortDir,
+      } = req.query as {
+        status?: string;
+        customerId?: string;
+        sortBy?: "createdAt" | "serviceDate" | "status" | string;
+        sortDir?: "asc" | "desc" | string;
+      };
 
-    const workOrders = await WorkOrder.find(filter)
-      .sort({ createdAt: -1 })
-      .populate("customerId")
+      // 🔹 Base query scoped by account
+      const baseQuery: any = { accountId };
+
+      // 🔹 Optional filters
+      if (status && status.trim() !== "") {
+        baseQuery.status = status.trim();
+      }
+
+      if (customerId && customerId.trim() !== "") {
+        baseQuery.customerId = customerId.trim();
+      }
+
+      // 🔹 Sorting options:
+      // - createdAt   (default)
+      // - status      (simple alphabetical)
+      // (We’re skipping serviceDate for now — we can add that later once everything is stable)
+      let sort: Record<string, 1 | -1>;
+      const dir: 1 | -1 =
+        sortDir === "asc"
+          ? 1
+          : sortDir === "desc"
+          ? -1
+          : -1; // default desc
+
+     switch (sortBy) {
+  case "status":
+    sort = { status: dir, createdAt: dir };
+    break;
+
+  case "createdAt":
+    sort = { createdAt: dir };
+    break;
+
+  // optional, if you later support it:
+  // case "serviceDate":
+  //   sort = { serviceDate: dir, createdAt: dir };
+  //   break;
+
+  default:
+    sort = { createdAt: -1 }; // default newest first
+    break;
+}
+
+
+      const workOrders = await WorkOrder.find(baseQuery)
+      .populate("customerId", "firstName lastName fullName name")
+      .sort(sort)
       .lean();
 
-    res.json(workOrders);
-  } catch (err) {
-    next(err);
-  }
-});
-
-
-
-
-// GET /api/work-orders/summary?customerId=...&from=YYYY-MM-DD&to=YYYY-MM-DD
-router.get(
-    '/summary',
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const accountId = req.accountId;
-            if (!accountId) {
-                return res.status(400).json({ message: "Missing accountId" });
-            }
-
-            const { status, customerId, from, to } = req.query;
-
-            const match: any = { accountId };
-
-            // Optional filter: status
-            if (typeof status === 'string' && status.trim() !== '') {
-                match.status = status;
-            }
-
-            // Optional filter: customerId
-            if (typeof customerId === 'string' && customerId.trim() !== '') {
-                match.customerId = customerId;
-            }
-
-            // Optional filter: date range
-            if (typeof from === 'string' || typeof to === 'string') {
-                match.date = {};
-
-                if (typeof from === 'string' && from.trim() !== '') {
-                    const fromDate = new Date(from);
-                    if (!isNaN(fromDate.getTime())) {
-                        match.date.$gte = fromDate;
-                    }
-                }
-
-                if (typeof to === 'string' && to.trim() !== '') {
-                    const toDate = new Date(to);
-                    if (!isNaN(toDate.getTime())) {
-                        match.date.$lte = toDate;
-                    }
-                }
-
-                if (Object.keys(match.date).length === 0) {
-                    delete match.date;
-                }
-            }
-
-            // Aggregate counts by status
-            const result = await WorkOrder.aggregate([
-                { $match: match },
-                {
-                    $group: {
-                        _id: '$status',
-                        count: { $sum: 1 },
-                    },
-                },
-            ]);
-
-            // Normalize into a fixed shape
-            const summary: Record<string, number> = {
-                open: 0,
-                in_progress: 0,
-                completed: 0,
-                invoiced: 0,
-            };
-
-            for (const row of result) {
-                summary[row._id] = row.count;
-            }
-
-            res.json(summary);
-        } catch (err) {
-            next(err);
-        }
+      res.json(workOrders);
+    } catch (err) {
+      next(err);
     }
+  }
 );
+
+
+
 
 // GET /api/work-orders/:id
 router.get('/:id', async (req: Request, res: Response) => {

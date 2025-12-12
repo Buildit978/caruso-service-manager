@@ -27,17 +27,39 @@ export interface UpdateWorkOrderPayload {
     vehicle?: WorkOrderVehicle;
 }
 
-export async function fetchWorkOrders(filters: WorkOrderFilters = {}): Promise<WorkOrder[]> {
-    const params: Record<string, string> = {};
+export type WorkOrderSortBy = "createdAt" | "serviceDate" | "status";
+export type SortDir = "asc" | "desc";
 
-    if (filters.status) params.status = filters.status;
-    if (filters.customerId) params.customerId = filters.customerId;
-    if (filters.fromDate) params.fromDate = filters.fromDate;
-    if (filters.toDate) params.toDate = filters.toDate;
+export interface WorkOrderFilters {
+  status?: string;
+  customerId?: string;
+  fromDate?: string;
+  toDate?: string;
 
-    const res = await api.get<WorkOrder[]>("/work-orders", { params });
-    return res.data;
+  // new sorting fields
+  sortBy?: WorkOrderSortBy;
+  sortDir?: SortDir;
 }
+
+export async function fetchWorkOrders(
+  filters: WorkOrderFilters = {}
+): Promise<WorkOrder[]> {
+  const params: Record<string, string> = {};
+
+  // existing filters — KEEP THESE
+  if (filters.status) params.status = filters.status;
+  if (filters.customerId) params.customerId = filters.customerId;
+  if (filters.fromDate) params.fromDate = filters.fromDate;
+  if (filters.toDate) params.toDate = filters.toDate;
+
+  // new sorting params — ADD THESE
+  if (filters.sortBy) params.sortBy = filters.sortBy;
+  if (filters.sortDir) params.sortDir = filters.sortDir;
+
+  const res = await api.get<WorkOrder[]>("/work-orders", { params });
+  return res.data;
+}
+
 
 export async function fetchWorkOrder(id: string): Promise<WorkOrder> {
     const res = await api.get<WorkOrder>(`/work-orders/${id}`);

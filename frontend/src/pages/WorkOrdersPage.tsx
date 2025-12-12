@@ -18,6 +18,20 @@ export default function WorkOrdersPage() {
     const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // 🔹 NEW: sort state
+   const [sort, setSort] = useState<
+  | "createdAt-desc"
+  | "createdAt-asc"
+  | "status-asc"
+  | "status-desc"
+  | "customer-asc"
+  | "customer-desc"
+>("createdAt-desc");
+
+const [search, setSearch] = useState("");
+
+    
+    
 
     // Helper: format customer name safely
     const formatCustomerName = (customer?: Customer) => {
@@ -30,35 +44,67 @@ export default function WorkOrdersPage() {
         );
     };
 
-    useEffect(() => {
-        const loadWorkOrders = async () => {
-            try {
-                setLoading(true);
-                setError(null);
+useEffect(() => {
+  const loadWorkOrders = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-                const raw = await fetchWorkOrders({
-                    customerId: customerId || undefined,
-                });
+      // If we're sorting by customer, do NOT refetch — we'll sort in render
+      const isCustomerSort = sort === "customer-asc" || sort === "customer-desc";
 
-                // Normalize customer field so we can always use wo.customer
-                const normalized: WorkOrder[] = raw.map((wo: any) => ({
-                    ...wo,
-                    customer:
-                        wo.customer ??
-                        (typeof wo.customerId === "object" ? wo.customerId : undefined),
-                }));
+      let sortBy: "createdAt" | "status" | undefined;
+      let sortDir: "asc" | "desc" | undefined;
 
-                setWorkOrders(normalized);
-            } catch (err: any) {
-                console.error("Error fetching work orders:", err);
-                setError(err.message || "Failed to load work orders");
-            } finally {
-                setLoading(false);
-            }
-        };
+      if (!isCustomerSort) {
+        switch (sort) {
+          case "status-asc":
+            sortBy = "status";
+            sortDir = "asc";
+            break;
+          case "status-desc":
+            sortBy = "status";
+            sortDir = "desc";
+            break;
+          case "createdAt-asc":
+            sortBy = "createdAt";
+            sortDir = "asc";
+            break;
+          case "createdAt-desc":
+          default:
+            sortBy = "createdAt";
+            sortDir = "desc";
+            break;
+        }
+      }
 
-        loadWorkOrders();
-    }, [customerId]);
+      const raw = await fetchWorkOrders({
+        customerId: customerId || undefined,
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortDir ? { sortDir } : {}),
+      });
+
+      const normalized: WorkOrder[] = raw.map((wo: any) => ({
+        ...wo,
+        customer:
+          wo.customer ??
+          (typeof wo.customerId === "object" ? wo.customerId : undefined),
+      }));
+
+      setWorkOrders(normalized);
+    } catch (err: any) {
+      console.error("Error fetching work orders:", err);
+      setError(err.message || "Failed to load work orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadWorkOrders();
+}, [customerId, sort]);
+
+
+
 
     const title = customerId
         ? "Work Orders for Selected Customer"
@@ -76,42 +122,147 @@ export default function WorkOrdersPage() {
         );
     }
 
-    return (
-        <div className="p-6 max-w-6xl mx-auto">
-            {/* Title + New Work Order button */}
-            <div
-                className="mb-4"
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "1rem",
-                }}
-            >
-                <h1 className="text-2xl font-semibold">{title}</h1>
+    const filteredWorkOrders = workOrders.filter((wo) => {
+  if (!search.trim()) return true;
+  const name = formatCustomerName(wo.customer).toLowerCase();
+  return name.includes(search.trim().toLowerCase());
+});
 
-                <Link
-                    to="/work-orders/new"
-                    className="inline-block font-medium text-sm px-4 py-2 rounded"
-                    style={{
-                        backgroundColor: "#2563eb",
-                        color: "white",
-                        display: "inline-block",
-                        whiteSpace: "nowrap",
-                    }}
-                >
-                    + New Work Order
-        </Link>
-            </div>
+  
+const displayedWorkOrders = (() => {
+  let list = [...workOrders];
 
-            <div className="mt-6"></div>
-            {workOrders.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                    {customerId
-                        ? "No work orders found for this customer yet."
-                        : "No work orders found yet."}
-                </p>
-            ) : (
+  // 🔍 Search by customer name
+  const q = search.trim().toLowerCase();
+  if (q) {
+    list = list.filter((wo) =>
+      formatCustomerName(wo.customer).toLowerCase().includes(q)
+    );
+  }
+
+  // 🔤 Customer A–Z / Z–A sorting (frontend)
+  if (sort === "customer-asc" || sort === "customer-desc") {
+    const dir = sort === "customer-asc" ? 1 : -1;
+
+    list.sort((a, b) => {
+      const nameA = formatCustomerName(a.customer).toLowerCase();
+      const nameB = formatCustomerName(b.customer).toLowerCase();
+
+      if (nameA < nameB) return -1 * dir;
+      if (nameA > nameB) return 1 * dir;
+      return 0;
+    });
+  }
+
+  return list;
+})();
+
+
+
+
+
+
+return (
+  <div className="p-6 max-w-6xl mx-auto">
+    {/* Page Header */}
+    <div className="mb-6">
+      <div
+        style={{
+          maxWidth: "1100px",
+          marginLeft: "auto",
+          marginRight: "auto",
+          paddingRight: "100px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+        }}
+      >
+        {/* Left: Title */}
+        <h1 className="text-2xl font-semibold">{title}</h1>
+
+        {/* Right: Controls */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          {/* 🔍 Search */}
+          <input
+            type="text"
+            placeholder="Search by customer…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              height: "32px",
+              padding: "0 10px",
+              fontSize: "0.9rem",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              backgroundColor: "white",
+              color: "#111827",
+              minWidth: "220px",
+            }}
+          />
+
+          {/* 🔃 Sort */}
+          <select
+            value={sort}
+            onChange={(e) =>
+              setSort(
+                e.target.value as
+                  | "createdAt-desc"
+                  | "createdAt-asc"
+                  | "status-asc"
+                  | "status-desc"
+                  | "customer-asc"
+                  | "customer-desc"
+              )
+            }
+            style={{
+              height: "32px",
+              padding: "0 8px",
+              fontSize: "0.9rem",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              backgroundColor: "white",
+              color: "#111827",
+            }}
+          >
+            <option value="createdAt-desc">Created (Newest)</option>
+            <option value="createdAt-asc">Created (Oldest)</option>
+            <option value="status-asc">Status A–Z</option>
+            <option value="status-desc">Status Z–A</option>
+            <option value="customer-asc">Customer A–Z</option>
+            <option value="customer-desc">Customer Z–A</option>
+          </select>
+
+          {/* ➕ Button */}
+          <Link
+            to="/work-orders/new"
+            className="inline-block font-medium text-sm px-4 py-2 rounded"
+            style={{
+              backgroundColor: "#2563eb",
+              color: "white",
+              whiteSpace: "nowrap",
+            }}
+          >
+            + New Work Order
+          </Link>
+        </div>
+      </div>
+    </div>
+    <div className="mt-6"></div>
+    {/* ⬇️ everything below this stays exactly as you had it (no changes) */}
+    {workOrders.length === 0 ? (
+      <p className="text-sm text-slate-500">
+        {customerId
+          ? "No work orders found for this customer yet."
+          : "No work orders found yet."}
+      </p>
+    ) : (
                     <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
                         <table className="min-w-full text-sm">
                             <thead className="bg-slate-50 border-b border-slate-200">
@@ -138,7 +289,8 @@ export default function WorkOrdersPage() {
                             </thead>
 
                             <tbody>
-                                {workOrders.map((wo) => (
+                                {displayedWorkOrders.map((wo) => (
+
                                     <tr
                                         key={wo._id}
                                         className="border-b border-slate-100 hover:bg-slate-50"

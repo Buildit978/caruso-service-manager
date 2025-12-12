@@ -118,6 +118,9 @@ router.get(
       const {
         status,
         customerId,
+        vehicleId,
+        fromDate,
+        toDate,
         sortBy,
         sortDir,
       } = req.query as {
@@ -138,6 +141,33 @@ router.get(
       if (customerId && customerId.trim() !== "") {
         baseQuery.customerId = customerId.trim();
       }
+
+
+      if (vehicleId && vehicleId.trim() !== "") {
+      if (!Types.ObjectId.isValid(vehicleId)) {
+        return res.status(400).json({ message: "Invalid vehicleId" });
+      }
+      baseQuery["vehicle.vehicleId"] = new Types.ObjectId(vehicleId);
+      }
+      
+
+      if ((fromDate && fromDate.trim() !== "") || (toDate && toDate.trim() !== "")) {
+      baseQuery.date = {};
+
+      if (fromDate && fromDate.trim() !== "") {
+        const d = new Date(fromDate);
+        if (!isNaN(d.getTime())) baseQuery.date.$gte = d;
+      }
+
+      if (toDate && toDate.trim() !== "") {
+        const d = new Date(toDate);
+        if (!isNaN(d.getTime())) baseQuery.date.$lte = d;
+      }
+
+      if (Object.keys(baseQuery.date).length === 0) delete baseQuery.date;
+     }
+
+
 
       // 🔹 Sorting options:
       // - createdAt   (default)

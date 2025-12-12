@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { fetchVehicleById } from "../api/vehicles";
+import { fetchWorkOrders } from "../api/workOrders";
+import type { WorkOrder } from "../types/workOrder";
+
 
 type Vehicle = {
   _id: string;
@@ -15,11 +18,14 @@ type Vehicle = {
 
 export default function VehicleDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
+    
+   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+   const [woLoading, setWoLoading] = useState(false);
+   const [woError, setWoError] = useState<string | null>(null);
+   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -38,11 +44,36 @@ export default function VehicleDetailPage() {
       }
     })();
   }, [id]);
+    
+       useEffect(() => {
+            if (!id) return;
+
+            (async () => {
+                try {
+                setWoLoading(true);
+                setWoError(null);
+
+                const items = await fetchWorkOrders({
+                    vehicleId: id,
+                    sortBy: "createdAt",
+                    sortDir: "desc",
+                });
+
+                setWorkOrders(items);
+                } catch (e: any) {
+                setWoError(e?.message ?? "Failed to load work orders");
+                } finally {
+                setWoLoading(false);
+                }
+            })();
+            }, [id]);
 
   if (loading) return <div style={{ padding: "1rem" }}>Loading vehicle…</div>;
   if (error) return <div style={{ padding: "1rem" }}>{error}</div>;
   if (!vehicle) return <div style={{ padding: "1rem" }}>Vehicle not found.</div>;
 
+    
+    
   return (
     <div style={{ padding: "1rem" }}>
       <div style={{ marginBottom: "1rem" }}>
@@ -70,7 +101,30 @@ export default function VehicleDetailPage() {
           }}
         >
           New Work Order
-        </button>
+              </button>
+              
+              <section style={{ marginTop: "1.5rem" }}>
+                    <h2 style={{ marginBottom: "0.5rem" }}>Work Orders</h2>
+
+                    {woLoading ? (
+                        <p>Loading work orders…</p>
+                    ) : woError ? (
+                        <p>{woError}</p>
+                    ) : workOrders.length === 0 ? (
+                        <p>No work orders for this vehicle.</p>
+                    ) : (
+                        <ul>
+                        {workOrders.map((wo) => (
+                            <li key={wo._id} style={{ marginBottom: "0.5rem" }}>
+                            <Link to={`/work-orders/${wo._id}`}>
+                                {(wo.status || "open").toUpperCase()} — {wo.complaint || "Work Order"}
+                            </Link>
+                            </li>
+                        ))}
+                        </ul>
+                    )}
+              </section>
+
 
         {vehicle.customerId && (
           <Link to={`/customers/${vehicle.customerId}`} style={{ alignSelf: "center" }}>
@@ -80,4 +134,8 @@ export default function VehicleDetailPage() {
       </div>
     </div>
   );
+    
+    
+     
+
 }

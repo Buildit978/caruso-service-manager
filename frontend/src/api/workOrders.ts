@@ -2,12 +2,6 @@
 import api from "./client";
 import type { WorkOrder, WorkOrderStatus, WorkOrderVehicle } from "../types/workOrder";
 
-export interface WorkOrderFilters {
-    status?: WorkOrderStatus;
-    customerId?: string;
-    fromDate?: string; // ISO
-    toDate?: string;   // ISO
-}
 
 export interface CreateWorkOrderPayload {
     customerId: string;
@@ -31,15 +25,17 @@ export type WorkOrderSortBy = "createdAt" | "serviceDate" | "status";
 export type SortDir = "asc" | "desc";
 
 export interface WorkOrderFilters {
-  status?: string;
+  status?: WorkOrderStatus;
   customerId?: string;
-  fromDate?: string;
-  toDate?: string;
+  vehicleId?: string;
+  fromDate?: string; // ISO
+  toDate?: string;   // ISO
 
-  // new sorting fields
+  // sorting
   sortBy?: WorkOrderSortBy;
   sortDir?: SortDir;
 }
+
 
 export async function fetchWorkOrders(
   filters: WorkOrderFilters = {}
@@ -49,6 +45,7 @@ export async function fetchWorkOrders(
   // existing filters — KEEP THESE
   if (filters.status) params.status = filters.status;
   if (filters.customerId) params.customerId = filters.customerId;
+  if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.fromDate) params.fromDate = filters.fromDate;
   if (filters.toDate) params.toDate = filters.toDate;
 

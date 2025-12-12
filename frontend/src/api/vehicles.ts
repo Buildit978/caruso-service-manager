@@ -105,6 +105,6 @@ export async function deleteCustomerVehicle(
   await api.delete(`/vehicles/${vehicleId}`);
 }
 export async function fetchVehicleById(id: string) {
-  const res = await client.get(`/vehicles/${id}`);
+  const res = await api.get(`/vehicles/${id}`);
   return res.data;
 }

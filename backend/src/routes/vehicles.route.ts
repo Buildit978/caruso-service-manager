@@ -2,8 +2,13 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { Vehicle } from "../models/vehicle.model";
+import { Types } from "mongoose";
+import { Customer } from "../models/customer.model";
+import { attachAccountId } from "../middleware/account.middleware";
 
 const router = Router();
+router.use(attachAccountId);
+
 
 // Helper to resolve accountId (SaaS)
 // Uses req.user.accountId if present, otherwise DEFAULT_ACCOUNT_ID from env
@@ -103,5 +108,31 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     next(err);
   }
 });
+
+// GET /api/vehicles/:id  (vehicle subdoc id)
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
+    }
+
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid vehicle id" });
+    }
+
+    const vehicle = await Vehicle.findOne({ _id: id, accountId }).lean();
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+
+    return res.json(vehicle);
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 
 export default router;

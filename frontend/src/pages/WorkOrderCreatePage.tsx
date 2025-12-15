@@ -1,7 +1,8 @@
 // src/pages/WorkOrderCreatePage.tsx
 import { useEffect, useState, type FormEvent, type ChangeEvent,} from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { getCustomerVehicles, createVehicle, type Vehicle, type NewVehiclePayload, } from "../api/vehicles";
+import { fetchVehicleById } from "../api/vehicles"; // <-- add this
 import { fetchCustomers } from "../api/customers";
 import { createWorkOrder } from "../api/workOrders";
 import type { Customer } from "../types/customer";
@@ -51,6 +52,12 @@ export default function WorkOrderCreatePage() {
     odometer: "",
   });
 
+  const [searchParams] = useSearchParams();
+  const isVehicleLockedFromUrl = Boolean(searchParams.get("vehicleId"));
+const [isSelectionLocked, setIsSelectionLocked] = useState(isVehicleLockedFromUrl);
+
+
+
   // Helper to format customer name safely
   const formatCustomerName = (c: Customer) =>
     c.name || // current primary
@@ -79,6 +86,52 @@ export default function WorkOrderCreatePage() {
     loadCustomers();
   }, []);
 
+
+  // Hydrate from URL params: ?customerId=...&vehicleId=...
+// Also supports vehicle-only links: ?vehicleId=... (we fetch the vehicle to discover customerId)
+useEffect(() => {
+          const urlCustomerId = searchParams.get("customerId") || "";
+          const urlVehicleId = searchParams.get("vehicleId") || "";
+
+          // Nothing to hydrate
+          if (!urlCustomerId && !urlVehicleId) return;
+
+          // If customerId is present, set both (vehicleId may be empty, that's ok)
+          if (urlCustomerId) {
+            setForm((prev) => ({
+              ...prev,
+              customerId: urlCustomerId,
+              vehicleId: urlVehicleId || prev.vehicleId,
+            }));
+            return;
+          }
+
+          // If only vehicleId is present, fetch vehicle -> get customerId
+          if (urlVehicleId) {
+            (async () => {
+              try {
+                const data = await fetchVehicleById(urlVehicleId);
+                const v = (data?.vehicle ?? data) as { _id: string; customerId?: string; currentOdometer?: number };
+
+                if (!v?.customerId) return;
+
+                setForm((prev) => ({
+                  ...prev,
+                  customerId: v.customerId!,
+                  vehicleId: urlVehicleId,
+                  odometer:
+                    v.currentOdometer != null ? String(v.currentOdometer) : prev.odometer,
+                }));
+              } catch (err) {
+                console.error("[Create WO] hydrateFromVehicleId failed", err);
+              }
+            })();
+          }
+          // IMPORTANT: depends on location.search changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [location.search]);
+
+
   // If a customerId is passed in the URL (e.g. after creating a new customer),
   // preselect it in the form.
   useEffect(() => {
@@ -93,61 +146,76 @@ export default function WorkOrderCreatePage() {
     }
   }, [location.search]);
 
-  // Whenever the selected customer changes, load their vehicles
-  useEffect(() => {
-    if (!form.customerId) {
-      setVehicles([]);
-      setVehiclesError(null);
-      setForm((prev) => ({ ...prev, vehicleId: "" }));
-      return;
-    }
-
-    let cancelled = false;
-    setVehiclesLoading(true);
+// Whenever the selected customer changes, load their vehicles
+useEffect(() => {
+  if (!form.customerId) {
+    setVehicles([]);
     setVehiclesError(null);
+    setForm((prev) => ({ ...prev, vehicleId: "" }));
+    return;
+  }
 
-    getCustomerVehicles(form.customerId)
-      .then((data) => {
-        if (cancelled) return;
+  let cancelled = false;
+  setVehiclesLoading(true);
+  setVehiclesError(null);
 
-        setVehicles(data);
+  getCustomerVehicles(form.customerId)
+    .then((data) => {
+      if (cancelled) return;
 
-        // Clear previous selection by default
+      setVehicles(data);
+
+      // ✅ KEY CHANGE:
+      // If a vehicleId is already set (from URL preselect), keep it *if it exists* in this list.
+      if (form.vehicleId) {
+        const match = data.find((v) => v._id === form.vehicleId);
+        if (match) {
+          // optionally hydrate odometer from the matched vehicle
+          if (match.currentOdometer != null) {
+            setForm((prev) => ({
+              ...prev,
+              odometer: String(match.currentOdometer),
+            }));
+          }
+          return; // keep vehicleId intact
+        }
+
+        // If vehicleId doesn't belong to this customer, clear it
+        setForm((prev) => ({ ...prev, vehicleId: "" }));
+        return;
+      }
+
+      // If no vehicle preselected, keep your old convenience behavior:
+      // auto-select if exactly one vehicle
+      if (data.length === 1) {
+        const v = data[0];
         setForm((prev) => ({
           ...prev,
-          vehicleId: "",
+          vehicleId: v._id,
+          odometer:
+            v.currentOdometer != null
+              ? String(v.currentOdometer)
+              : prev.odometer,
         }));
+      }
+    })
+    .catch((err) => {
+      console.error("[Create WO] getCustomerVehicles error", err);
+      if (!cancelled) {
+        setVehicles([]);
+        setVehiclesError("Could not load vehicles for this customer.");
+      }
+    })
+    .finally(() => {
+      if (!cancelled) setVehiclesLoading(false);
+    });
 
-        // Optional: if the customer has exactly one vehicle, auto-select it
-        if (data.length === 1) {
-          const v = data[0];
-          setForm((prev) => ({
-            ...prev,
-            vehicleId: v._id,
-            odometer:
-              v.currentOdometer != null
-                ? String(v.currentOdometer)
-                : prev.odometer,
-          }));
-        }
-      })
-      .catch((err) => {
-        console.error("[Create WO] getCustomerVehicles error", err);
-        if (!cancelled) {
-          setVehicles([]);
-          setVehiclesError("Could not load vehicles for this customer.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setVehiclesLoading(false);
-        }
-      });
+  return () => {
+    cancelled = true;
+  };
+// IMPORTANT: include form.vehicleId so the “keep preselected” logic works if hydrate happens after customerId sets
+}, [form.customerId, form.vehicleId]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [form.customerId]);
 
   const handleChange = (
     e: ChangeEvent<
@@ -155,6 +223,14 @@ export default function WorkOrderCreatePage() {
     >
   ) => {
     const { name, value } = e.target;
+
+    // 🔒 If user unlocks and changes customer, clear vehicle to avoid mismatch
+      if (name === "customerId") {
+        setForm((prev) => ({ ...prev, customerId: value, vehicleId: "" }));
+        return;
+      }
+
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -389,17 +465,20 @@ export default function WorkOrderCreatePage() {
 
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <select
-                  name="customerId"
-                  value={form.customerId}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #475569",
-                    fontSize: "1rem",
-                  }}
+                      name="customerId"
+                      value={form.customerId}
+                      onChange={handleChange}
+                      required
+                      disabled={isSelectionLocked}
+                      style={{
+                        width: "100%",
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: "0.5rem",
+                        border: "1px solid #475569",
+                        fontSize: "1rem",
+                        opacity: isSelectionLocked ? 0.7 : 1,
+                        cursor: isSelectionLocked ? "not-allowed" : "pointer",
+                      }}
                 >
                   <option value="">Select a customer</option>
                   {customers.map((c) => (
@@ -436,19 +515,22 @@ export default function WorkOrderCreatePage() {
                               No vehicles on file for this customer yet.
                             </p>
                           ) : (
-                            <select
-                              name="vehicleId"
-                              value={form.vehicleId}
-                              onChange={handleVehicleChange}
-                              style={{
-                                marginTop: "0.25rem",
-                                width: "100%",
-                                padding: "0.5rem 0.75rem",
-                                borderRadius: "0.5rem",
-                                border: "1px solid #475569",
-                                fontSize: "0.95rem",
-                              }}
-                            >
+                           <select
+                                  name="vehicleId"
+                                  value={form.vehicleId}
+                                  onChange={handleVehicleChange}
+                                  disabled={isSelectionLocked}
+                                  style={{
+                                    marginTop: "0.25rem",
+                                    width: "100%",
+                                    padding: "0.5rem 0.75rem",
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #475569",
+                                    fontSize: "0.95rem",
+                                    opacity: isSelectionLocked ? 0.7 : 1,
+                                    cursor: isSelectionLocked ? "not-allowed" : "pointer",
+                                  }}
+                                >
                               <option value="">Select vehicle…</option>
                               {vehicles.map((v) => (
                                 <option key={v._id} value={v._id}>
@@ -460,6 +542,29 @@ export default function WorkOrderCreatePage() {
                               ))}
                             </select>
                           )}
+
+                        {isVehicleLockedFromUrl && (
+
+
+                              <button
+                                type="button"
+                                onClick={() => setIsSelectionLocked((v) => !v)}
+                                style={{
+                                  marginTop: "0.5rem",
+                                  border: "none",
+                                  background: "none",
+                                  color: "#60a5fa",
+                                  textDecoration: "underline",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  width: "fit-content",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                {isSelectionLocked ? "Change customer/vehicle" : "Lock selection"}
+                              </button>
+                            )}
+
 
                           {/* Toggle inline "Add Vehicle" form */}
                           <div

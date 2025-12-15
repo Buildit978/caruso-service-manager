@@ -93,7 +93,12 @@ export default function VehicleDetailPage() {
 
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <button
-          onClick={() => navigate(`/work-orders/new?vehicleId=${vehicle._id}`)}
+          onClick={() => {
+                      const qs = new URLSearchParams();
+                      if (vehicle.customerId) qs.set("customerId", vehicle.customerId);
+                      qs.set("vehicleId", vehicle._id);
+                      navigate(`/work-orders/new?${qs.toString()}`);
+                    }}
           style={{
             padding: "0.6rem 0.9rem",
             borderRadius: "10px",
@@ -102,7 +107,7 @@ export default function VehicleDetailPage() {
         >
           New Work Order
               </button>
-              
+          </div>    
               <section style={{ marginTop: "1.5rem" }}>
                     <h2 style={{ marginBottom: "0.5rem" }}>Work Orders</h2>
 
@@ -132,7 +137,6 @@ export default function VehicleDetailPage() {
           </Link>
         )}
       </div>
-    </div>
   );
     
     

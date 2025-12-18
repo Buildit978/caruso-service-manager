@@ -25,7 +25,7 @@ export type WorkOrderSortBy = "createdAt" | "serviceDate" | "status";
 export type SortDir = "asc" | "desc";
 
 export interface WorkOrderFilters {
-  status?: WorkOrderStatus;
+  status?: WorkOrderStatus | "active";
   customerId?: string;
   vehicleId?: string;
   fromDate?: string; // ISO
@@ -67,6 +67,8 @@ export async function createWorkOrder(payload: CreateWorkOrderPayload): Promise<
     const res = await api.post<WorkOrder>("/work-orders", payload);
     return res.data;
 }
+
+
 
 export async function updateWorkOrder(
     id: string,

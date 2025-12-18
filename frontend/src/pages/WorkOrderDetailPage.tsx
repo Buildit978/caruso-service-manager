@@ -33,6 +33,8 @@ export default function WorkOrderDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [lineItems, setLineItems] = useState<WorkOrderLineItem[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
   const [taxRate, setTaxRate] = useState<number>(13);
   const [saving, setSaving] = useState(false);
 
@@ -52,6 +54,43 @@ export default function WorkOrderDetailPage() {
       setLoading(false);
     }
   }
+
+
+      async function applyStatus(
+        nextStatus: "in_progress" | "on_hold" | "completed" | "invoiced"
+      ) {
+        if (!workOrder?._id) return;
+
+        try {
+          setActionError(null);
+          await updateWorkOrderStatus(workOrder._id, nextStatus);
+
+          // refresh so timestamps/status are up-to-date
+          const refreshed = await fetchWorkOrder(workOrder._id);
+          setWorkOrder(refreshed);
+        } catch (err: any) {
+          console.error(err);
+          setActionError(err.message || "Failed to update status");
+        }
+      }
+
+
+      const handleStartWork = () => applyStatus("in_progress");
+      const handlePauseWork = async () => {
+            if (hasUnsavedChanges) {
+              const proceed = window.confirm(
+                "You have unsaved line items.\n\nPausing now will discard these changes.\n\nSave before pausing?"
+              );
+              if (!proceed) return;
+            }
+
+            await applyStatus("on_hold");
+          };
+
+      const handleResumeWork = () => applyStatus("in_progress");
+
+
+
 
   useEffect(() => {
     loadWorkOrder();
@@ -181,6 +220,7 @@ export default function WorkOrderDetailPage() {
       next[index] = item;
       return next;
     });
+    setHasUnsavedChanges(true);
   };
 
   const handleAddLineItem = () => {
@@ -194,10 +234,12 @@ export default function WorkOrderDetailPage() {
         lineTotal: 0,
       },
     ]);
+    setHasUnsavedChanges(true);
   };
 
   const handleRemoveLineItem = (index: number) => {
     setLineItems((prev) => prev.filter((_, i) => i !== index));
+    setHasUnsavedChanges(true);
   };
 
   const normalizedLineItems = Array.isArray(lineItems)
@@ -226,7 +268,7 @@ export default function WorkOrderDetailPage() {
           unitPrice,
           lineTotal,
         };
-      })
+    })
     : [];
 
   const computedSubtotal = normalizedLineItems.reduce(
@@ -303,10 +345,15 @@ export default function WorkOrderDetailPage() {
   if (error) return <p className="text-red-600">{error}</p>;
   if (!workOrder) return <p>Work order not found.</p>;
 
-    const rawStatus = (workOrder.status || "").toLowerCase();
+  const rawStatus = (workOrder.status || "").toLowerCase();
+  
+    const isOpen = rawStatus === "open";
+    const isInProgress = rawStatus === "in_progress";
+    const isOnHold = rawStatus === "on_hold";
+    const isCancelled = rawStatus === "cancelled";
 
-const isCompleted =
-  rawStatus === "completed" || rawStatus === "complete";
+
+const isCompleted = rawStatus === "completed" || rawStatus === "complete";
 const isInvoiced = rawStatus === "invoiced";
 const hasInvoice = !!workOrder.invoiceId;
 
@@ -325,7 +372,22 @@ if (isInvoiced) {
   statusBg = "#dcfce7";
   statusBorder = "#16a34a";
   statusColor = "#166534";
-}
+} else if (isOnHold) {
+  statusLabel = "ON HOLD";
+  statusBg = "#ffedd5";
+  statusBorder = "#c2410c";
+  statusColor = "#9a3412";
+} else if (isInProgress) {
+  statusLabel = "IN PROGRESS";
+  statusBg = "#fef9c3";
+  statusBorder = "#a16207";
+  statusColor = "#854d0e";
+} else if (isCancelled) {
+  statusLabel = "CANCELLED";
+  statusBg = "#e5e7eb";
+  statusBorder = "#6b7280";
+  statusColor = "#374151";
+} 
  
   const canCreateInvoice =
     INVOICE_ENABLED && isCompleted && !hasInvoice && !isCreatingInvoice;
@@ -452,30 +514,79 @@ if (isInvoiced) {
           {statusLabel}
         </span>
 
-
-              {/* COMPLETE button – only if not already done */}
-              {!isCompleted && !isInvoiced && (
+                        {/* START / PAUSE / RESUME buttons */}
+          {!isCompleted && !isInvoiced && !isCancelled && (
+            <>
+              {(isOpen || isOnHold) && (
                 <button
                   type="button"
-                  onClick={handleMarkComplete}
-                  disabled={isMarkingComplete}
+                  onClick={handleStartWork}
                   style={{
                     padding: "0.4rem 0.9rem",
                     borderRadius: "999px",
                     border: "1px solid #16a34a",
-                    background: "#ffffff",
-                    color: "#16a34a",
+                    background: "#16a34a",
+                    color: "#ffffff",
                     fontSize: "0.85rem",
                     fontWeight: 600,
                     letterSpacing: "0.05em",
                     textTransform: "uppercase",
-                    cursor: isMarkingComplete ? "default" : "pointer",
-                    opacity: isMarkingComplete ? 0.7 : 1,
+                    cursor: "pointer",
                   }}
                 >
-                  {isMarkingComplete ? "..." : "COMPLETE"}
+                  {isOnHold ? "RESUME" : "START"}
                 </button>
               )}
+
+              {isInProgress && (
+                <button
+                  type="button"
+                  onClick={handlePauseWork}
+                  style={{
+                    padding: "0.4rem 0.9rem",
+                    borderRadius: "999px",
+                    border: "1px solid #f59e0b",
+                    background: "#ffffff",
+                    color: "#b45309",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                  }}
+                >
+                  PAUSE
+                </button>
+              )}
+            </>
+          )}
+
+
+
+              {/* COMPLETE button – only if not already done */}
+              {(isInProgress || isOnHold) && !isCompleted && !isInvoiced && (
+                  <button
+                    type="button"
+                    onClick={handleMarkComplete}
+                    disabled={isMarkingComplete}
+                    style={{
+                      padding: "0.4rem 0.9rem",
+                      borderRadius: "999px",
+                      border: "1px solid #16a34a",
+                      background: "#ffffff",
+                      color: "#16a34a",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      cursor: isMarkingComplete ? "default" : "pointer",
+                      opacity: isMarkingComplete ? 0.7 : 1,
+                    }}
+                  >
+                    {isMarkingComplete ? "..." : "COMPLETE"}
+                  </button>
+                )}
+
             </div>
           </div>
 

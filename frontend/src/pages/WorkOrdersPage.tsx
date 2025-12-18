@@ -11,6 +11,17 @@ function useQuery() {
     return new URLSearchParams(search);
 }
 
+      type StatusFilter =
+  | "active"
+  | "open"
+  | "in_progress"
+  | "completed"
+  | "invoiced"
+  | "all";
+
+
+
+
 export default function WorkOrdersPage() {
     const query = useQuery();
     const customerId = query.get("customerId");
@@ -18,7 +29,10 @@ export default function WorkOrdersPage() {
     const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    // 🔹 NEW: sort state
+  // 🔹 NEW: sort state
+  
+
+
    const [sort, setSort] = useState<
   | "createdAt-desc"
   | "createdAt-asc"
@@ -28,10 +42,12 @@ export default function WorkOrdersPage() {
   | "customer-desc"
 >("createdAt-desc");
 
-const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
 
-    
-    
+  const [status, setStatus] = useState<StatusFilter>("active");
+
+
+  
 
     // Helper: format customer name safely
     const formatCustomerName = (customer?: Customer) => {
@@ -80,6 +96,7 @@ useEffect(() => {
 
       const raw = await fetchWorkOrders({
         customerId: customerId || undefined,
+        status: status === "all" ? undefined : status, // ✅ key line
         ...(sortBy ? { sortBy } : {}),
         ...(sortDir ? { sortDir } : {}),
       });
@@ -101,7 +118,7 @@ useEffect(() => {
   };
 
   loadWorkOrders();
-}, [customerId, sort]);
+}, [customerId, sort, status]);
 
 
 
@@ -122,13 +139,7 @@ useEffect(() => {
         );
     }
 
-    const filteredWorkOrders = workOrders.filter((wo) => {
-  if (!search.trim()) return true;
-  const name = formatCustomerName(wo.customer).toLowerCase();
-  return name.includes(search.trim().toLowerCase());
-});
-
-  
+ 
 const displayedWorkOrders = (() => {
   let list = [...workOrders];
 
@@ -208,6 +219,28 @@ return (
           />
 
           {/* 🔃 Sort */}
+          {/* 🧾 Status Filter */}
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as StatusFilter)}
+          style={{
+            height: "32px",
+            padding: "0 8px",
+            fontSize: "0.9rem",
+            borderRadius: "6px",
+            border: "1px solid #cbd5e1",
+            backgroundColor: "white",
+            color: "#111827",
+          }}
+        >
+          <option value="active">Active</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="invoiced">Invoiced</option>
+          <option value="all">All</option>
+        </select>
+
           <select
             value={sort}
             onChange={(e) =>

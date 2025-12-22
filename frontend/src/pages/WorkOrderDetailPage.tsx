@@ -16,6 +16,77 @@ const markWorkOrderComplete = (id: string) =>
 export const INVOICE_ENABLED =
   import.meta.env.VITE_INVOICE_ENABLED === "true";
 
+  type TimelineItem = {
+  label: string;
+  date?: string | Date | null;
+  done: boolean;
+};
+
+function formatDateTime(d?: string | Date | null) {
+  if (!d) return "—";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function TimelineBlock({ items }: { items: TimelineItem[] }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #374151",
+        borderRadius: 12,
+        padding: "12px 14px",
+        background: "rgba(17,24,39,0.6)",
+      }}
+    >
+      <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "#9ca3af" }}>
+        Timeline
+      </div>
+
+      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+        {items.map((it) => (
+          <div
+            key={it.label}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "8px 10px",
+              borderRadius: 10,
+              border: "1px solid #374151",
+              opacity: it.done ? 1 : 0.6,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
+                aria-hidden
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: it.done ? "#10b981" : "#6b7280",
+                  display: "inline-block",
+                }}
+              />
+              <span style={{ fontWeight: 600 }}>{it.label}</span>
+            </div>
+
+            <span style={{ color: "#cbd5e1", fontSize: 13 }}>{formatDateTime(it.date)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export default function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -56,7 +127,27 @@ export default function WorkOrderDetailPage() {
   }
 
 
-      async function applyStatus(
+
+        useEffect(() => {
+          loadWorkOrder();
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [id]);
+
+        useEffect(() => {
+              if (!workOrder) return;
+
+              // Don't overwrite local edits with server data while dirty
+              if (!hasUnsavedChanges) {
+                setLineItems(workOrder.lineItems ?? []);
+                setTaxRate(workOrder.taxRate ?? 13);
+              } else {
+                // keep taxRate in sync if you want, optional:
+                // setTaxRate((prev) => prev ?? (workOrder.taxRate ?? 13));
+              }
+            }, [workOrder, hasUnsavedChanges]);
+
+
+  async function applyStatus(
         nextStatus: "in_progress" | "on_hold" | "completed" | "invoiced"
       ) {
         if (!workOrder?._id) return;
@@ -75,33 +166,47 @@ export default function WorkOrderDetailPage() {
       }
 
 
-      const handleStartWork = () => applyStatus("in_progress");
-      const handlePauseWork = async () => {
-            if (hasUnsavedChanges) {
-              const proceed = window.confirm(
-                "You have unsaved line items.\n\nPausing now will discard these changes.\n\nSave before pausing?"
-              );
-              if (!proceed) return;
-            }
+  
+const handleStartWork = async () => {
+  if (hasUnsavedChanges) {
+    const saveThenStart = window.confirm(
+      "You have unsaved line items.\n\n" +
+        "Click OK to SAVE and START.\n" +
+        "Click Cancel to stay here."
+    );
 
-            await applyStatus("on_hold");
-          };
+    if (!saveThenStart) return;
 
-      const handleResumeWork = () => applyStatus("in_progress");
+    await handleSaveLineItems();
+  }
+
+  await applyStatus("in_progress");
+};
 
 
+const handlePauseWork = async () => {
+  if (hasUnsavedChanges) {
+    const saveThenPause = window.confirm(
+      "You have unsaved line items.\n\n" +
+        "Click OK to SAVE and PAUSE.\n" +
+        "Click Cancel to stay here."
+    );
 
+    if (!saveThenPause) return;
 
-  useEffect(() => {
-    loadWorkOrder();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    // Save line items first (so nothing gets lost)
+    await handleSaveLineItems();
+  }
 
-  useEffect(() => {
-    if (!workOrder) return;
-    setLineItems(workOrder.lineItems ?? []);
-    setTaxRate(workOrder.taxRate ?? 13);
-  }, [workOrder]);
+  if (hasUnsavedChanges) {
+      // discard draft by reloading from backend truth
+      await loadWorkOrder();
+      setHasUnsavedChanges(false);
+    }
+
+  await applyStatus("on_hold");
+};
+
 
   // Derive customer + display name from the loaded work order
   const customer =
@@ -130,10 +235,19 @@ export default function WorkOrderDetailPage() {
       setActionError(null);
 
       console.log("[WO Detail] Marking complete:", workOrder._id);
-      const updated = await markWorkOrderComplete(workOrder._id);
 
-      setWorkOrder(updated);
-      alert("✅ Work order marked complete!");
+      // COMPLETE
+        if (hasUnsavedChanges) {
+          await handleSaveLineItems();
+        }
+
+        await markWorkOrderComplete(workOrder._id);
+
+        // ✅ reload from your GET /work-orders/:id (which is the “full truth”)
+        await loadWorkOrder();
+
+        alert("✅ Work order marked complete!");
+
     } catch (err: any) {
       console.error("[WO Detail] Failed to mark complete", err);
       setActionError(err.message || "Could not mark work order complete.");
@@ -223,19 +337,22 @@ export default function WorkOrderDetailPage() {
     setHasUnsavedChanges(true);
   };
 
-  const handleAddLineItem = () => {
-    setLineItems((prev) => [
-      ...prev,
-      {
-        type: "labour",
-        description: "",
-        quantity: 1,
-        unitPrice: 0,
-        lineTotal: 0,
-      },
-    ]);
-    setHasUnsavedChanges(true);
-  };
+const handleAddLineItem = () => {
+  setLineItems((prev) => [
+    ...prev,
+    {
+      type: "labour",
+      description: "",
+      quantity: 1,
+      unitPrice: 0,
+      lineTotal: 1 * 0,
+      rawQuantity: "1",
+      rawUnitPrice: "0",
+    } as any,
+  ]);
+  setHasUnsavedChanges(true);
+};
+
 
   const handleRemoveLineItem = (index: number) => {
     setLineItems((prev) => prev.filter((_, i) => i !== index));
@@ -271,29 +388,30 @@ export default function WorkOrderDetailPage() {
     })
     : [];
 
-  const computedSubtotal = normalizedLineItems.reduce(
-    (sum, item) => sum + (item.lineTotal || 0),
-    0
-  );
-  const taxRateToUse =
-    typeof taxRate === "number" && !Number.isNaN(taxRate) ? taxRate : 13;
-  const computedTaxAmount = computedSubtotal * (taxRateToUse / 100);
-  const computedTotal = computedSubtotal + computedTaxAmount;
+// Live totals
+const computedSubtotal = normalizedLineItems.reduce(
+  (sum, item) => sum + (item.lineTotal || 0),
+  0
+);
 
-  const effectiveSubtotal =
-    typeof workOrder?.subtotal === "number"
-      ? workOrder.subtotal
-      : computedSubtotal;
+const taxRateToUse =
+  typeof taxRate === "number" && !Number.isNaN(taxRate) ? taxRate : 13;
 
-  const effectiveTaxAmount =
-    typeof workOrder?.taxAmount === "number"
-      ? workOrder.taxAmount
-      : computedTaxAmount;
+const computedTaxAmount = computedSubtotal * (taxRateToUse / 100);
+const computedTotal = computedSubtotal + computedTaxAmount;
 
-  const effectiveTotal =
-    typeof workOrder?.total === "number"
-      ? workOrder.total
-      : computedTotal;
+// Saved totals (from backend)
+const savedSubtotal = typeof workOrder?.subtotal === "number" ? workOrder.subtotal : computedSubtotal;
+const savedTaxAmount = typeof workOrder?.taxAmount === "number" ? workOrder.taxAmount : computedTaxAmount;
+const savedTotal = typeof workOrder?.total === "number" ? workOrder.total : computedTotal;
+
+// ✅ Display totals:
+// - If user has unsaved changes → show computed (live)
+// - Otherwise → show saved (authoritative)
+const displaySubtotal = hasUnsavedChanges ? computedSubtotal : savedSubtotal;
+const displayTaxAmount = hasUnsavedChanges ? computedTaxAmount : savedTaxAmount;
+const displayTotal = hasUnsavedChanges ? computedTotal : savedTotal;
+
 
   const handleSaveLineItems = async () => {
     if (!workOrder?._id) return;
@@ -309,6 +427,9 @@ export default function WorkOrderDetailPage() {
       } as any);
 
       await loadWorkOrder();
+
+      setHasUnsavedChanges(false);
+
 
       alert("✅ Line items saved.");
     } catch (err) {
@@ -345,17 +466,56 @@ export default function WorkOrderDetailPage() {
   if (error) return <p className="text-red-600">{error}</p>;
   if (!workOrder) return <p>Work order not found.</p>;
 
-  const rawStatus = (workOrder.status || "").toLowerCase();
-  
-    const isOpen = rawStatus === "open";
-    const isInProgress = rawStatus === "in_progress";
-    const isOnHold = rawStatus === "on_hold";
-    const isCancelled = rawStatus === "cancelled";
+// ----------------------
+// Status + flags (single source of truth)
+// ----------------------
+const rawStatus = (workOrder.status || "").toLowerCase().trim();
 
-
+const isOpen = rawStatus === "open";
+const isInProgress = rawStatus === "in_progress";
+const isOnHold = rawStatus === "on_hold";
+const isCancelled = rawStatus === "cancelled";
 const isCompleted = rawStatus === "completed" || rawStatus === "complete";
 const isInvoiced = rawStatus === "invoiced";
+
 const hasInvoice = !!workOrder.invoiceId;
+
+// ----------------------
+// Timeline timestamps (safe fallbacks)
+// NOTE: adjust field names if your backend uses different ones
+// ----------------------
+const startedAt = (workOrder as any)?.startedAt ?? null;
+const onHoldAt =
+  (workOrder as any)?.pausedAt ??
+  (workOrder as any)?.onHoldAt ??
+  null;
+const completedAt = (workOrder as any)?.completedAt ?? null;
+const invoicedAt = (workOrder as any)?.invoicedAt ?? null;
+
+const timelineItems: TimelineItem[] = [
+  {
+    label: "Started",
+    date: startedAt,
+    done: !!startedAt || isInProgress || isOnHold || isCompleted || isInvoiced,
+  },
+  {
+    label: "On Hold",
+    date: onHoldAt,
+    done: !!onHoldAt || isOnHold,
+  },
+  {
+    label: "Completed",
+    date: completedAt,
+    done: !!completedAt || isCompleted || isInvoiced,
+  },
+  {
+    label: "Invoiced",
+    date: invoicedAt,
+    done: !!invoicedAt || isInvoiced,
+  },
+];
+
+
 
 let statusLabel = "OPEN";
 let statusBg = "#fee2e2";
@@ -512,7 +672,7 @@ if (isInvoiced) {
           }}
         >
           {statusLabel}
-        </span>
+              </span>
 
                         {/* START / PAUSE / RESUME buttons */}
           {!isCompleted && !isInvoiced && !isCancelled && (
@@ -586,8 +746,11 @@ if (isInvoiced) {
                     {isMarkingComplete ? "..." : "COMPLETE"}
                   </button>
                 )}
-
             </div>
+            <div style={{ marginBottom: "16px" }}>
+  <TimelineBlock items={timelineItems} />
+</div>
+
           </div>
 
           <p>
@@ -632,7 +795,7 @@ if (isInvoiced) {
           )}
 
           <p>
-            <strong>Total:</strong> ${effectiveTotal.toFixed(2)}
+            <strong>Total:</strong> ${displayTotal.toFixed(2)}
           </p>
         </div>
       </section>
@@ -886,9 +1049,10 @@ if (isInvoiced) {
             fontSize: "0.9rem",
           }}
         >
+          
           <div style={{ display: "flex", gap: "12px" }}>
             <span style={{ fontWeight: 600 }}>Subtotal:</span>
-            <span>${effectiveSubtotal.toFixed(2)}</span>
+            <span>${displaySubtotal.toFixed(2)}</span>
           </div>
 
           <div
@@ -917,7 +1081,7 @@ if (isInvoiced) {
 
           <div style={{ display: "flex", gap: "12px" }}>
             <span style={{ fontWeight: 600 }}>Tax Amount:</span>
-            <span>${effectiveTaxAmount.toFixed(2)}</span>
+            <span>${displayTaxAmount.toFixed(2)}</span>
           </div>
 
           <div
@@ -930,34 +1094,53 @@ if (isInvoiced) {
             }}
           >
             <span>Total:</span>
-            <span>${effectiveTotal.toFixed(2)}</span>
+            <span>${displayTotal.toFixed(2)}</span>
           </div>
         </div>
 
         <div
-          style={{
-            marginTop: "16px",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSaveLineItems}
-            disabled={saving}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "4px",
-              border: "1px solid #4b5563",
-              backgroundColor: saving ? "#e5e7eb" : "#111827",
-              color: saving ? "#6b7280" : "#ffffff",
-              fontSize: "0.9rem",
-              cursor: saving ? "default" : "pointer",
-            }}
-          >
-            {saving ? "Saving..." : "Save Line Items"}
-          </button>
-        </div>
+  style={{
+    marginTop: "16px",
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: "10px",
+  }}
+>
+  {hasUnsavedChanges && (
+    <span
+      style={{
+        padding: "3px 10px",
+        borderRadius: "999px",
+        fontSize: "12px",
+        border: "1px solid #f59e0b",
+        color: "#b45309",
+        background: "rgba(245, 158, 11, 0.10)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      Unsaved changes
+    </span>
+  )}
+
+  <button
+    type="button"
+    onClick={handleSaveLineItems}
+    disabled={saving}
+    style={{
+      padding: "8px 16px",
+      borderRadius: "4px",
+      border: "1px solid #4b5563",
+      backgroundColor: saving ? "#e5e7eb" : "#111827",
+      color: saving ? "#6b7280" : "#ffffff",
+      fontSize: "0.9rem",
+      cursor: saving ? "default" : "pointer",
+    }}
+  >
+    {saving ? "Saving..." : "Save Line Items"}
+  </button>
+</div>
+
       </section>
 
       {/* FOOTER BUTTONS */}

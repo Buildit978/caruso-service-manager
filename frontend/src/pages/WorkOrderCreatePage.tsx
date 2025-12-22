@@ -1,7 +1,7 @@
 // src/pages/WorkOrderCreatePage.tsx
-import { useEffect, useState, type FormEvent, type ChangeEvent,} from "react";
+import { useEffect, useState, type FormEvent, type ChangeEvent} from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { getCustomerVehicles, createVehicle, type Vehicle, type NewVehiclePayload, } from "../api/vehicles";
+import { getCustomerVehicles, createVehicle, type Vehicle, type NewVehiclePayload } from "../api/vehicles";
 import { fetchVehicleById } from "../api/vehicles"; // <-- add this
 import { fetchCustomers } from "../api/customers";
 import { createWorkOrder } from "../api/workOrders";
@@ -18,8 +18,11 @@ type NewWorkOrderForm = {
 };
 
 export default function WorkOrderCreatePage() {
+
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
@@ -52,9 +55,10 @@ export default function WorkOrderCreatePage() {
     odometer: "",
   });
 
-  const [searchParams] = useSearchParams();
-  const isVehicleLockedFromUrl = Boolean(searchParams.get("vehicleId"));
-const [isSelectionLocked, setIsSelectionLocked] = useState(isVehicleLockedFromUrl);
+
+  const [customerSearch, setCustomerSearch] = useState("");
+
+
 
 
 
@@ -88,48 +92,48 @@ const [isSelectionLocked, setIsSelectionLocked] = useState(isVehicleLockedFromUr
 
 
   // Hydrate from URL params: ?customerId=...&vehicleId=...
-// Also supports vehicle-only links: ?vehicleId=... (we fetch the vehicle to discover customerId)
-useEffect(() => {
-          const urlCustomerId = searchParams.get("customerId") || "";
-          const urlVehicleId = searchParams.get("vehicleId") || "";
+  // Also supports vehicle-only links: ?vehicleId=... (we fetch the vehicle to discover customerId)
+  useEffect(() => {
+    const urlCustomerId = searchParams.get("customerId") || "";
+    const urlVehicleId = searchParams.get("vehicleId") || "";
 
-          // Nothing to hydrate
-          if (!urlCustomerId && !urlVehicleId) return;
+    // Nothing to hydrate
+    if (!urlCustomerId && !urlVehicleId) return;
 
-          // If customerId is present, set both (vehicleId may be empty, that's ok)
-          if (urlCustomerId) {
-            setForm((prev) => ({
-              ...prev,
-              customerId: urlCustomerId,
-              vehicleId: urlVehicleId || prev.vehicleId,
-            }));
-            return;
-          }
+    // If customerId is present, set both (vehicleId may be empty, that's ok)
+    if (urlCustomerId) {
+      setForm((prev) => ({
+        ...prev,
+        customerId: urlCustomerId,
+        vehicleId: urlVehicleId || prev.vehicleId,
+      }));
+      return;
+    }
 
-          // If only vehicleId is present, fetch vehicle -> get customerId
-          if (urlVehicleId) {
-            (async () => {
-              try {
-                const data = await fetchVehicleById(urlVehicleId);
-                const v = (data?.vehicle ?? data) as { _id: string; customerId?: string; currentOdometer?: number };
+    // If only vehicleId is present, fetch vehicle -> get customerId
+    if (urlVehicleId) {
+      (async () => {
+        try {
+          const data = await fetchVehicleById(urlVehicleId);
+          const v = (data?.vehicle ?? data) as { _id: string; customerId?: string; currentOdometer?: number };
 
-                if (!v?.customerId) return;
+          if (!v?.customerId) return;
 
-                setForm((prev) => ({
-                  ...prev,
-                  customerId: v.customerId!,
-                  vehicleId: urlVehicleId,
-                  odometer:
-                    v.currentOdometer != null ? String(v.currentOdometer) : prev.odometer,
-                }));
-              } catch (err) {
-                console.error("[Create WO] hydrateFromVehicleId failed", err);
-              }
-            })();
-          }
-          // IMPORTANT: depends on location.search changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [location.search]);
+          setForm((prev) => ({
+            ...prev,
+            customerId: v.customerId!,
+            vehicleId: urlVehicleId,
+            odometer:
+              v.currentOdometer != null ? String(v.currentOdometer) : prev.odometer,
+          }));
+        } catch (err) {
+          console.error("[Create WO] hydrateFromVehicleId failed", err);
+        }
+      })();
+    }
+    // IMPORTANT: depends on location.search changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
 
   // If a customerId is passed in the URL (e.g. after creating a new customer),
@@ -146,75 +150,77 @@ useEffect(() => {
     }
   }, [location.search]);
 
-// Whenever the selected customer changes, load their vehicles
-useEffect(() => {
-  if (!form.customerId) {
-    setVehicles([]);
+  // Whenever the selected customer changes, load their vehicles
+  useEffect(() => {
+    if (!form.customerId) {
+      setVehicles([]);
+      setVehiclesError(null);
+      setForm((prev) => ({ ...prev, vehicleId: "" }));
+      return;
+    }
+
+    let cancelled = false;
+    setVehiclesLoading(true);
     setVehiclesError(null);
-    setForm((prev) => ({ ...prev, vehicleId: "" }));
-    return;
-  }
 
-  let cancelled = false;
-  setVehiclesLoading(true);
-  setVehiclesError(null);
+    getCustomerVehicles(form.customerId)
+      .then((data) => {
+        if (cancelled) return;
 
-  getCustomerVehicles(form.customerId)
-    .then((data) => {
-      if (cancelled) return;
+        setVehicles(data);
 
-      setVehicles(data);
-
-      // ✅ KEY CHANGE:
-      // If a vehicleId is already set (from URL preselect), keep it *if it exists* in this list.
-      if (form.vehicleId) {
-        const match = data.find((v) => v._id === form.vehicleId);
-        if (match) {
-          // optionally hydrate odometer from the matched vehicle
-          if (match.currentOdometer != null) {
-            setForm((prev) => ({
-              ...prev,
-              odometer: String(match.currentOdometer),
-            }));
+        // ✅ KEY CHANGE:
+        // If a vehicleId is already set (from URL preselect), keep it *if it exists* in this list.
+        if (form.vehicleId) {
+          const match = data.find((v) => v._id === form.vehicleId);
+          if (match) {
+            // optionally hydrate odometer from the matched vehicle
+            if (match.currentOdometer != null) {
+              setForm((prev) => ({
+                ...prev,
+                odometer: String(match.currentOdometer),
+              }));
+            }
+            return; // keep vehicleId intact
           }
-          return; // keep vehicleId intact
+
+          // If vehicleId doesn't belong to this customer, clear it
+          setForm((prev) => ({ ...prev, vehicleId: "" }));
+          return;
         }
 
-        // If vehicleId doesn't belong to this customer, clear it
-        setForm((prev) => ({ ...prev, vehicleId: "" }));
-        return;
-      }
+        // If no vehicle preselected, keep your old convenience behavior:
+        // auto-select if exactly one vehicle
+        if (data.length === 1) {
+          const v = data[0];
+          setForm((prev) => ({
+            ...prev,
+            vehicleId: v._id,
+            odometer:
+              v.currentOdometer != null
+                ? String(v.currentOdometer)
+                : prev.odometer,
+          }));
+        }
+      })
+      .catch((err) => {
+        console.error("[Create WO] getCustomerVehicles error", err);
+        if (!cancelled) {
+          setVehicles([]);
+          setVehiclesError("Could not load vehicles for this customer.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVehiclesLoading(false);
+      });
 
-      // If no vehicle preselected, keep your old convenience behavior:
-      // auto-select if exactly one vehicle
-      if (data.length === 1) {
-        const v = data[0];
-        setForm((prev) => ({
-          ...prev,
-          vehicleId: v._id,
-          odometer:
-            v.currentOdometer != null
-              ? String(v.currentOdometer)
-              : prev.odometer,
-        }));
-      }
-    })
-    .catch((err) => {
-      console.error("[Create WO] getCustomerVehicles error", err);
-      if (!cancelled) {
-        setVehicles([]);
-        setVehiclesError("Could not load vehicles for this customer.");
-      }
-    })
-    .finally(() => {
-      if (!cancelled) setVehiclesLoading(false);
-    });
+    return () => {
+      cancelled = true;
+    };
+    // IMPORTANT: include form.vehicleId so the “keep preselected” logic works if hydrate happens after customerId sets
+  }, [form.customerId, form.vehicleId]);
 
-  return () => {
-    cancelled = true;
-  };
-// IMPORTANT: include form.vehicleId so the “keep preselected” logic works if hydrate happens after customerId sets
-}, [form.customerId, form.vehicleId]);
+
 
 
   const handleChange = (
@@ -223,12 +229,13 @@ useEffect(() => {
     >
   ) => {
     const { name, value } = e.target;
+    if (!name) return;
 
     // 🔒 If user unlocks and changes customer, clear vehicle to avoid mismatch
-      if (name === "customerId") {
-        setForm((prev) => ({ ...prev, customerId: value, vehicleId: "" }));
-        return;
-      }
+    if (name === "customerId") {
+      setForm((prev) => ({ ...prev, customerId: value, vehicleId: "" }));
+      return;
+    }
 
 
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -380,6 +387,28 @@ useEffect(() => {
     }
   };
 
+  const filteredCustomers = (customers ?? []).filter((c) => {
+    if (!c) return false;
+
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return true;
+
+    const name = String(
+      c.name ?? c.fullName ?? `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim()
+    ).toLowerCase();
+
+    const phone = String(c.phone ?? "").toLowerCase();
+    const email = String((c as any).email ?? "").toLowerCase();
+
+    return name.includes(q) || phone.includes(q) || email.includes(q);
+  });
+
+// 👇 if this line runs, it proves the component is still “inside” the function
+// console.log("[Create WO] filtered customers:", filteredCustomers.length);
+
+
+
+
   return (
     <div
       style={{
@@ -398,13 +427,14 @@ useEffect(() => {
             marginBottom: "1.5rem",
           }}
         >
-          <h1 style={{ fontSize: "2rem", fontWeight: 600 }}>
+          <h1 style={{ fontSize: "2rem", fontWeight: 600, margin: 0 }}>
             Create Work Order
           </h1>
 
           <button
             type="button"
             onClick={() => navigate(-1)}
+            disabled={saving}
             style={{
               fontSize: "0.9rem",
               padding: "0.4rem 0.9rem",
@@ -413,7 +443,6 @@ useEffect(() => {
               background: "#fff",
               color: "#0f172a",
             }}
-            disabled={saving}
           >
             Back
           </button>
@@ -444,6 +473,7 @@ useEffect(() => {
             </div>
           )}
 
+          {/* ✅ SINGLE FORM (no nesting) */}
           <form
             onSubmit={handleSubmit}
             style={{
@@ -452,503 +482,173 @@ useEffect(() => {
               gap: "1rem",
             }}
           >
-            {/* Customer + Vehicle */}
-            <label
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
-              <span>Customer</span>
+            {/* ===================================================== */}
+            {/* SLOT 1: CUSTOMER + SEARCH + CUSTOMER SELECT (NO <form>) */}
+            {/* ===================================================== */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label htmlFor="customerSearch" style={{ fontSize: "0.9rem" }}>
+                Customer
+              </label>
 
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <select
-                      name="customerId"
-                      value={form.customerId}
-                      onChange={handleChange}
-                      required
-                      disabled={isSelectionLocked}
+              <input
+                id="customerSearch"
+                type="text"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                placeholder="Search customer (name, phone, email)…"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #475569",
+                  fontSize: "1rem",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              <select
+                name="customerId"
+                value={form.customerId}
+                onChange={handleChange}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #475569",
+                  fontSize: "1rem",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">
+                  {customerSearch.trim()
+                    ? `Select a customer (${filteredCustomers.length} match${filteredCustomers.length === 1 ? "" : "es"
+                    })`
+                    : "Select a customer"}
+                </option>
+
+                {filteredCustomers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {String(formatCustomerName(c) ?? "(No name)")}
+                    {c.phone ? ` — ${c.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => navigate("/customers/new?returnTo=create-work-order")}
+                style={{
+                  marginTop: "0.25rem",
+                  fontSize: "0.85rem",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "0.4rem",
+                  border: "1px solid #475569",
+                  background: "transparent",
+                  color: "#e5e7eb",
+                  cursor: "pointer",
+                  width: "fit-content",
+                }}
+              >
+                + Add New Customer
+              </button>
+            </div>
+
+            {/* ================================== */}
+            {/* SLOT 2: VEHICLE SELECT + ADD VEHICLE */}
+            {/* ================================== */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label style={{ fontSize: "0.9rem" }}>Vehicle</label>
+
+              {vehiclesLoading && <p>Loading vehicles…</p>}
+              {vehiclesError && <p style={{ color: "red" }}>{vehiclesError}</p>}
+
+              {!vehiclesLoading && !vehiclesError && form.customerId && (
+                <>
+                  {vehicles.length === 0 ? (
+                    <p style={{ fontSize: "0.9rem" }}>
+                      No vehicles on file for this customer yet.
+                    </p>
+                  ) : (
+                    <select
+                      name="vehicleId"
+                      value={form.vehicleId}
+                      onChange={handleVehicleChange}
                       style={{
                         width: "100%",
                         padding: "0.5rem 0.75rem",
                         borderRadius: "0.5rem",
                         border: "1px solid #475569",
-                        fontSize: "1rem",
-                        opacity: isSelectionLocked ? 0.7 : 1,
-                        cursor: isSelectionLocked ? "not-allowed" : "pointer",
+                        fontSize: "0.95rem",
+                        boxSizing: "border-box",
                       }}
-                >
-                  <option value="">Select a customer</option>
-                  {customers.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {formatCustomerName(c)}
-                      {c.phone ? ` — ${c.phone}` : ""}
-                    </option>
-                  ))}
-                </select>
+                    >
+                      <option value="">Select vehicle…</option>
+                      {vehicles.map((v) => (
+                        <option key={v._id} value={v._id}>
+                          {v.year ? `${v.year} ` : ""}
+                          {v.make} {v.model}
+                          {v.licensePlate ? ` (${v.licensePlate})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
 
-                {/* VEHICLE SECTION */}
-                <div style={{ marginTop: "1rem" }}>
-                  <label
+                  <button
+                    type="button"
+                    onClick={() => setShowNewVehicleForm((prev) => !prev)}
+                    disabled={!form.customerId}
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.25rem",
-                      fontSize: "0.9rem",
+                      border: "none",
+                      background: "none",
+                      color: form.customerId ? "#60a5fa" : "#6b7280",
+                      textDecoration: "underline",
+                      cursor: form.customerId ? "pointer" : "default",
+                      padding: 0,
+                      width: "fit-content",
+                      fontSize: "0.85rem",
                     }}
                   >
-                    <span>Vehicle</span>
+                    {showNewVehicleForm
+                      ? "Cancel new vehicle"
+                      : "Add a new vehicle for this customer"}
+                  </button>
 
-                    {vehiclesLoading && <p>Loading vehicles…</p>}
-                    {vehiclesError && (
-                      <p style={{ color: "red" }}>{vehiclesError}</p>
-                    )}
+                  {/* SLOT 2A: INLINE NEW VEHICLE FORM (keep it as a <div>, never a <form>) */}
+                  {showNewVehicleForm && (
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        border: "1px solid #475569",
+                        borderRadius: "0.5rem",
+                        padding: "0.75rem",
+                        background: "#020617",
+                      }}
+                    >
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+                        New vehicle details (placeholder)
+                      </div>
 
-                    {!vehiclesLoading &&
-                      !vehiclesError &&
-                      form.customerId && (
-                        <>
-                          {vehicles.length === 0 ? (
-                            <p style={{ fontSize: "0.9rem" }}>
-                              No vehicles on file for this customer yet.
-                            </p>
-                          ) : (
-                           <select
-                                  name="vehicleId"
-                                  value={form.vehicleId}
-                                  onChange={handleVehicleChange}
-                                  disabled={isSelectionLocked}
-                                  style={{
-                                    marginTop: "0.25rem",
-                                    width: "100%",
-                                    padding: "0.5rem 0.75rem",
-                                    borderRadius: "0.5rem",
-                                    border: "1px solid #475569",
-                                    fontSize: "0.95rem",
-                                    opacity: isSelectionLocked ? 0.7 : 1,
-                                    cursor: isSelectionLocked ? "not-allowed" : "pointer",
-                                  }}
-                                >
-                              <option value="">Select vehicle…</option>
-                              {vehicles.map((v) => (
-                                <option key={v._id} value={v._id}>
-                                  {v.year && `${v.year} `}
-                                  {v.make} {v.model}
-                                  {v.licensePlate &&
-                                    ` (${v.licensePlate})`}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                      {/* Add your newVehicle inputs here later */}
 
-                        {isVehicleLockedFromUrl && (
+                      <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                        <button type="button" onClick={handleCreateVehicle} disabled={vehicleSaving}>
+                          Save vehicle
+                        </button>
+                        <button type="button" onClick={() => setShowNewVehicleForm(false)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
-
-                              <button
-                                type="button"
-                                onClick={() => setIsSelectionLocked((v) => !v)}
-                                style={{
-                                  marginTop: "0.5rem",
-                                  border: "none",
-                                  background: "none",
-                                  color: "#60a5fa",
-                                  textDecoration: "underline",
-                                  cursor: "pointer",
-                                  padding: 0,
-                                  width: "fit-content",
-                                  fontSize: "0.85rem",
-                                }}
-                              >
-                                {isSelectionLocked ? "Change customer/vehicle" : "Lock selection"}
-                              </button>
-                            )}
-
-
-                          {/* Toggle inline "Add Vehicle" form */}
-                          <div
-                            style={{
-                              marginTop: "0.5rem",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                              fontSize: "0.8rem",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setShowNewVehicleForm((prev) => !prev)
-                              }
-                              disabled={!form.customerId}
-                              style={{
-                                border: "none",
-                                background: "none",
-                                color: form.customerId
-                                  ? "#60a5fa"
-                                  : "#6b7280",
-                                textDecoration: "underline",
-                                cursor: form.customerId
-                                  ? "pointer"
-                                  : "default",
-                                padding: 0,
-                              }}
-                            >
-                              {showNewVehicleForm
-                                ? "Cancel new vehicle"
-                                : "Add a new vehicle for this customer"}
-                            </button>
-                          </div>
-
-                          {/* INLINE NEW VEHICLE FORM */}
-                          {showNewVehicleForm && form.customerId && (
-                            <div
-                              style={{
-                                marginTop: "0.75rem",
-                                border: "1px solid #e5e7eb",
-                                borderRadius: "0.5rem",
-                                padding: "0.75rem",
-                                background: "#020617",
-                              }}
-                            >
-                              <h3
-                                style={{
-                                  fontSize: "0.85rem",
-                                  fontWeight: 600,
-                                  marginBottom: "0.5rem",
-                                }}
-                              >
-                                New vehicle details
-                              </h3>
-
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns:
-                                    "repeat(2, minmax(0, 1fr))",
-                                  gap: "0.5rem",
-                                }}
-                              >
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Year
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.year}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        year: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Make *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.make}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        make: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Model *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.model}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        model: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Plate
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.licensePlate}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        licensePlate: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    VIN
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.vin}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        vin: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Color
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newVehicle.color}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        color: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Odometer (km)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    value={newVehicle.odometer}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        odometer: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                    }}
-                                  />
-                                </div>
-
-                                <div style={{ gridColumn: "1 / -1" }}>
-                                  <label
-                                    style={{
-                                      display: "block",
-                                      fontSize: "0.75rem",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Notes
-                                  </label>
-                                  <textarea
-                                    rows={2}
-                                    value={newVehicle.notes}
-                                    onChange={(e) =>
-                                      setNewVehicle((prev) => ({
-                                        ...prev,
-                                        notes: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.35rem 0.5rem",
-                                      borderRadius: "0.35rem",
-                                      border: "1px solid #475569",
-                                      fontSize: "0.8rem",
-                                      resize: "vertical",
-                                    }}
-                                  />
-                                </div>
-                              </div>
-
-                              <div
-                                style={{
-                                  marginTop: "0.75rem",
-                                  display: "flex",
-                                  gap: "0.5rem",
-                                }}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={handleCreateVehicle}
-                                  disabled={vehicleSaving}
-                                  style={{
-                                    padding: "0.4rem 0.9rem",
-                                    borderRadius: "0.4rem",
-                                    border: "none",
-                                    background: "#2563eb",
-                                    color: "#fff",
-                                    fontSize: "0.8rem",
-                                    cursor: vehicleSaving
-                                      ? "default"
-                                      : "pointer",
-                                    opacity: vehicleSaving ? 0.6 : 1,
-                                  }}
-                                >
-                                  {vehicleSaving
-                                    ? "Saving..."
-                                    : "Save & use for this work order"}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setShowNewVehicleForm(false)
-                                  }
-                                  style={{
-                                    padding: "0.4rem 0.9rem",
-                                    borderRadius: "0.4rem",
-                                    border: "1px solid #475569",
-                                    background: "transparent",
-                                    color: "#e5e7eb",
-                                    fontSize: "0.8rem",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate("/customers/new?returnTo=create-work-order")
-                  }
-                  style={{
-                    marginTop: "0.5rem",
-                    fontSize: "0.85rem",
-                    padding: "0.35rem 0.75rem",
-                    borderRadius: "0.4rem",
-                    border: "1px solid #475569",
-                    background: "transparent",
-                    color: "#e5e7eb",
-                    cursor: "pointer",
-                    width: "fit-content",
-                  }}
-                >
-                  + Add New Customer
-                </button>
-              </div>
-            </label>
-
-            {/* Complaint */}
-            <label
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
+            {/* ===================== */}
+            {/* SLOT 3: COMPLAINT */}
+            {/* ===================== */}
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.9rem" }}>
               <span>Complaint</span>
               <textarea
                 name="complaint"
@@ -967,20 +667,16 @@ useEffect(() => {
               />
             </label>
 
-            {/* Odometer */}
-            <label
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
+            {/* ===================== */}
+            {/* SLOT 4: ODOMETER */}
+            {/* ===================== */}
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.9rem" }}>
               <span>Odometer (optional)</span>
               <input
                 name="odometer"
                 value={form.odometer}
                 onChange={handleChange}
+                placeholder="e.g. 127000"
                 style={{
                   width: "100%",
                   padding: "0.5rem 0.75rem",
@@ -988,25 +684,19 @@ useEffect(() => {
                   border: "1px solid #475569",
                   fontSize: "1rem",
                 }}
-                placeholder="e.g. 127000"
               />
             </label>
 
-            {/* Notes */}
-            <label
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
+            {/* ===================== */}
+            {/* SLOT 5: NOTES */}
+            {/* ===================== */}
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.9rem" }}>
               <span>Notes (optional)</span>
               <textarea
                 name="notes"
                 value={form.notes}
                 onChange={handleChange}
-                rows={5}
+                rows={4}
                 style={{
                   width: "100%",
                   padding: "0.75rem 1rem",
@@ -1019,14 +709,10 @@ useEffect(() => {
               />
             </label>
 
-            {/* Actions */}
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                marginTop: "0.5rem",
-              }}
-            >
+            {/* ===================== */}
+            {/* ACTIONS */}
+            {/* ===================== */}
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
               <button
                 type="submit"
                 disabled={saving || loadingCustomers}
@@ -1039,15 +725,16 @@ useEffect(() => {
                   fontWeight: 500,
                   fontSize: "0.95rem",
                   opacity: saving || loadingCustomers ? 0.6 : 1,
-                  cursor:
-                    saving || loadingCustomers ? "default" : "pointer",
+                  cursor: saving || loadingCustomers ? "default" : "pointer",
                 }}
               >
                 {saving ? "Saving…" : "Create Work Order"}
               </button>
+
               <button
                 type="button"
                 onClick={() => navigate(-1)}
+                disabled={saving}
                 style={{
                   padding: "0.5rem 1.1rem",
                   borderRadius: "0.5rem",
@@ -1057,12 +744,12 @@ useEffect(() => {
                   fontSize: "0.95rem",
                   cursor: "pointer",
                 }}
-                disabled={saving}
               >
                 Cancel
               </button>
             </div>
           </form>
+          {/* ✅ END SINGLE FORM */}
         </div>
       </div>
     </div>

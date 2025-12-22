@@ -4,6 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 import type { Customer } from "../types/customer";
 import { fetchWorkOrder, updateWorkOrder } from "../api/workOrders";
+import ConfirmLeaveModal from "../components/ConfirmLeaveModal";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+
 
 // Helper: parse "Qty / Hours" input.
 // Supports "1.5", "1,5", "1:15" (1 hour 15 min => 1.25), etc.
@@ -25,6 +28,17 @@ function parseQuantityInput(raw: string): number {
 export default function WorkOrderEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  const { isDirty, markDirty, markClean } = useUnsavedChangesGuard();
+const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+const [pendingNav, setPendingNav] = useState<null | (() => void)>(null);
+
+function requestNavigation(action: () => void) {
+  if (!isDirty) return action();
+  setPendingNav(() => action);
+  setShowLeaveConfirm(true);
+}
+
 
   // 👉 this is the work order we're editing
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
@@ -164,6 +178,7 @@ export default function WorkOrderEditPage() {
     };
 
     await updateWorkOrder(workOrder._id, payload);
+    markClean();  // ✅ mark page as having no unsaved changes
 
     alert("✅ Work order updated");
     navigate(`/work-orders/${workOrder._id}`);
@@ -174,6 +189,8 @@ export default function WorkOrderEditPage() {
     field: keyof WorkOrderLineItem,
     value: string
   ) => {
+    markDirty(); // ✅ mark page as having unsaved changes
+
     setLineItems((prev) => {
       const next = [...prev];
       const item = { ...next[index] };
@@ -197,6 +214,8 @@ export default function WorkOrderEditPage() {
   };
 
   const handleQuantityChange = (index: number, raw: string) => {
+
+    markDirty(); // ✅ mark page as having unsaved changes
     setQuantityInputs((prev) => {
       const next = [...prev];
       next[index] = raw;
@@ -216,6 +235,7 @@ export default function WorkOrderEditPage() {
   };
 
   const handleAddLineItem = () => {
+    markDirty(); // ✅ mark page as having unsaved changes
     setLineItems((prev) => [
       ...prev,
       {
@@ -230,6 +250,7 @@ export default function WorkOrderEditPage() {
   };
 
   const handleRemoveLineItem = (index: number) => {
+    markDirty(); // ✅ mark page as having unsaved changes
     setLineItems((prev) => prev.filter((_, i) => i !== index));
     setQuantityInputs((prev) => prev.filter((_, i) => i !== index));
   };
@@ -270,7 +291,7 @@ export default function WorkOrderEditPage() {
 
           <button
             type="button"
-            onClick={() => navigate(`/work-orders/${id}`)}
+            onClick={() => requestNavigation(() => navigate(`/work-orders/${id}`))}
             style={{
               fontSize: "0.9rem",
               padding: "0.4rem 0.9rem",
@@ -975,9 +996,10 @@ export default function WorkOrderEditPage() {
                     min={0}
                     step={0.1}
                     value={taxRate}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      markDirty(); // ✅ mark page as having unsaved changes
                       setTaxRate(Number(e.target.value) || 0)
-                    }
+                    }}
                     style={{
                       width: "80px",
                       border: "1px solid #4b5563",
@@ -1037,7 +1059,7 @@ export default function WorkOrderEditPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(`/work-orders/${id}`)}
+                onClick={() => requestNavigation(() => navigate(`/work-orders/${id}`))}
                 style={{
                   padding: "0.5rem 1.1rem",
                   borderRadius: "0.5rem",
@@ -1053,6 +1075,20 @@ export default function WorkOrderEditPage() {
           </form>
         </div>
       </div>
+                      <ConfirmLeaveModal
+                  open={showLeaveConfirm}
+                  onCancel={() => {
+                    setShowLeaveConfirm(false);
+                    setPendingNav(null);
+                  }}
+                  onConfirm={() => {
+                    setShowLeaveConfirm(false);
+                    const go = pendingNav;
+                    setPendingNav(null);
+                    go?.();
+                  }}
+                />
+
     </div>
   );
 }

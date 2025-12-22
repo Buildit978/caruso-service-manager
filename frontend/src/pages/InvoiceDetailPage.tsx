@@ -5,6 +5,10 @@ import type { Invoice } from "../types/invoice";
 import { fetchInvoiceById } from "../api/invoices";
 
 
+
+import { getInvoicePdfUrl } from "../api/invoices";
+
+
 function resolveWorkOrderId(invoice: any): string | null {
   if (!invoice) return null;
 
@@ -213,7 +217,7 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      <div style={{ marginTop: "1.5rem" }}>
+      <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
        <button
   type="button"
   disabled={!resolvedWorkOrderId}
@@ -223,7 +227,19 @@ export default function InvoiceDetailPage() {
   }}
 >
   Back to Work Order
+        </button>
+
+<button
+  type="button"
+  onClick={() => {
+    const url = getInvoicePdfUrl(invoice._id);
+    console.log("Invoice PDF URL:", url);
+    window.open(url, "_blank");
+  }}
+>
+  View PDF
 </button>
+
 
 
 

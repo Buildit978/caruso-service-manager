@@ -11,6 +11,7 @@ import settingsRouter from "./routes/settings.route";
 import invoiceRoutes from './routes/invoice.routes';
 import { attachAccountId } from "./middleware/account.middleware";
 import vehicleRoutes from "./routes/vehicles.route";
+import invoicesRouter from "./routes/invoice.routes";
 
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/summary', summaryRoutes);
 app.use("/api/settings", settingsRouter);
 app.use('/api/invoices', invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/invoices", invoicesRouter);
 
 
 // (Optional) health check

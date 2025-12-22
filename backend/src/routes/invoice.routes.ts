@@ -5,6 +5,9 @@ import { WorkOrder } from "../models/workOrder.model";
 import { Invoice } from "../models/invoice.model";
 import { attachAccountId } from "../middleware/account.middleware";
 import { Vehicle } from "../models/vehicle.model";
+import { Customer }   from "../models/customer.model";
+import PDFDocument from "pdfkit";
+
 
 
 const router = Router();
@@ -342,5 +345,156 @@ router.get(
     }
   }
 );
+
+// GET /api/invoices/:id/pdf
+router.get("/:id/pdf", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid invoice id" });
+    }
+
+    // ✅ Account-scoped invoice lookup
+    const invoice = await Invoice.findOne({ _id: id, accountId })
+      .populate("customerId") // if you store customerId as ref
+      .lean();
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    const invoiceNumber = invoice.invoiceNumber ?? String(invoice._id).slice(-6);
+    const filename = `invoice-${invoiceNumber}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+
+    const doc = new PDFDocument({ size: "LETTER", margin: 50 });
+    doc.pipe(res);
+
+    // ---------
+    // Minimal PDF layout (v1)
+    // ---------
+
+    // Header
+    doc.fontSize(20).text("INVOICE", { align: "right" });
+    doc.moveDown(0.5);
+
+    doc.fontSize(10).text(`Invoice #: ${invoiceNumber}`, { align: "right" });
+    if (invoice.issueDate) {
+      doc.text(`Date: ${new Date(invoice.issueDate).toLocaleDateString()}`, { align: "right" });
+    }
+    if (invoice.dueDate) {
+      doc.text(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`, { align: "right" });
+    }
+
+    doc.moveDown(1);
+
+    // Bill To (customer)
+    const customer: any = (invoice as any).customerId; // populated
+    const customerName =
+      customer?.name ||
+      customer?.fullName ||
+      `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() ||
+      "(No name)";
+
+    doc.fontSize(12).text("Bill To:", { underline: true });
+    doc.fontSize(11).text(customerName);
+    if (customer?.address) doc.text(customer.address);
+    if (customer?.phone) doc.text(`Phone: ${customer.phone}`);
+    if (customer?.email) doc.text(`Email: ${customer.email}`);
+
+    doc.moveDown(1);
+
+    // --- Vehicle (from invoice) ---
+const vehicle: any =
+  (invoice as any).vehicleSnapshot ??
+  (invoice as any).vehicle ??
+  null;
+
+if (vehicle) {
+  const vehicleLine = [
+    vehicle.year,
+    vehicle.make,
+    vehicle.model,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  doc.moveDown(0.75);
+  doc.fontSize(12).text("Vehicle:", { underline: true });
+  doc.fontSize(11).text(vehicleLine || "(Vehicle)");
+  if (vehicle.licensePlate) doc.text(`Plate: ${vehicle.licensePlate}`);
+  if (vehicle.vin) doc.text(`VIN: ${vehicle.vin}`);
+  if (vehicle.color) doc.text(`Color: ${vehicle.color}`);
+}
+
+
+    // Line Items table (very simple)
+    doc.fontSize(12).text("Items:", { underline: true });
+    doc.moveDown(0.5);
+
+    const items = (invoice.lineItems ?? []) as any[];
+
+    const money = (n: any) => Number(n ?? 0).toFixed(2);
+
+    // Table header
+    doc.fontSize(10).text("Description", 50, doc.y, { continued: true });
+    doc.text("Qty", 330, doc.y, { width: 50, align: "right", continued: true });
+    doc.text("Unit", 390, doc.y, { width: 70, align: "right", continued: true });
+    doc.text("Total", 0, doc.y, { align: "right" });
+    doc.moveDown(0.3);
+    doc.moveTo(50, doc.y).lineTo(560, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    items.forEach((it) => {
+      const desc = it.description || it.type || "";
+      const qty = Number(it.quantity ?? 0);
+      const unit = Number(it.unitPrice ?? 0);
+      const total = typeof it.lineTotal === "number" ? it.lineTotal : qty * unit;
+
+      const y = doc.y;
+      doc.fontSize(10).text(desc, 50, y, { width: 270 });
+      doc.text(qty ? String(qty) : "", 330, y, { width: 50, align: "right" });
+      doc.text(qty ? `$${money(unit)}` : "", 390, y, { width: 70, align: "right" });
+      doc.text(`$${money(total)}`, 0, y, { align: "right" });
+      doc.moveDown(0.6);
+    });
+
+    doc.moveDown(0.5);
+
+    // Totals (use invoice totals if present, else compute)
+    const subtotal =
+      typeof (invoice as any).subtotal === "number"
+        ? (invoice as any).subtotal
+        : items.reduce((s, it) => s + (Number(it.lineTotal) || (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)), 0);
+
+    const taxAmount =
+      typeof (invoice as any).taxAmount === "number"
+        ? (invoice as any).taxAmount
+        : Number((invoice as any).taxRate ?? 13) / 100 * subtotal;
+
+    const total =
+      typeof (invoice as any).total === "number"
+        ? (invoice as any).total
+        : subtotal + taxAmount;
+
+    doc.fontSize(11).text(`Subtotal: $${money(subtotal)}`, { align: "right" });
+    doc.text(`Tax: $${money(taxAmount)}`, { align: "right" });
+    doc.fontSize(12).text(`Total: $${money(total)}`, { align: "right" });
+
+    // Notes
+    if ((invoice as any).notes) {
+      doc.moveDown(1);
+      doc.fontSize(11).text("Notes:", { underline: true });
+      doc.fontSize(10).text(String((invoice as any).notes));
+    }
+
+    doc.end();
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

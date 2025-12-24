@@ -1,4 +1,5 @@
 // src/api/customers.ts
+import axios from "axios";
 import api from "./client";
 import type { Customer } from "../types/customer";
 
@@ -63,4 +64,9 @@ export async function updateCustomer(
 
 export async function deleteCustomer(id: string): Promise<void> {
     await api.delete(`/customers/${id}`);
+}
+
+export async function fetchCustomerById(customerId: string) {
+  const res = await axios.get(`/api/customers/${customerId}`);
+  return res.data;
 }

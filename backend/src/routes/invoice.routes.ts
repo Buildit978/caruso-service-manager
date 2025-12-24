@@ -7,10 +7,20 @@ import { attachAccountId } from "../middleware/account.middleware";
 import { Vehicle } from "../models/vehicle.model";
 import { Customer }   from "../models/customer.model";
 import PDFDocument from "pdfkit";
+import { buildInvoicePdfBuffer } from "../utils/invoicePdf";
+import { getMailer } from "../utils/mailer";
+
+
 
 
 
 const router = Router();
+
+router.get("/__ping", (_req, res) => {
+  res.json({ ok: true, where: "invoice.routes.ts" });
+});
+
+
 
 router.use(attachAccountId);
 
@@ -54,6 +64,7 @@ async function getNextInvoiceNumber(accountId: Types.ObjectId): Promise<string> 
 
   return String(next);
 }
+
 
 
 /**
@@ -278,7 +289,122 @@ router.post(
 );
 
 
+// GET /api/invoices/__ping  (put this ABOVE any :id routes)
+router.get("/__ping", (_req, res) => res.json({ ok: true }));
 
+// POST /api/invoices/:id/email
+router.post("/:id/email", async (req, res, next) => {
+  console.log("🔥 [InvoiceEmail] STEP 1: route entered");
+  console.log("[InvoiceEmail] HIT", req.params.id, req.body);
+  console.log("🔥 [InvoiceEmail] AFTER HIT - about to verify/send");
+
+  try {
+    console.log("🔥 [InvoiceEmail] STEP 2: inside try");
+
+    const accountId = req.accountId;
+    console.log("🔥 [InvoiceEmail] STEP 3: accountId", accountId);
+
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+
+
+    const { id } = req.params;
+    console.log("🔥 [InvoiceEmail] STEP 4: id", id);
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid invoice id" });
+    }
+
+   
+
+    const { to, message } = req.body as { to?: string; message?: string };
+    console.log("🔥 [InvoiceEmail] STEP 5: to", to);
+
+    console.log("[InvoiceEmail] ROUTE HIT", { id, to });
+    
+
+
+    if (!to || !to.includes("@")) {
+      return res.status(400).json({ message: "Missing/invalid recipient email (to)" });
+    }
+
+    // Load invoice (account-scoped)
+    const invoice = await Invoice.findOne({ _id: id, accountId }).lean();
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    // Optional: pull customer (if you store customerId)
+    let customer: any = null;
+    const custId: any = (invoice as any).customerId;
+    if (custId && Types.ObjectId.isValid(String(custId))) {
+      customer = await Customer.findOne({ _id: custId, accountId }).lean();
+    }
+
+    // Build PDF buffer
+    const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
+
+    const invoiceNumber = (invoice as any).invoiceNumber ?? String((invoice as any)._id).slice(-6);
+
+    const filename = `invoice-${invoiceNumber}.pdf`;
+
+    console.log("🔥 [InvoiceEmail] STEP 6: before getMailer()");
+    // Send email
+    const transporter = getMailer();
+
+    // IMPORTANT: For debugging, force FROM to match the authenticated user
+    const from = process.env.SMTP_USER!;
+    // Later you can revert to:
+    // const from = process.env.INVOICE_FROM_EMAIL || process.env.SMTP_USER!;
+
+
+    const subject = `Invoice #${invoiceNumber}`;
+    const text =
+      message?.trim() ||
+      `Attached is your invoice #${invoiceNumber}.`;
+
+    
+
+    console.log("🔥 [InvoiceEmail] STEP 8: before sendMail()");
+     const info = await transporter.sendMail({
+      from,
+      to,
+      subject,
+      text,
+      attachments: [
+        {
+          filename,
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+
+
+    console.log("🔥 [InvoiceEmail] STEP 9: after sendMail()");
+    console.log("[InvoiceEmail] accepted:", info.accepted);
+    console.log("[InvoiceEmail] rejected:", info.rejected);
+    console.log("[InvoiceEmail] response:", info.response);
+
+    // Only call success if SMTP accepted at least one recipient
+    const accepted = Array.isArray(info.accepted) ? info.accepted : [];
+    if (accepted.length === 0) {
+      return res.status(502).json({
+        message: "SMTP did not accept any recipients.",
+        accepted: info.accepted,
+        rejected: info.rejected,
+        response: info.response,
+      });
+    }
+
+
+    console.log("✅ [InvoiceEmail] END - sending response to client");
+
+    return res.json({ ok: true, accepted, messageId: info.messageId });
+  } catch (err) {
+    console.error("[InvoiceEmail] ERROR", err);
+    return res.status(500).json({ message: "Email failed", error: String(err) });
+  }
+});
+
+router.get("/__ping", (_req, res) => res.json({ ok: true }));
 
 
 /**
@@ -310,6 +436,9 @@ router.get(
   }
 );
 
+
+// GET /api/invoices/__ping  (put this ABOVE any :id routes)
+router.get("/__ping", (_req, res) => res.json({ ok: true }));
 /**
  * GET /api/invoices/:id
  * Fetch a single invoice
@@ -345,6 +474,10 @@ router.get(
     }
   }
 );
+
+
+// GET /api/invoices/__ping  (put this ABOVE any :id routes)
+router.get("/__ping", (_req, res) => res.json({ ok: true }));
 
 // GET /api/invoices/:id/pdf
 router.get("/:id/pdf", async (req: Request, res: Response, next: NextFunction) => {

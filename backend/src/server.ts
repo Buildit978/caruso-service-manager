@@ -9,9 +9,13 @@ import workOrderRoutes from './routes/workOrders.route';
 import summaryRoutes from './routes/summary.route';
 import settingsRouter from "./routes/settings.route";
 import invoiceRoutes from './routes/invoice.routes';
+console.log("✅ Mounted /api/invoices routes");
+import { getMailer } from "./utils/mailer";
+
+
 import { attachAccountId } from "./middleware/account.middleware";
 import vehicleRoutes from "./routes/vehicles.route";
-import invoicesRouter from "./routes/invoice.routes";
+
 
 
 const app = express();
@@ -28,7 +32,17 @@ app.use('/api/summary', summaryRoutes);
 app.use("/api/settings", settingsRouter);
 app.use('/api/invoices', invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
-app.use("/api/invoices", invoicesRouter);
+
+
+
+
+
+console.log("CWD:", process.cwd());
+console.log("SMTP_USER:", process.env.SMTP_USER);
+
+const pass = process.env.SMTP_PASS ?? "";
+console.log("SMTP_PASS length:", pass.length);
+console.log("SMTP_PASS JSON:", JSON.stringify(pass));
 
 
 // (Optional) health check
@@ -42,11 +56,19 @@ const server = http.createServer(app);
 
 connectDB()
     .then(() => {
-        server.listen(PORT, () => {
+        server.listen(PORT, async () => {
             console.log(`✅ MongoDB connected`);
             console.log(`🚗 Server running at http://localhost:${PORT}`);
-        });
-    })
+
+            try {
+                    const transporter = getMailer();
+                    await transporter.verify();
+                    console.log("✅ SMTP ready");
+                } catch (err) {
+                    console.error("❌ SMTP verify failed", err);
+                }
+    });
+  })
     .catch((err) => {
         console.error('❌ Failed to connect to MongoDB', err);
         process.exit(1);

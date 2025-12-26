@@ -7,6 +7,8 @@ import { getInvoicePdfUrl } from "../api/invoices";
 import { emailInvoicePdf } from "../api/invoices";
 import { useLocation } from "react-router-dom";
 import { fetchCustomerById } from "../api/customers";
+import { emailInvoice } from "../api/invoices";
+
 
 
 
@@ -43,25 +45,28 @@ export default function InvoiceDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [liveCustomerEmail, setLiveCustomerEmail] = useState<string>("");
   const [liveCustomerLoading, setLiveCustomerLoading] = useState(false);
+  const [isEmailing, setIsEmailing] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
 
 
   const resolvedWorkOrderId = resolveWorkOrderId(invoice);
   console.log("[InvoiceDetail] resolvedWorkOrderId:", resolvedWorkOrderId);
 
   function resolveCustomerId(inv: any): string | null {
-          if (!inv) return null;
-          const c = inv.customerId ?? inv.customer ?? null;
+    if (!inv) return null;
+    const c = inv.customerId ?? inv.customer ?? null;
 
-          if (typeof c === "string") return c;
+    if (typeof c === "string") return c;
 
-          if (c && typeof c === "object") {
-            if (typeof c._id === "string") return c._id;
-            if (c._id && typeof c._id.toString === "function") return c._id.toString();
-            if (typeof c.id === "string") return c.id;
-          }
+    if (c && typeof c === "object") {
+      if (typeof c._id === "string") return c._id;
+      if (c._id && typeof c._id.toString === "function") return c._id.toString();
+      if (typeof c.id === "string") return c.id;
+    }
 
-          return null;
-}
+    return null;
+  }
 
 
 
@@ -110,24 +115,24 @@ export default function InvoiceDetailPage() {
 
 
   useEffect(() => {
-          (async () => {
-            if (!invoice) return;
+    (async () => {
+      if (!invoice) return;
 
-            const customerId = resolveCustomerId(invoice);
-            if (!customerId) return;
+      const customerId = resolveCustomerId(invoice);
+      if (!customerId) return;
 
-            try {
-              setLiveCustomerLoading(true);
-              const customer = await fetchCustomerById(customerId);
-              setLiveCustomerEmail((customer?.email || "").trim());
-            } catch (err) {
-              console.error("[InvoiceDetail] Failed to fetch live customer", err);
-              setLiveCustomerEmail("");
-            } finally {
-              setLiveCustomerLoading(false);
-            }
-          })();
-        }, [invoice?._id]);
+      try {
+        setLiveCustomerLoading(true);
+        const customer = await fetchCustomerById(customerId);
+        setLiveCustomerEmail((customer?.email || "").trim());
+      } catch (err) {
+        console.error("[InvoiceDetail] Failed to fetch live customer", err);
+        setLiveCustomerEmail("");
+      } finally {
+        setLiveCustomerLoading(false);
+      }
+    })();
+  }, [invoice?._id]);
 
 
 
@@ -145,6 +150,30 @@ export default function InvoiceDetailPage() {
   }
 
 
+  async function handleResend() {
+    if (!invoice?._id) return;
+
+    try {
+      setIsEmailing(true);
+      setEmailError(null);
+
+      const resp = await emailInvoice(invoice._id);
+
+      // If your email route returns { email: {...} }, merge it in:
+      setInvoice((prev) =>
+        prev ? { ...prev, email: resp.email ?? prev.email } : prev
+      );
+
+      alert("✅ Invoice emailed.");
+    } catch (err: any) {
+      const msg = err?.message || "Failed to email invoice.";
+      setEmailError(msg);
+      alert("❌ " + msg);
+    } finally {
+      setIsEmailing(false);
+    }
+  }
+
   
   const customerName = [
     invoice.customerSnapshot.firstName,
@@ -154,169 +183,92 @@ export default function InvoiceDetailPage() {
     .join(" ");
   
   const customerEmail =
-        invoice.customerSnapshot?.email?.trim() ||
-        (invoice as any).customerEmail?.trim() ||
-              "";
+    invoice.customerSnapshot?.email?.trim() ||
+    (invoice as any).customerEmail?.trim() ||
+    "";
             
             
-        const liveEmail =
-        typeof (invoice as any).customerId === "object"
-        ? ((invoice as any).customerId?.email || "").trim()
-        : "";
+  const liveEmail =
+    typeof (invoice as any).customerId === "object"
+      ? ((invoice as any).customerId?.email || "").trim()
+      : "";
 
-    const snapshotEmail = (invoice.customerSnapshot?.email || "").trim();
+  const snapshotEmail = (invoice.customerSnapshot?.email || "").trim();
 
-    const truthEmail = liveEmail || snapshotEmail;
+  const truthEmail = liveEmail || snapshotEmail;
 
-    const emailMismatch =
-            !!liveEmail && !!snapshotEmail && liveEmail !== snapshotEmail;
+  const emailMismatch =
+    !!liveEmail && !!snapshotEmail && liveEmail !== snapshotEmail;
+  
+  const emailStatus = invoice?.email?.status ?? "never_sent";
+
+  async function handleSendOrResend() {
+    
+    console.log("Sending invoice email for:", invoice._id);
+  try {
+    setIsEmailing(true);
+
+    const resp = await emailInvoice(invoice._id);
+
+    setInvoice((prev) =>
+      prev ? { ...prev, email: resp.email ?? prev.email } : prev
+    );
+
+    alert("✅ Invoice emailed.");
+  } catch (err: any) {
+    const msg = err?.message || "Failed to email invoice.";
+    alert(`❌ ${msg}`);
+  } finally {
+    setIsEmailing(false);
+  }
+}
+
 
 
   
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <h2>Invoice #{invoice.invoiceNumber}</h2>
-        <span
-          style={{
-            padding: "0.25rem 0.75rem",
-            borderRadius: "999px",
-            border: "1px solid #ccc",
-            fontSize: "0.85rem",
-            textTransform: "uppercase",
-          }}
-        >
-          {invoice.status}
-        </span>
-      </div>
+    <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <strong>Issue Date:</strong>{" "}
-        {invoice.issueDate && new Date(invoice.issueDate).toLocaleDateString()}
-        <br />
-        {invoice.dueDate && (
-          <>
-            <strong>Due Date:</strong>{" "}
-            {new Date(invoice.dueDate).toLocaleDateString()}
-          </>
-        )}
-      </div>
+          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            {/* Status pill */}
+            <span
+              style={{
+                padding: "0.25rem 0.75rem",
+                borderRadius: "999px",
+                border: "1px solid #ccc",
+                fontSize: "0.85rem",
+                textTransform: "uppercase",
+                display: "inline-block",
+              }}
+            >
+              {invoice.status}
+            </span>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <h3>Bill To</h3>
-        <div>{customerName || "Unknown Customer"}</div>
-        {invoice.customerSnapshot.address && <div>{invoice.customerSnapshot.address}</div>}
-        {invoice.customerSnapshot.phone && <div>Phone: {invoice.customerSnapshot.phone}</div>}
-      
-        {truthEmail && <div>Email: {truthEmail}</div>}
-        {emailMismatch && (
-          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-            On invoice: {snapshotEmail}
-          </div>
-        )}
-     
-
-        
-
-
-
-
-
-        {invoice.vehicleSnapshot && (
-          <div style={{ marginBottom: "1rem" }}>
-            <h3>Vehicle</h3>
-            <div>
-              {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make}{" "}
-              {invoice.vehicleSnapshot.model}
-            </div>
-            {invoice.vehicleSnapshot.licensePlate && (
-              <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div>
-            )}
-            {invoice.vehicleSnapshot.vin && <div>VIN: {invoice.vehicleSnapshot.vin}</div>}
-          </div>
-        )}
-
-        <div style={{ marginBottom: "1rem" }}>
-          <h3>Line Items</h3>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: "0.5rem",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                  Description
-                </th>
-                <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                  Qty
-                </th>
-                <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                  Unit
-                </th>
-                <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.lineItems.map((item, idx) => (
-                <tr key={idx}>
-                  <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>
-                    {item.description}
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.5rem",
-                      borderBottom: "1px solid #eee",
-                      textAlign: "right",
-                    }}
-                  >
-                    {item.quantity}
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.5rem",
-                      borderBottom: "1px solid #eee",
-                      textAlign: "right",
-                    }}
-                  >
-                    {item.unitPrice.toFixed(2)}
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.5rem",
-                      borderBottom: "1px solid #eee",
-                      textAlign: "right",
-                    }}
-                  >
-                    {item.lineTotal.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ marginTop: "1rem", textAlign: "right" }}>
-          <div>Subtotal: {invoice.subtotal.toFixed(2)}</div>
-          <div>Tax ({invoice.taxRate}%): {invoice.taxAmount.toFixed(2)}</div>
-          <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
-            Total: {invoice.total.toFixed(2)}
+            {/* Email meta (compact, non-crowded) */}
+            <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+              Email: {(invoice.email?.status ?? "never_sent").replace("_", " ")}
+              {invoice.email?.lastSentAt
+                ? ` • Last: ${new Date(invoice.email.lastSentAt).toLocaleString()}`
+                : ""}
+            </span>
           </div>
         </div>
 
-        {invoice.notes && (
-          <div style={{ marginTop: "1rem" }}>
-            <h3>Notes</h3>
-            <p>{invoice.notes}</p>
-          </div>
-        )}
-
-        <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+        {/* Actions (top-right, not buried) */}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
             disabled={!resolvedWorkOrderId}
@@ -329,59 +281,141 @@ export default function InvoiceDetailPage() {
           </button>
 
           <button
-
-
-              type="button"
-              onClick={async () => {
-                const to = window.prompt("Send invoice to:", truthEmail);
-                if (!to) return;
-
-                try {
-                  await emailInvoicePdf(invoice._id, to);
-                  alert("✅ Invoice emailed.");
-                }  catch (err: any) {
-                      console.error("[InvoiceDetail] email send failed", err);
-
-                      const msg =
-                        err?.response?.data?.message ||
-                        err?.response?.data?.error ||
-                        err?.message ||
-                        "Failed to email invoice.";
-
-                      alert(`❌ ${msg}`);
-                    }
-
-                
-                {/* catch (err) {
-                  console.error("[InvoiceDetail] email send failed", err);
-                  alert("❌ Failed to email invoice.");
-                }*/ }
-              }}
-            
-              
-            >
-              Email Invoice
-          </button>
-
-
+                type="button"
+                disabled={isEmailing}
+                onClick={handleSendOrResend}
+              >
+                {isEmailing
+                  ? "Sending..."
+                  : invoice.email?.status && invoice.email.status !== "never_sent"
+                  ? "Resend Email"
+                  : "Email Invoice"}
+            </button>
 
 
           <button
             type="button"
             onClick={() => {
               const url = getInvoicePdfUrl(invoice._id);
-              console.log("Invoice PDF URL:", url);
               window.open(url, "_blank");
             }}
           >
             View PDF
           </button>
-
-
-
-
         </div>
       </div>
+
+      {/* Dates row */}
+      <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
+        <strong>Issue Date:</strong>{" "}
+        {invoice.issueDate && new Date(invoice.issueDate).toLocaleDateString()}
+        {invoice.dueDate && (
+          <>
+            {" "}
+            • <strong>Due Date:</strong> {new Date(invoice.dueDate).toLocaleDateString()}
+          </>
+        )}
+      </div>
+
+      {/* Bill To + Vehicle (two-column, collapses naturally) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>Bill To</h3>
+          <div>{customerName || "Unknown Customer"}</div>
+          {invoice.customerSnapshot.address && <div>{invoice.customerSnapshot.address}</div>}
+          {invoice.customerSnapshot.phone && <div>Phone: {invoice.customerSnapshot.phone}</div>}
+          {truthEmail && <div>Email: {truthEmail}</div>}
+          {emailMismatch && (
+            <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+              On invoice: {snapshotEmail}
+            </div>
+          )}
+        </div>
+
+        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>Vehicle</h3>
+          {invoice.vehicleSnapshot ? (
+            <>
+              <div>
+                {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make} {invoice.vehicleSnapshot.model}
+              </div>
+              {invoice.vehicleSnapshot.licensePlate && <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div>}
+              {invoice.vehicleSnapshot.vin && <div>VIN: {invoice.vehicleSnapshot.vin}</div>}
+            </>
+          ) : (
+            <div style={{ color: "#6b7280" }}>No vehicle snapshot</div>
+          )}
+        </div>
+      </div>
+
+      {/* Line items */}
+      <div style={{ marginBottom: "1rem" }}>
+        <h3>Line Items</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
+                Description
+              </th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
+                Qty
+              </th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
+                Unit
+              </th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lineItems.map((item, idx) => (
+              <tr key={idx}>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>
+                  {item.description}
+                </td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                  {item.quantity}
+                </td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                  {item.unitPrice.toFixed(2)}
+                </td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                  {item.lineTotal.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals */}
+      <div style={{ marginTop: "1rem", textAlign: "right" }}>
+        <div>Subtotal: {invoice.subtotal.toFixed(2)}</div>
+        <div>
+          Tax ({invoice.taxRate}%): {invoice.taxAmount.toFixed(2)}
+        </div>
+        <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
+          Total: {invoice.total.toFixed(2)}
+        </div>
+      </div>
+
+      {/* Notes */}
+      
+      {invoice.notes && (
+        <div style={{ marginTop: "1rem" }}>
+          <h3>Notes</h3>
+          <p>{invoice.notes}</p>
+        </div>
+      )}
     </div>
-  );
-}
+  )
+};
+

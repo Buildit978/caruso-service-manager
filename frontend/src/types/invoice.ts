@@ -22,6 +22,18 @@ export interface InvoiceCustomerSnapshot {
   address?: string;
 }
 
+
+  export type InvoiceEmailStatus = "never_sent" | "sending" | "sent" | "failed";
+
+  export type InvoiceEmailMeta = {
+    status: InvoiceEmailStatus;
+    lastTo?: string;
+    lastSentAt?: string;     // ISO string from API
+    lastMessageId?: string;
+    lastError?: string;
+    attempts?: number;
+  };
+
 // Main Invoice type
 export interface Invoice {
   _id: string;
@@ -53,4 +65,9 @@ export interface Invoice {
     status: string;
   };
   customer?: Customer;
+  email?: InvoiceEmailMeta;
 }
+
+
+
+

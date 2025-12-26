@@ -314,21 +314,8 @@ router.post("/:id/email", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid invoice id" });
     }
 
-   
-
-    const { to, message } = req.body as { to?: string; message?: string };
-    console.log("🔥 [InvoiceEmail] STEP 5: to", to);
-
-    console.log("[InvoiceEmail] ROUTE HIT", { id, to });
-    
-
-
-    if (!to || !to.includes("@")) {
-      return res.status(400).json({ message: "Missing/invalid recipient email (to)" });
-    }
-
     // Load invoice (account-scoped)
-    const invoice = await Invoice.findOne({ _id: id, accountId }).lean();
+    const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
     // Optional: pull customer (if you store customerId)
@@ -337,6 +324,14 @@ router.post("/:id/email", async (req, res, next) => {
     if (custId && Types.ObjectId.isValid(String(custId))) {
       customer = await Customer.findOne({ _id: custId, accountId }).lean();
     }
+
+  const toEmail = (customer?.email || invoice.customerSnapshot?.email || "").trim();
+
+      if (!toEmail || !toEmail.includes("@")) {
+        return res.status(400).json({
+          message: "No valid customer email found for this invoice. Update the customer email and try again.",
+  });
+}
 
     // Build PDF buffer
     const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
@@ -356,48 +351,76 @@ router.post("/:id/email", async (req, res, next) => {
 
 
     const subject = `Invoice #${invoiceNumber}`;
-    const text =
-      message?.trim() ||
-      `Attached is your invoice #${invoiceNumber}.`;
+    const text = `Attached is your invoice #${invoiceNumber}.`;
+
+    if (!toEmail) {
+    return res.status(400).json({ message: "No recipient email found" });
+}
 
     
+    // BEFORE sending:
+invoice.email = {
+  ...(invoice.email ?? {}),
+  status: "sending",
+  lastTo: toEmail,
+  lastError: "",
+  attempts: (invoice.email?.attempts ?? 0) + 1,
+};
+await invoice.save();
 
-    console.log("🔥 [InvoiceEmail] STEP 8: before sendMail()");
-     const info = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      text,
-      attachments: [
-        {
-          filename,
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
-    });
+// SEND
+try {
+  const info = await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject,
+    text,
+    attachments: [
+      {
+        filename,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
 
+  
 
-    console.log("🔥 [InvoiceEmail] STEP 9: after sendMail()");
-    console.log("[InvoiceEmail] accepted:", info.accepted);
-    console.log("[InvoiceEmail] rejected:", info.rejected);
-    console.log("[InvoiceEmail] response:", info.response);
+  invoice.email = {
+    ...(invoice.email ?? {}),
+    status: "sent",
+    lastTo: toEmail,
+    lastSentAt: new Date(),
+    lastMessageId: info?.messageId ?? "",
+    lastError: "",
+  };
+  await invoice.save();
 
-    // Only call success if SMTP accepted at least one recipient
-    const accepted = Array.isArray(info.accepted) ? info.accepted : [];
-    if (accepted.length === 0) {
-      return res.status(502).json({
-        message: "SMTP did not accept any recipients.",
-        accepted: info.accepted,
-        rejected: info.rejected,
-        response: info.response,
-      });
-    }
+  return res.json({
+    ok: true,
+    message: "Invoice emailed.",
+    email: invoice.email,
+  });
+} catch (err: any) {
+  invoice.email = {
+    ...(invoice.email ?? {}),
+    status: "failed",
+    lastTo: toEmail,
+    lastError: err?.message ?? "Unknown email error",
+  };
+  await invoice.save();
 
+  return res.status(500).json({
+    ok: false,
+    message: "Failed to email invoice.",
+    error: invoice.email.lastError,
+    email: invoice.email,
+  });
+}
 
-    console.log("✅ [InvoiceEmail] END - sending response to client");
+  console.log("✅ [InvoiceEmail] END - sending response to client");
 
-    return res.json({ ok: true, accepted, messageId: info.messageId });
+    return res.json({ ok: true, accepted, messageId: info.messageId});
   } catch (err) {
     console.error("[InvoiceEmail] ERROR", err);
     return res.status(500).json({ message: "Email failed", error: String(err) });

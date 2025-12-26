@@ -2,6 +2,9 @@
 import axios from "axios";
 import api from "./client";
 import type { Invoice } from "../types/invoice";
+//import { InvoiceSchema } from "./models/invoice.model"; // whatever your wrapper is
+
+
 
 // GET /api/invoices
 export async function fetchInvoices(): Promise<Invoice[]> {
@@ -33,3 +36,23 @@ export async function emailInvoicePdf(
   );
   return res.data;
 }
+
+
+export async function emailInvoice(invoiceId: string) {
+  const res = await fetch(`${API_BASE}/invoices/${invoiceId}/email`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to email invoice");
+  }
+
+  return res.json() as Promise<{
+    ok: boolean;
+    message: string;
+    email?: any;
+  }>;
+}
+
+

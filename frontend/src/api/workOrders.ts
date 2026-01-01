@@ -3,6 +3,7 @@ import api from "./client";
 import type { WorkOrder, WorkOrderStatus, WorkOrderVehicle } from "../types/workOrder";
 
 
+
 export interface CreateWorkOrderPayload {
     customerId: string;
     complaint: string;
@@ -23,18 +24,22 @@ export interface UpdateWorkOrderPayload {
 
 export type WorkOrderSortBy = "createdAt" | "serviceDate" | "status";
 export type SortDir = "asc" | "desc";
+export type WorkOrderView = "active" | "financial" | "archive" | "all";
 
 export interface WorkOrderFilters {
   status?: WorkOrderStatus | "active";
   customerId?: string;
+  view?: WorkOrderView;
   vehicleId?: string;
   fromDate?: string; // ISO
   toDate?: string;   // ISO
 
   // sorting
-  sortBy?: WorkOrderSortBy;
-  sortDir?: SortDir;
-}
+  sortBy?: "createdAt" | "status";
+  sortDir?: "asc" | "desc";
+};
+
+
 
 
 export async function fetchWorkOrders(
@@ -42,20 +47,24 @@ export async function fetchWorkOrders(
 ): Promise<WorkOrder[]> {
   const params: Record<string, string> = {};
 
-  // existing filters — KEEP THESE
+  // ✅ NEW: view-based filtering (preferred)
+  if (filters.view) params.view = filters.view;
+
+  // existing filters — KEEP THESE (status can still be used by other pages)
   if (filters.status) params.status = filters.status;
   if (filters.customerId) params.customerId = filters.customerId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.fromDate) params.fromDate = filters.fromDate;
   if (filters.toDate) params.toDate = filters.toDate;
 
-  // new sorting params — ADD THESE
+  // sorting params
   if (filters.sortBy) params.sortBy = filters.sortBy;
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
   const res = await api.get<WorkOrder[]>("/work-orders", { params });
   return res.data;
 }
+
 
 
 export async function fetchWorkOrder(id: string): Promise<WorkOrder> {
@@ -87,14 +96,21 @@ export async function updateWorkOrderStatus(
 }
 
 export async function deleteWorkOrder(id: string): Promise<void> {
-    await api.delete(`/work-orders/${id}`);
 }
 
 export async function createInvoiceFromWorkOrder(
   id: string,
   opts?: { notes?: string; dueDate?: string }
 ) {
-  const res = await api.post(`/invoices/from-work-order/${id}`, opts ?? {});
+
+  try{
+
+    const res = await api.post(`/invoices/from-work-order/${id}`, opts ?? {});
   return res.data;
+  } catch(err: any) {console.log("[createInvoiceFromWorkOrder] status:", err?.response?.status);
+                    console.log("[createInvoiceFromWorkOrder] data:", err?.response?.data);
+                    console.log("[createInvoiceFromWorkOrder] headers:", err?.config?.headers);
+                    throw err;}
+  
 }
 

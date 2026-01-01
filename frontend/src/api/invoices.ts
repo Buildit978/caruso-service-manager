@@ -2,6 +2,7 @@
 import axios from "axios";
 import api from "./client";
 import type { Invoice } from "../types/invoice";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
 //import { InvoiceSchema } from "./models/invoice.model"; // whatever your wrapper is
 
 
@@ -53,6 +54,27 @@ export async function emailInvoice(invoiceId: string) {
     message: string;
     email?: any;
   }>;
+}
+
+export async function updateInvoiceStatus(
+  invoiceId: string,
+  status: InvoiceStatus
+): Promise<Invoice> {
+  const res = await api.patch<Invoice>(`/invoices/${invoiceId}/status`, { status });
+  return res.data;
+}
+
+export async function fetchFinancialSummary(params?: { from?: string; to?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set("from", params.from);
+  if (params?.to) qs.set("to", params.to);
+
+  const res = await fetch(`/api/invoices/financial/summary?${qs.toString()}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
 }
 
 

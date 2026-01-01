@@ -10,6 +10,10 @@ import {
 } from "../api/workOrders";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 
+
+
+
+
 const markWorkOrderComplete = (id: string) =>
   updateWorkOrderStatus(id, "completed");
 
@@ -258,32 +262,35 @@ const handlePauseWork = async () => {
 
   // 💸 Create Invoice (feature-flagged)
   async function handleCreateInvoice() {
-    if (!workOrder || !workOrder._id) return;
+                if (!workOrder || !workOrder._id) return;
 
-    try {
-      setIsCreatingInvoice(true);
-      setError(null);
+                try {
+                      setIsCreatingInvoice(true);
+                      setError(null);
 
-      console.log("[WO Detail] Creating invoice for:", workOrder._id);
+                      console.log("[WO Detail] Creating invoice for:", workOrder._id);
 
-      const invoice = await createInvoiceFromWorkOrder(workOrder._id, {
-        notes: workOrder.notes ?? undefined,
-        // dueDate: "2025-01-30" // optional if you want to set manually later
-      });
+                        const result = await createInvoiceFromWorkOrder(workOrder._id, {
+                          notes: workOrder.notes ?? undefined,
+                        });
 
-      console.log("[WO Detail] Invoice created:", invoice);
+                        const invoice = (result as any).invoice ?? result;
+                        const invoiceLabel = invoice.invoiceNumber ?? invoice._id;
 
-      const invoiceLabel = invoice.invoiceNumber ?? invoice._id;
-      alert(`✅ Invoice #${invoiceLabel} created.`);
+                        alert(
+                          (result as any).alreadyExists
+                            ? `ℹ️ Invoice #${invoiceLabel} already exists — opening it.`
+                            : `✅ Invoice #${invoiceLabel} created.`
+                        );
 
-      // redirect to invoice detail page
-      navigate(`/invoices/${invoice._id}`);
-    } catch (err) {
-      console.error("[WO Detail] Error creating invoice", err);
-      setError("Failed to create invoice.");
-    } finally {
-      setIsCreatingInvoice(false);
-    }
+                        navigate(`/invoices/${invoice._id}`);
+
+                } catch (err) {
+                  console.error("[WO Detail] Error creating invoice", err);
+                  setError("Failed to create invoice.");
+                } finally {
+                  setIsCreatingInvoice(false);
+                }
   }
 
   // 🔢 Helpers for line items
@@ -557,6 +564,20 @@ if (isInvoiced) {
   const formattedDate = workOrder.date
     ? new Date(workOrder.date).toLocaleDateString()
     : "";
+
+  
+const resolvedInvoiceId = (() => {
+  const inv: any = (workOrder as any)?.invoice ?? (workOrder as any)?.invoiceId;
+  if (!inv) return null;
+
+  if (typeof inv === "string") return inv;
+  if (typeof inv === "object") {
+    if (typeof inv._id === "string") return inv._id;
+    if (inv._id && typeof inv._id.toString === "function") return inv._id.toString();
+  }
+  return null;
+})();
+
   
 
 
@@ -1174,51 +1195,48 @@ if (isInvoiced) {
             Edit
           </button>
 
-          {/* Invoice-related button */}
-          {INVOICE_ENABLED && (
-            <>
-              {/* CASE 1: Invoiced AND we know the invoiceId → show View Invoice */}
-              {isInvoiced && workOrder.invoiceId ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(`/invoices/${workOrder.invoiceId}`)
-                  }
-                  title="View the invoice for this work order."
-                >
-                  View Invoice
-                </button>
-              ) : isInvoiced && !workOrder.invoiceId ? (
-                // CASE 2: Invoiced but no invoiceId (older data)
-                <button
-                  type="button"
-                  disabled
-                  title="An invoice already exists for this work order."
-                >
-                  Invoice Created
-                </button>
-              ) : (
-                // CASE 3: Only show Create Invoice when completed and no invoice
-                isCompleted &&
-                !hasInvoice && (
-                  <button
-                    type="button"
-                    onClick={handleCreateInvoice}
-                    disabled={!canCreateInvoice}
-                    title={
-                      !isCompleted
-                        ? "Complete the work order before creating an invoice."
-                        : "Create an invoice for this work order."
-                    }
-                  >
-                    {isCreatingInvoice
-                      ? "Creating Invoice…"
-                      : "Create Invoice"}
-                  </button>
-                )
-              )}
-            </>
-          )}
+{/* Invoice-related button */}
+{INVOICE_ENABLED && (
+  <>
+    {/* CASE 1: Invoiced AND we know the invoiceId → show View Invoice */}
+    {isInvoiced && resolvedInvoiceId ? (
+      <button
+        type="button"
+        onClick={() => navigate(`/invoices/${resolvedInvoiceId}`)}
+        title="View the invoice for this work order."
+      >
+        View Invoice
+      </button>
+    ) : isInvoiced && !resolvedInvoiceId ? (
+      // CASE 2: Invoiced but no invoiceId (older data)
+      <button
+        type="button"
+        disabled
+        title="An invoice already exists for this work order."
+      >
+        Invoice Created
+      </button>
+    ) : (
+      // CASE 3: Only show Create Invoice when completed and no invoice
+      isCompleted &&
+      !hasInvoice && (
+        <button
+          type="button"
+          onClick={handleCreateInvoice}
+          disabled={!canCreateInvoice}
+          title={
+            !isCompleted
+              ? "Complete the work order before creating an invoice."
+              : "Create an invoice for this work order."
+          }
+        >
+          {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
+        </button>
+      )
+    )}
+  </>
+)}
+
 
           {/* Delete with inline confirmation */}
           <div

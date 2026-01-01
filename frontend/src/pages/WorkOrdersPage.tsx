@@ -6,20 +6,14 @@ import type { Customer } from "../types/customer";
 import { fetchWorkOrders } from "../api/workOrders";
 
 
+
+
 function useQuery() {
     const { search } = useLocation();
     return new URLSearchParams(search);
 }
 
-      type StatusFilter =
-  | "active"
-  | "open"
-  | "in_progress"
-  | "completed"
-  | "invoiced"
-  | "all";
-
-
+  
 
 
 export default function WorkOrdersPage() {
@@ -44,10 +38,12 @@ export default function WorkOrdersPage() {
 
   const [search, setSearch] = useState("");
 
-  const [status, setStatus] = useState<StatusFilter>("active");
-
-
   
+
+  type ViewFilter = "active" | "financial" | "archive" | "all";
+  const [view, setView] = useState<ViewFilter>("active");
+
+
 
     // Helper: format customer name safely
     const formatCustomerName = (customer?: Customer) => {
@@ -59,6 +55,9 @@ export default function WorkOrdersPage() {
             "(No name)"
         );
     };
+  
+
+
 
 useEffect(() => {
   const loadWorkOrders = async () => {
@@ -95,17 +94,23 @@ useEffect(() => {
       }
 
       const raw = await fetchWorkOrders({
-        customerId: customerId || undefined,
-        status: status === "all" ? undefined : status, // ✅ key line
-        ...(sortBy ? { sortBy } : {}),
-        ...(sortDir ? { sortDir } : {}),
-      });
+                  customerId: customerId || undefined,
+                  view, // ✅ this is the key
+                  ...(sortBy ? { sortBy } : {}),
+                  ...(sortDir ? { sortDir } : {}),
+  });
+
+
 
       const normalized: WorkOrder[] = raw.map((wo: any) => ({
-        ...wo,
-        customer:
-          wo.customer ??
-          (typeof wo.customerId === "object" ? wo.customerId : undefined),
+            ...wo,
+            customer:
+              wo.customer ??
+              (typeof wo.customerId === "object" ? wo.customerId : undefined),
+            
+            invoice:
+              wo.invoice ??
+              (typeof wo.invoiceId === "object" ? wo.invoiceId : undefined),
       }));
 
       setWorkOrders(normalized);
@@ -118,9 +123,36 @@ useEffect(() => {
   };
 
   loadWorkOrders();
-}, [customerId, sort, status]);
+}, [customerId, sort, view]);
+  
+  
+  function formatStatusLabel(s?: string) {
+  if (!s) return "";
+  return s
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function workPillClass(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (s === "completed") return "bg-green-100 text-green-700";
+  if (s === "in_progress") return "bg-yellow-100 text-yellow-700";
+  if (s === "on_hold") return "bg-orange-100 text-orange-700";
+  if (s === "cancelled") return "bg-red-100 text-red-700";
+  return "bg-blue-100 text-blue-700"; // open/default
+}
+
+function invoicePillClass(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (s === "paid") return "bg-green-100 text-green-700";
+  if (s === "sent") return "bg-blue-100 text-blue-700";
+  if (s === "void") return "bg-red-100 text-red-700";
+  if (s === "draft") return "bg-slate-100 text-slate-700";
+  return "bg-slate-50 text-slate-500";
+}
 
 
+  
 
 
     const title = customerId
@@ -220,28 +252,28 @@ return (
 
           {/* 🔃 Sort */}
           {/* 🧾 Status Filter */}
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as StatusFilter)}
-          style={{
-            height: "32px",
-            padding: "0 8px",
-            fontSize: "0.9rem",
-            borderRadius: "6px",
-            border: "1px solid #cbd5e1",
-            backgroundColor: "white",
-            color: "#111827",
-          }}
-        >
-          <option value="active">Active</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="invoiced">Invoiced</option>
-          <option value="all">All</option>
-        </select>
+        <select aria-label="Filter by status" title="Filter by status"
+                value={view}
+                onChange={(e) => setView(e.target.value as ViewFilter)}
+                style={{
+                  height: "32px",
+                  padding: "0 8px",
+                  fontSize: "0.9rem",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "white",
+                  color: "#111827",
+                }}
+              >
 
-          <select
+                <option value="active">Active</option>
+                <option value="financial">Financial</option>
+                <option value="archive">Archive</option>
+                <option value="all">All</option>
+              </select>
+
+
+          <select aria-label="Sort work orders" title="Sort work orders"
             value={sort}
             onChange={(e) =>
               setSort(
@@ -343,20 +375,35 @@ return (
                     </Link>
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap">
-                                            <span
-                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    wo.status === "completed"
-                                                        ? "bg-green-100 text-green-700"
-                                                        : wo.status === "in_progress"
-                                                            ? "bg-yellow-100 text-yellow-700"
-                                                            : wo.status === "invoiced"
-                                                                ? "bg-purple-100 text-purple-700"
-                                                                : "bg-blue-100 text-blue-700"
-                                                    }`}
-                                            >
-                                                {wo.status}
-                                            </span>
-                                        </td>
+                                      <div className="flex items-center gap-2">
+                                        {/* Pill 1: Work status */}
+                                        <span
+                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${workPillClass(
+                                            wo.status
+                                          )}`}
+                                          title={`Work: ${formatStatusLabel(wo.status)}`}
+                                        >
+                                          {formatStatusLabel(wo.status)}
+                                        </span>
+
+                                        {/* Pill 2: Invoice status (or "No Invoice" in financial/admin view) */}
+                                        <span
+                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${invoicePillClass(
+                                            (wo as any).invoice?.status
+                                          )}`}
+                                          title={
+                                            (wo as any).invoice?.status
+                                              ? `Invoice: ${formatStatusLabel((wo as any).invoice.status)}`
+                                              : "Invoice: None"
+                                          }
+                                        >
+                                          {(wo as any).invoice?.status
+                                            ? formatStatusLabel((wo as any).invoice.status)
+                                            : "No Invoice"}
+                                        </span>
+                                      </div>
+                                    </td>
+
                                         <td className="px-4 py-2 whitespace-nowrap text-right">
                                             {(wo.total ?? 0).toLocaleString("en-CA", {
                                                 style: "currency",

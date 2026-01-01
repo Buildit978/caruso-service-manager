@@ -1,16 +1,9 @@
 // frontend/src/pages/InvoiceDetailPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
-import { fetchInvoiceById } from "../api/invoices";
-import { getInvoicePdfUrl } from "../api/invoices";
-import { emailInvoicePdf } from "../api/invoices";
-import { useLocation } from "react-router-dom";
+import { fetchInvoiceById, getInvoicePdfUrl, emailInvoice, updateInvoiceStatus, type InvoiceStatus } from "../api/invoices";
 import { fetchCustomerById } from "../api/customers";
-import { emailInvoice } from "../api/invoices";
-
-
-
 
 function resolveWorkOrderId(invoice: any): string | null {
   if (!invoice) return null;
@@ -23,122 +16,106 @@ function resolveWorkOrderId(invoice: any): string | null {
   // Case: populated object {_id: "..."} or ObjectId
   if (wo && typeof wo === "object") {
     if (typeof wo._id === "string") return wo._id;
-    if (wo._id && typeof wo._id.toString === "function") {
-      return wo._id.toString();
-    }
+    if (wo._id && typeof wo._id.toString === "function") return wo._id.toString();
     if (typeof wo.id === "string") return wo.id;
   }
 
   return null;
 }
 
+function resolveCustomerId(inv: any): string | null {
+  if (!inv) return null;
+  const c = inv.customerId ?? inv.customer ?? null;
 
+  if (typeof c === "string") return c;
+
+  if (c && typeof c === "object") {
+    if (typeof c._id === "string") return c._id;
+    if (c._id && typeof c._id.toString === "function") return c._id.toString();
+    if (typeof c.id === "string") return c.id;
+  }
+
+  return null;
+}
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
-
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [liveCustomerEmail, setLiveCustomerEmail] = useState<string>("");
   const [liveCustomerLoading, setLiveCustomerLoading] = useState(false);
+
   const [isEmailing, setIsEmailing] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
+  const [isSaving, setIsSaving] = useState(false);
 
+  const resolvedWorkOrderId = useMemo(() => resolveWorkOrderId(invoice), [invoice]);
 
-  const resolvedWorkOrderId = resolveWorkOrderId(invoice);
-  console.log("[InvoiceDetail] resolvedWorkOrderId:", resolvedWorkOrderId);
+  const resolvedCustomerId = useMemo(() => resolveCustomerId(invoice), [invoice]);
 
-  function resolveCustomerId(inv: any): string | null {
-    if (!inv) return null;
-    const c = inv.customerId ?? inv.customer ?? null;
-
-    if (typeof c === "string") return c;
-
-    if (c && typeof c === "object") {
-      if (typeof c._id === "string") return c._id;
-      if (c._id && typeof c._id.toString === "function") return c._id.toString();
-      if (typeof c.id === "string") return c.id;
-    }
-
-    return null;
-  }
-
-
-
+  // ✅ Load invoice by route param
   useEffect(() => {
+   if (!id || !/^[a-f\d]{24}$/i.test(id)) {
+      setError("Invalid invoice ID");
+      setLoading(false);
+      return;
+    } 
+
+    let cancelled = false;
+
     (async () => {
       try {
-        // invoice.customerId might be a string OR object depending on your backend
-        const cust: any = (invoice as any)?.customerId;
-        const customerId =
-          typeof cust === "string" ? cust : typeof cust?._id === "string" ? cust._id : null;
+        setLoading(true);
+        setError(null);
 
-        if (!customerId) return;
-
-        const customer = await fetchCustomerById(customerId);
-        setLiveCustomerEmail((customer?.email || "").trim());
-      } catch (err) {
-        console.error("[InvoiceDetail] Failed to fetch live customer email", err);
-        setLiveCustomerEmail("");
+        const data = await fetchInvoiceById(id);
+        if (!cancelled) setInvoice(data);
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || "Failed to load invoice");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [invoice?._id]);
 
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
-
+  // ✅ Fetch live customer email whenever the *customer id* changes
   useEffect(() => {
-    if (!id) {
-      setError("Missing invoice ID");
-      setLoading(false);
+    if (!resolvedCustomerId) {
+      setLiveCustomerEmail("");
       return;
     }
 
+    let cancelled = false;
+
     (async () => {
-      try {
-        console.log("[InvoiceDetail] Fetching invoice", id);
-        const data = await fetchInvoiceById(id);
-        console.log("[InvoiceDetail] Loaded invoice", data);
-        setInvoice(data);
-      } catch (err: any) {
-        console.error("[InvoiceDetail] Error fetching invoice:", err);
-        setError(err?.message || "Failed to load invoice");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id, location.key]);
-
-
-  useEffect(() => {
-    (async () => {
-      if (!invoice) return;
-
-      const customerId = resolveCustomerId(invoice);
-      if (!customerId) return;
-
       try {
         setLiveCustomerLoading(true);
-        const customer = await fetchCustomerById(customerId);
-        setLiveCustomerEmail((customer?.email || "").trim());
+        const customer = await fetchCustomerById(resolvedCustomerId);
+        const email = (customer?.email || "").trim();
+        if (!cancelled) setLiveCustomerEmail(email);
       } catch (err) {
-        console.error("[InvoiceDetail] Failed to fetch live customer", err);
-        setLiveCustomerEmail("");
+        console.error("[InvoiceDetail] Failed to fetch live customer email", err);
+        if (!cancelled) setLiveCustomerEmail("");
       } finally {
-        setLiveCustomerLoading(false);
+        if (!cancelled) setLiveCustomerLoading(false);
       }
     })();
-  }, [invoice?._id]);
 
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedCustomerId]);
 
-
-  if (loading) {
-    return <div style={{ padding: "1rem" }}>Loading invoice…</div>;
-  }
+  if (loading) return <div style={{ padding: "1rem" }}>Loading invoice…</div>;
 
   if (error || !invoice) {
     return (
@@ -149,8 +126,8 @@ export default function InvoiceDetailPage() {
     );
   }
 
-
-  async function handleResend() {
+  // --- Email helpers ---
+  async function handleSendOrResend() {
     if (!invoice?._id) return;
 
     try {
@@ -159,12 +136,12 @@ export default function InvoiceDetailPage() {
 
       const resp = await emailInvoice(invoice._id);
 
-      // If your email route returns { email: {...} }, merge it in:
-      setInvoice((prev) =>
-        prev ? { ...prev, email: resp.email ?? prev.email } : prev
-      );
+      setInvoice((prev) => (prev ? { ...prev, email: resp.email ?? (prev as any).email } : prev));
 
       alert("✅ Invoice emailed.");
+      // Optional: mark as sent automatically after successful email:
+      // const updated = await updateInvoiceStatus(invoice._id, "sent");
+      // setInvoice(updated);
     } catch (err: any) {
       const msg = err?.message || "Failed to email invoice.";
       setEmailError(msg);
@@ -174,59 +151,38 @@ export default function InvoiceDetailPage() {
     }
   }
 
-  
-  const customerName = [
-    invoice.customerSnapshot.firstName,
-    invoice.customerSnapshot.lastName,
-  ]
+  // --- Status update helper ---
+  async function handleSetStatus(next: InvoiceStatus) {
+    if (!invoice?._id) return;
+
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      const updated = await updateInvoiceStatus(invoice._id, next);
+      setInvoice(updated);
+    } catch (err: any) {
+      console.error("[InvoiceDetail] status update failed:", err);
+      setError(err.message || "Failed to update invoice status");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const customerName = [invoice.customerSnapshot?.firstName, invoice.customerSnapshot?.lastName]
     .filter(Boolean)
     .join(" ");
-  
-  const customerEmail =
-    invoice.customerSnapshot?.email?.trim() ||
-    (invoice as any).customerEmail?.trim() ||
-    "";
-            
-            
+
   const liveEmail =
-    typeof (invoice as any).customerId === "object"
-      ? ((invoice as any).customerId?.email || "").trim()
-      : "";
-
+  (liveCustomerEmail || (invoice as any)?.customerId?.email || "").trim();
   const snapshotEmail = (invoice.customerSnapshot?.email || "").trim();
-
   const truthEmail = liveEmail || snapshotEmail;
+  const emailMismatch = !!liveEmail && !!snapshotEmail && liveEmail !== snapshotEmail;
 
-  const emailMismatch =
-    !!liveEmail && !!snapshotEmail && liveEmail !== snapshotEmail;
-  
-  const emailStatus = invoice?.email?.status ?? "never_sent";
-
-  async function handleSendOrResend() {
-    
-    console.log("Sending invoice email for:", invoice._id);
-  try {
-    setIsEmailing(true);
-
-    const resp = await emailInvoice(invoice._id);
-
-    setInvoice((prev) =>
-      prev ? { ...prev, email: resp.email ?? prev.email } : prev
-    );
-
-    alert("✅ Invoice emailed.");
-  } catch (err: any) {
-    const msg = err?.message || "Failed to email invoice.";
-    alert(`❌ ${msg}`);
-  } finally {
-    setIsEmailing(false);
-  }
-}
-
-
-
-  
-
+ 
+ 
+ 
+ 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
       {/* Header */}
@@ -254,44 +210,39 @@ export default function InvoiceDetailPage() {
                 display: "inline-block",
               }}
             >
-              {invoice.status}
+              {invoice.status ?? "draft"}
             </span>
 
-            {/* Email meta (compact, non-crowded) */}
+            {/* Email meta */}
             <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-              Email: {(invoice.email?.status ?? "never_sent").replace("_", " ")}
-              {invoice.email?.lastSentAt
-                ? ` • Last: ${new Date(invoice.email.lastSentAt).toLocaleString()}`
+              Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
+              {(invoice as any).email?.lastSentAt
+                ? ` • Last: ${new Date((invoice as any).email.lastSentAt).toLocaleString()}`
                 : ""}
+              {liveCustomerLoading ? " • syncing…" : ""}
             </span>
           </div>
+
+          {emailError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{emailError}</div> : null}
         </div>
 
-        {/* Actions (top-right, not buried) */}
+        {/* Actions */}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
             disabled={!resolvedWorkOrderId}
-            onClick={() => {
-              if (!resolvedWorkOrderId) return;
-              navigate(`/work-orders/${resolvedWorkOrderId}`);
-            }}
+            onClick={() => resolvedWorkOrderId && navigate(`/work-orders/${resolvedWorkOrderId}`)}
           >
             Back to Work Order
           </button>
 
-          <button
-                type="button"
-                disabled={isEmailing}
-                onClick={handleSendOrResend}
-              >
-                {isEmailing
-                  ? "Sending..."
-                  : invoice.email?.status && invoice.email.status !== "never_sent"
-                  ? "Resend Email"
-                  : "Email Invoice"}
-            </button>
-
+          <button type="button" disabled={isEmailing} onClick={handleSendOrResend}>
+            {isEmailing
+              ? "Sending..."
+              : (invoice as any).email?.status && (invoice as any).email.status !== "never_sent"
+              ? "Resend Email"
+              : "Email Invoice"}
+          </button>
 
           <button
             type="button"
@@ -305,19 +256,35 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
+      {/* Status controls */}
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+        <button disabled={isSaving} onClick={() => handleSetStatus("draft")}>
+          Mark Draft
+        </button>
+        <button disabled={isSaving} onClick={() => handleSetStatus("sent")}>
+          Mark Sent
+        </button>
+        <button disabled={isSaving} onClick={() => handleSetStatus("paid")}>
+          Mark Paid
+        </button>
+        <button disabled={isSaving} onClick={() => handleSetStatus("void")}>
+          Void
+        </button>
+      </div>
+
       {/* Dates row */}
       <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
         <strong>Issue Date:</strong>{" "}
-        {invoice.issueDate && new Date(invoice.issueDate).toLocaleDateString()}
-        {invoice.dueDate && (
+        {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}
+        {invoice.dueDate ? (
           <>
             {" "}
             • <strong>Due Date:</strong> {new Date(invoice.dueDate).toLocaleDateString()}
           </>
-        )}
+        ) : null}
       </div>
 
-      {/* Bill To + Vehicle (two-column, collapses naturally) */}
+      {/* Bill To + Vehicle */}
       <div
         style={{
           display: "grid",
@@ -329,14 +296,14 @@ export default function InvoiceDetailPage() {
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
           <h3 style={{ marginTop: 0 }}>Bill To</h3>
           <div>{customerName || "Unknown Customer"}</div>
-          {invoice.customerSnapshot.address && <div>{invoice.customerSnapshot.address}</div>}
-          {invoice.customerSnapshot.phone && <div>Phone: {invoice.customerSnapshot.phone}</div>}
-          {truthEmail && <div>Email: {truthEmail}</div>}
+          {invoice.customerSnapshot?.address ? <div>{invoice.customerSnapshot.address}</div> : null}
+          {invoice.customerSnapshot?.phone ? <div>Phone: {invoice.customerSnapshot.phone}</div> : null}
+          {truthEmail && <div>Email: {truthEmail}</div>} 
           {emailMismatch && (
             <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
               On invoice: {snapshotEmail}
             </div>
-          )}
+          )}     
         </div>
 
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
@@ -346,8 +313,8 @@ export default function InvoiceDetailPage() {
               <div>
                 {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make} {invoice.vehicleSnapshot.model}
               </div>
-              {invoice.vehicleSnapshot.licensePlate && <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div>}
-              {invoice.vehicleSnapshot.vin && <div>VIN: {invoice.vehicleSnapshot.vin}</div>}
+              {invoice.vehicleSnapshot.licensePlate ? <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div> : null}
+              {invoice.vehicleSnapshot.vin ? <div>VIN: {invoice.vehicleSnapshot.vin}</div> : null}
             </>
           ) : (
             <div style={{ color: "#6b7280" }}>No vehicle snapshot</div>
@@ -364,31 +331,23 @@ export default function InvoiceDetailPage() {
               <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
                 Description
               </th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                Qty
-              </th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                Unit
-              </th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                Total
-              </th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Qty</th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Unit</th>
+              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {invoice.lineItems.map((item, idx) => (
+            {invoice.lineItems?.map((item: any, idx: number) => (
               <tr key={idx}>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>
-                  {item.description}
-                </td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                   {item.quantity}
                 </td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {item.unitPrice.toFixed(2)}
+                  {Number(item.unitPrice ?? 0).toFixed(2)}
                 </td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {item.lineTotal.toFixed(2)}
+                  {Number(item.lineTotal ?? 0).toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -398,24 +357,22 @@ export default function InvoiceDetailPage() {
 
       {/* Totals */}
       <div style={{ marginTop: "1rem", textAlign: "right" }}>
-        <div>Subtotal: {invoice.subtotal.toFixed(2)}</div>
+        <div>Subtotal: {Number(invoice.subtotal ?? 0).toFixed(2)}</div>
         <div>
-          Tax ({invoice.taxRate}%): {invoice.taxAmount.toFixed(2)}
+          Tax ({Number(invoice.taxRate ?? 0)}%): {Number(invoice.taxAmount ?? 0).toFixed(2)}
         </div>
         <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
-          Total: {invoice.total.toFixed(2)}
+          Total: {Number(invoice.total ?? 0).toFixed(2)}
         </div>
       </div>
 
       {/* Notes */}
-      
-      {invoice.notes && (
+      {invoice.notes ? (
         <div style={{ marginTop: "1rem" }}>
           <h3>Notes</h3>
           <p>{invoice.notes}</p>
         </div>
-      )}
+      ) : null}
     </div>
-  )
-};
-
+  );
+}

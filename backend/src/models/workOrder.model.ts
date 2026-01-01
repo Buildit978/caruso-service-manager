@@ -148,6 +148,8 @@ const workOrderSchema = new Schema<IWorkOrder>(
 
         // Lifecycle timestamps
     openedAt: { type: Date, default: Date.now, index: true },
+    startedAt: { type: Date },
+    onHoldAt: { type: Date },
     completedAt: { type: Date },
     invoicedAt: { type: Date },
     cancelledAt: { type: Date },

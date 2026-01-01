@@ -39,85 +39,27 @@ router.use(attachAccountId);
 router.get("/summary", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
-    if (!accountId) {
-      return res.status(400).json({ message: "Missing accountId" });
-    }
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
-    const { status, customerId, from, to } = req.query as {
-      status?: string;
-      customerId?: string;
-      from?: string;
-      to?: string;
-    };
+    const base = { accountId };
 
-    // 🔹 Base match scoped by account
-    const match: any = { accountId };
-
-    // ✅ Status filter
-    if (status && status.trim() !== "") {
-      const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
-
-      if (normalized === "active") {
-        match.status = { $in: ["open", "in_progress"] };
-      } else {
-        match.status = normalized;
-      }
-    }
-
-    if (customerId && customerId.trim() !== "") {
-      match.customerId = customerId.trim();
-    }
-
-    // ✅ Date range (openedAt preferred, date fallback)
-    if ((from && from.trim() !== "") || (to && to.trim() !== "")) {
-      const range: any = {};
-
-      if (from && from.trim() !== "") {
-        const d = new Date(from);
-        if (!isNaN(d.getTime())) range.$gte = d;
-      }
-
-      if (to && to.trim() !== "") {
-        const d = new Date(to);
-        if (!isNaN(d.getTime())) range.$lte = d;
-      }
-
-      if (Object.keys(range).length) {
-        match.$or = [{ openedAt: range }, { date: range }];
-      }
-    }
-
-    // 🔹 Aggregate counts by status
-    const result = await WorkOrder.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-        },
-      },
+    const [active, financial, archive] = await Promise.all([
+      WorkOrder.countDocuments({ ...base, status: { $in: ["open", "in_progress", "on_hold"] } }),
+      WorkOrder.countDocuments({
+        ...base,
+        status: { $in: ["completed", "invoiced"] },
+        closedAt: { $exists: false },
+      }),
+      WorkOrder.countDocuments({ ...base, closedAt: { $exists: true, $ne: null } }),
     ]);
 
-    // 🔹 Fixed summary shape
-    const summary: Record<string, number> = {
-      open: 0,
-      in_progress: 0,
-      completed: 0,
-      invoiced: 0,
-      cancelled: 0,
-    };
+    const byStatus = await WorkOrder.aggregate([
+      { $match: { accountId: new Types.ObjectId(accountId) } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+      { $project: { _id: 0, status: "$_id", count: 1 } },
+    ]);
 
-    for (const row of result as any[]) {
-      const key = String(row?._id ?? "").toLowerCase();
-      if (key in summary && typeof row.count === "number") {
-        summary[key] = row.count;
-      }
-    }
-
-    // ✅ Derived field (not stored)
-    (summary as any).active = summary.open + summary.in_progress;
-
-    res.json(summary);
+    res.json({ active, financial, archive, byStatus });
   } catch (err) {
     next(err);
   }
@@ -126,76 +68,65 @@ router.get("/summary", async (req: Request, res: Response, next: NextFunction) =
 
 
 
- // GET /api/work-orders?status=&customerId=&vehicleId=&from=&to=&search=
+// GET /api/work-orders?view=active&customerId=...&sortBy=createdAt&sortDir=desc
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
     if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
     const {
-      status,
+      view = "active",
       customerId,
-      vehicleId,
-      from,
-      to,
-      search,
+      sortBy = "createdAt",
+      sortDir = "desc",
     } = req.query as {
-      status?: string;
+      view?: "active" | "financial" | "archive" | "all";
       customerId?: string;
-      vehicleId?: string;
-      from?: string;
-      to?: string;
-      search?: string;
+      sortBy?: "createdAt" | "status";
+      sortDir?: "asc" | "desc";
     };
 
-    // Base scoped match
-    const match: any = { accountId };
+    const q: any = { accountId };
 
-    // Optional filters
-    if (customerId) match.customerId = customerId;
-    if (vehicleId) match.vehicleId = vehicleId;
-
-    // Date range (assuming createdAt or serviceDate; keep whichever your list uses)
-    if (from || to) {
-      match.createdAt = {};
-      if (from) match.createdAt.$gte = new Date(from);
-      if (to) match.createdAt.$lte = new Date(to);
+    // Optional customer filter
+    if (customerId && Types.ObjectId.isValid(customerId)) {
+      q.customerId = new Types.ObjectId(customerId);
     }
 
-    // Normalize status query
-    const normalizedStatus = (status || "").trim().toLowerCase();
-
-    if (normalizedStatus) {
-      if (normalizedStatus === "active") {
-        // ✅ Active = not in a final state
-        match.status = { $nin: ["completed", "complete", "invoiced", "cancelled", "canceled"] };
-      } else if (normalizedStatus === "completed") {
-        // treat "complete" + "completed" the same
-        match.status = { $in: ["completed", "complete"] };
-      } else {
-        // normal single-status filter
-        match.status = normalizedStatus;
-      }
+    // View filters
+    if (view === "active") {
+      q.status = { $in: ["open", "in_progress", "on_hold"] };
+      // optional: hide cancelled from active automatically
+    } else if (view === "financial") {
+      // include legacy "invoiced" if you still have data using it
+      q.status = { $in: ["completed", "invoiced"] };
+      // optionally hide closed financial items:
+      q.closedAt = { $exists: false };
+    } else if (view === "archive") {
+      q.closedAt = { $exists: true, $ne: null };
+    } else {
+      // all -> no extra filter
     }
 
-    // Optional search (only if you already support it — example below)
-    if (search && search.trim()) {
-      const s = search.trim();
-      match.$or = [
-        { complaint: new RegExp(s, "i") },
-        { notes: new RegExp(s, "i") },
-        { workOrderNumber: new RegExp(s, "i") }, // if you have it
-      ];
-    }
+    // Sorting
+    const dir = sortDir === "asc" ? 1 : -1;
+    const sort: any =
+      sortBy === "status" ? { status: dir, createdAt: -1 } : { createdAt: dir };
 
-    const workOrders = await WorkOrder.find(match)
-        .sort({ createdAt: -1 })
-        .populate("customerId", "fullName name firstName lastName") // ✅ add this
-        .lean();
+    const workOrders = await WorkOrder.find(q)
+      .sort(sort)
+      .populate("customerId", "name fullName firstName lastName") // optional
+      .populate("invoiceId", "status invoiceNumber sentAt paidAt voidedAt total") // optional
+      .lean();
 
-      res.json(workOrders);
+    // Optional: normalize shape so frontend can use wo.customer and wo.invoice
+    const normalized = workOrders.map((wo: any) => ({
+      ...wo,
+      customer: wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined,
+      invoice: wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined,
+    }));
 
-    return res.json(workOrders);
+    res.json(normalized);
   } catch (err) {
     next(err);
   }
@@ -203,116 +134,33 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 
 
 
+
 // GET /api/work-orders/:id
-router.get('/:id', async (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
-    if (!accountId) {
-      return res.status(400).json({ message: 'Missing accountId' });
-    }
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
     const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid id" });
 
-    console.log('[workOrders GET/:id] accountId:', accountId.toString());
-    console.log('[workOrders GET/:id] id param:', id);
+    const wo = await WorkOrder.findOne({ _id: id, accountId })
+      .populate("customerId", "name fullName firstName lastName phone email")
+      .populate("invoiceId", "status invoiceNumber sentAt paidAt voidedAt lineItems subtotal taxAmount total")
+      .lean();
 
-    // 🔒 Guard: id must be a valid ObjectId
-    if (!Types.ObjectId.isValid(id)) {
-      console.warn('[workOrders GET/:id] Invalid ObjectId param received:', id);
-      return res.status(400).json({ message: 'Invalid work order id' });
-    }
+    if (!wo) return res.status(404).json({ message: "Work order not found" });
 
-    const workOrder = await WorkOrder.findOne({
-      _id: id,
-      accountId,
-    })
-      .populate(
-        'customerId',
-        'firstName lastName phone email address vehicles' // include vehicles for lookup
-      );
-
-    if (!workOrder) {
-      return res.status(404).json({ message: 'Work order not found' });
-    }
-
-    // Ensure vehicle snapshot is present in the response. If missing but a vehicleId exists,
-    // try to hydrate from the customer's saved vehicles.
-    const woObj: any = workOrder.toObject();
-
-    const customer: any = woObj.customerId;
-    const hasVehicleSnapshot = Boolean(woObj.vehicle);
-    const vehicleId = woObj.vehicle?.vehicleId || woObj.vehicleId;
-
-    if (!hasVehicleSnapshot && customer?.vehicles?.length && vehicleId) {
-      const match = customer.vehicles.find(
-        (v: any) => v._id?.toString() === vehicleId.toString()
-      );
-      if (match) {
-        woObj.vehicle = {
-          vehicleId: match._id,
-          year: match.year,
-          make: match.make,
-          model: match.model,
-          vin: match.vin,
-          licensePlate: match.licensePlate,
-          color: match.color,
-          notes: match.notes,
-        };
-      }
-    }
-
-    // Normalize line items + money fields so older work orders (without the new schema)
-    // still return a consistent shape to the frontend.
-    const rawLineItems: any[] = Array.isArray(woObj.lineItems)
-      ? woObj.lineItems
-      : [];
-    const normalizedLineItems = rawLineItems.map((item) => {
-      const quantity = Number(item?.quantity) || 0;
-      const unitPrice = Number(item?.unitPrice) || 0;
-      const lineTotal =
-        typeof item?.lineTotal === 'number'
-          ? item.lineTotal
-          : quantity * unitPrice;
-      return {
-        type: item?.type,
-        description: item?.description ?? '',
-        quantity,
-        unitPrice,
-        lineTotal,
-      };
+    res.json({
+      ...wo,
+      customer: wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined,
+      invoice: wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined,
     });
-
-    const subtotal =
-      typeof woObj.subtotal === 'number'
-        ? woObj.subtotal
-        : normalizedLineItems.reduce(
-            (sum: number, item: any) => sum + (item.lineTotal || 0),
-            0
-          );
-
-    const taxRate =
-      typeof woObj.taxRate === 'number' && !Number.isNaN(woObj.taxRate)
-        ? woObj.taxRate
-        : 13;
-    const taxAmount =
-      typeof woObj.taxAmount === 'number'
-        ? woObj.taxAmount
-        : subtotal * (taxRate / 100);
-    const total =
-      typeof woObj.total === 'number' ? woObj.total : subtotal + taxAmount;
-
-    woObj.lineItems = normalizedLineItems;
-    woObj.taxRate = taxRate;
-    woObj.subtotal = subtotal;
-    woObj.taxAmount = taxAmount;
-    woObj.total = total;
-
-    res.json(woObj);
-  } catch (error) {
-    console.error('Error fetching work order by ID:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (err) {
+    next(err);
   }
 });
+
 
 
 
@@ -633,67 +481,103 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
 
 /**
  * PATCH /api/work-orders/:id/status
- * Quick status update, but still uses the same lifecycle logic.
+ * Quick status update with lifecycle timestamps + existing lifecycle helper.
  */
-router.patch("/:id/status", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.patch(
+  "/:id/status",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId)
+        return res.status(400).json({ message: "Missing accountId" });
 
-    const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid work order id" });
-    }
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid work order id" });
+      }
 
-    const { status } = req.body ?? {};
-    if (!status) return res.status(400).json({ message: "status is required" });
+      const rawStatus = (req.body?.status || "").trim().toLowerCase();
+      if (!rawStatus) {
+        return res.status(400).json({ message: "status is required" });
+      }
 
-    
+      // Normalize status aliases
+      const nextStatus =
+        rawStatus === "complete" ? "completed" : rawStatus;
 
-    const nextStatus = (req.body.status || "").trim().toLowerCase();
+      // ✅ Allowed statuses (keep legacy "invoiced" for now if your DB has it)
+      const allowed = [
+        "open",
+        "in_progress",
+        "on_hold",
+        "completed",
+        "invoiced",  // legacy/optional
+        "cancelled",
+      ];
 
-      // your usual fetch of the work order scoped by accountId
+      if (!allowed.includes(nextStatus)) {
+        return res.status(400).json({
+          message: `Invalid status. Allowed: ${allowed.join(", ")}`,
+        });
+      }
+
+      // Fetch scoped by accountId
       const workOrder = await WorkOrder.findOne({ _id: id, accountId });
-      if (!workOrder) return res.status(404).json({ message: "Work order not found" });
+      if (!workOrder)
+        return res.status(404).json({ message: "Work order not found" });
 
-      // normalize + assign
-      workOrder.status = nextStatus as any;
-
-      // ✅ stamp lifecycle times (server is the source of truth)
       const now = new Date();
 
+      // ✅ Assign status
+      workOrder.status = nextStatus as any;
+
+      // ✅ Stamp lifecycle times (server is source of truth)
+      // Note: only stamp the first time each milestone occurs.
       if (nextStatus === "in_progress") {
-        // only set the first time work starts
-        if (!workOrder.startedAt) workOrder.startedAt = now;
-        // optional: clear hold marker when resuming
-        // workOrder.onHoldAt = undefined;
+        // If you don't actually have startedAt in schema, remove these 2 lines.
+        if (!(workOrder as any).startedAt) (workOrder as any).startedAt = now;
       }
 
-      if (nextStatus === "on_hold" ) {
-        if (!workOrder.onHoldAt) workOrder.onHoldAt = now;
+      if (nextStatus === "on_hold") {
+        // If you don't actually have onHoldAt in schema, remove these 2 lines.
+        if (!(workOrder as any).onHoldAt) (workOrder as any).onHoldAt = now;
       }
 
-      if (nextStatus === "completed" || nextStatus === "complete") {
+      if (nextStatus === "completed") {
         if (!workOrder.completedAt) workOrder.completedAt = now;
+
+        // 🔥 Optional: when completing a job, ensure it's not "closed"
+        // (closing happens when invoice is paid/void, not when work completes)
+        // If you are using closedAt for archive, keep it unset here:
+        // workOrder.closedAt = undefined; // only if you want to actively unset
       }
 
       if (nextStatus === "invoiced") {
+        // legacy; if you’re phasing this out, you can keep stamping for old flow
         if (!workOrder.invoicedAt) workOrder.invoicedAt = now;
       }
 
+      if (nextStatus === "cancelled") {
+        if (!workOrder.cancelledAt) workOrder.cancelledAt = now;
+
+        // Optional: treat cancelled as archived
+        // If you want cancelled items to show in Archive view:
+        // if (!workOrder.closedAt) workOrder.closedAt = now;
+      }
+
+      // ✅ Keep your existing lifecycle helper (does totals, normalization, etc.)
+      // Pass the normalized status so it stays consistent
+      applyWorkOrderLifecycle(workOrder, { status: nextStatus });
+
       await workOrder.save();
 
-      return res.json(workOrder);
+      res.json(workOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
-
-          applyWorkOrderLifecycle(workOrder, { status });
-
-          await workOrder.save(); // ✅ hooks + normalization
-          res.json(workOrder);
-        } catch (err) {
-          next(err);
-        }
-      });
 
 
 router.delete(

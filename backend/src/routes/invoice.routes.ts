@@ -420,22 +420,29 @@ router.post("/from-work-order/:workOrderId", async (req: Request, res: Response)
     }
 
     const invoice = await Invoice.create({
-      accountId,
-      invoiceNumber,
-      status: "draft",
-      workOrderId: workOrder._id,
-      customerId: customer._id,
-      customerSnapshot,
-      vehicleSnapshot,
-      issueDate,
-      dueDate,
-      lineItems: normalizedLineItems,
-      subtotal,
-      taxRate,
-      taxAmount,
-      total,
-      notes: req.body.notes ?? workOrder.notes,
-    });
+    accountId,
+    invoiceNumber,
+    status: "draft",
+    workOrderId: workOrder._id,
+    customerId: customer._id,
+    customerSnapshot,
+    vehicleSnapshot,
+    issueDate,
+    dueDate,
+    lineItems: normalizedLineItems,
+    subtotal,
+    taxRate,
+    taxAmount,
+    total,
+
+    // ✅ payments v1 (supports partial payments)
+    payments: [],
+    paidAmount: 0,
+    balanceDue: total,
+
+    notes: req.body.notes ?? workOrder.notes,
+  });
+
 
     workOrder.status = "invoiced";
     workOrder.invoiceId = invoice._id;
@@ -491,10 +498,7 @@ router.post("/:id/send", async (req, res, next) => {
 router.post("/:id/pay", async (req, res, next) => {
   try {
     const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
-
     const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
 
     const { method, amount, reference } = req.body as {
       method: "cash" | "card" | "e-transfer" | "cheque";
@@ -502,26 +506,75 @@ router.post("/:id/pay", async (req, res, next) => {
       reference?: string;
     };
 
-    if (!method || typeof amount !== "number" || amount <= 0) {
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
+
+    const n = Number(amount);
+    if (!method || !Number.isFinite(n) || n <= 0) {
       return res.status(400).json({ message: "Payment method + positive amount required" });
     }
 
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    const from = ((invoice as any).status || "draft").toString().toLowerCase();
-    assertValidInvoiceTransition(from as any, "paid");
+    const status = String((invoice as any).status || "draft").toLowerCase();
 
-    (invoice as any).status = "paid";
-    (invoice as any).paidAt = (invoice as any).paidAt ?? new Date();
-    (invoice as any).payment = { method, amount, reference };
+    // ✅ payments allowed only once sent (recommended)
+    if (status === "draft") {
+      return res.status(400).json({ message: "Invoice must be sent before recording payment." });
+    }
+    if (status === "paid" || status === "void") {
+      return res.status(400).json({ message: `Cannot record payment when invoice is ${status}.` });
+    }
+
+    // append payment
+    const payment = {
+      method,
+      reference: (reference || "").trim(),
+      amount: n,
+      paidAt: new Date(),
+    };
+
+    (invoice as any).payments = Array.isArray((invoice as any).payments) ? (invoice as any).payments : [];
+    (invoice as any).payments.push(payment);
+
+    // recompute paidAmount + balanceDue
+    const total = Number((invoice as any).total ?? 0);
+    const paidAmount = (invoice as any).payments.reduce(
+      (sum: number, p: any) => sum + Number(p.amount || 0),
+      0
+    );
+
+    const balanceDue = Math.max(0, total - paidAmount);
+
+    (invoice as any).paidAmount = paidAmount;
+    (invoice as any).balanceDue = balanceDue;
+
+    // if fully paid → flip lifecycle
+    if (balanceDue === 0) {
+      (invoice as any).status = "paid";
+      (invoice as any).paidAt = (invoice as any).paidAt ?? new Date(); // first full payment time
+    } else {
+      // remain sent
+      (invoice as any).status = "sent";
+    }
 
     await invoice.save();
+
+    // If fully closed, sync WorkOrder.closedAt (same as your status route does)
+    if ((invoice as any).status === "paid") {
+      await WorkOrder.updateOne(
+        { _id: (invoice as any).workOrderId, accountId },
+        { $set: { closedAt: new Date() } }
+      );
+    }
+
     return res.json({ invoice });
   } catch (err) {
     next(err);
   }
 });
+
 
 // POST /api/invoices/:id/void
 router.post("/:id/void", async (req, res, next) => {
@@ -652,24 +705,37 @@ router.post("/:id/email", async (req, res) => {
  * ✅ 5) Document routes
  */
 
-// GET /api/invoices/:id/pdf
-router.get("/:id/pdf", async (req: Request, res: Response, next: NextFunction) => {
+// invoices.route.ts (or wherever your invoice routes are)
+
+router.get("/:id/pdf", async (req, res, next) => {
   try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
-
+    const accountId = req.accountId; // if you’re using account scoping middleware
     const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
 
-    const invoice = await Invoice.findOne({ _id: id, accountId }).populate("customerId").lean();
+    // 1) Fetch invoice (scoped)
+    const invoice = await Invoice.findOne({ _id: id, accountId }).lean();
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    // (Keep your existing PDF code here if you want; I left it out to keep this focused on ordering.)
-    return res.status(501).json({ message: "PDF route is mounted; keep your current implementation here." });
+    const customer = await Customer.findById(invoice.customerId).lean();
+    if (!customer) return res.status(404).json({ message: "Customer not found" });
+
+    // 2) Generate PDF buffer (reuse your existing PDF builder)
+    // IMPORTANT: replace this with YOUR actual function name:
+    const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
+
+    // 3) Stream PDF to browser
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="invoice-${invoice.invoiceNumber || id}.pdf"`
+    );
+
+    return res.send(pdfBuffer);
   } catch (err) {
     next(err);
   }
 });
+
 
 /**
  * ✅ 6) Generic mutation routes (draft-only edit)

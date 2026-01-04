@@ -107,11 +107,22 @@ export async function buildInvoicePdfBuffer(args: {
   doc.text(`Tax: $${money(taxAmount)}`, { align: "right" });
   doc.fontSize(12).text(`Total: $${money(total)}`, { align: "right" });
 
-  if (invoice.notes) {
+    if (invoice.notes) {
     doc.moveDown(1);
-    doc.fontSize(11).text("Notes:", { underline: true });
-    doc.fontSize(10).text(String(invoice.notes));
+
+    const left = doc.page.margins.left; // should be 50 based on your doc settings
+    const right = doc.page.margins.right; // 50
+    const contentWidth = doc.page.width - left - right;
+
+    doc.fontSize(11).text("Notes:", left, doc.y, { underline: true });
+    doc.moveDown(0.2);
+
+    doc.fontSize(10).text(String(invoice.notes), left, doc.y, {
+      width: contentWidth,
+      lineGap: 2,
+    });
   }
+
 
   doc.end();
   return done;

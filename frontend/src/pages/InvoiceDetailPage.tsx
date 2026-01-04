@@ -4,6 +4,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
 import { fetchInvoiceById, getInvoicePdfUrl, emailInvoice, updateInvoiceStatus, type InvoiceStatus } from "../api/invoices";
 import { fetchCustomerById } from "../api/customers";
+import { recordInvoicePayment } from "../api/invoices";
+
+
 
 function resolveWorkOrderId(invoice: any): string | null {
   if (!invoice) return null;
@@ -38,6 +41,26 @@ function resolveCustomerId(inv: any): string | null {
   return null;
 }
 
+  function fmtDateTime(d: any): string {
+    if (!d) return "";
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return dt.toLocaleString();
+  }
+
+  function getLatestPaymentDate(inv: any): Date | null {
+    const payments = Array.isArray(inv?.payments) ? inv.payments : [];
+    const dates = payments
+      .map((p: any) => p?.paidAt)
+      .filter(Boolean)
+      .map((x: any) => (x instanceof Date ? x : new Date(x)))
+      .filter((d: Date) => !Number.isNaN(d.getTime()))
+      .sort((a: Date, b: Date) => b.getTime() - a.getTime());
+
+    return dates[0] ?? null;
+  }
+
+
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -57,6 +80,44 @@ export default function InvoiceDetailPage() {
   const resolvedWorkOrderId = useMemo(() => resolveWorkOrderId(invoice), [invoice]);
 
   const resolvedCustomerId = useMemo(() => resolveCustomerId(invoice), [invoice]);
+
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payMethod, setPayMethod] = useState<"cash" | "card" | "e-transfer" | "cheque">("cash");
+  const [payRef, setPayRef] = useState<string>("");
+
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  async function handleRecordPayment() {
+    if (!invoice?._id) return;
+
+    const amountNum = Number(payAmount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      setPayError("Enter a valid payment amount.");
+      return;
+    }
+
+    try {
+      setPaying(true);
+      setPayError(null);
+
+      const updated = await recordInvoicePayment(invoice._id, {
+        method: payMethod,
+        amount: amountNum,
+        reference: payRef.trim() || undefined,
+      });
+
+      setInvoice(updated);
+      setPayAmount("");
+      setPayRef("");
+
+    } catch (err: any) {
+      setPayError(err?.message || "Failed to record payment.");
+    } finally {
+      setPaying(false);
+    }
+  }
+
 
   // ✅ Load invoice by route param
   useEffect(() => {
@@ -179,7 +240,25 @@ export default function InvoiceDetailPage() {
   const truthEmail = liveEmail || snapshotEmail;
   const emailMismatch = !!liveEmail && !!snapshotEmail && liveEmail !== snapshotEmail;
 
- 
+
+
+    // --- Money + status clarity (header polish) ---
+    const statusRaw = String(invoice.status ?? "draft").toLowerCase();
+
+    const paidAmountNum = Number((invoice as any).paidAmount ?? 0);
+    const balanceDueNum = Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0));
+
+    const latestPaymentDate = getLatestPaymentDate(invoice);
+
+    const paidOrLastPaymentLine =
+      statusRaw === "paid" && latestPaymentDate
+        ? `Paid on ${fmtDateTime(latestPaymentDate)}`
+        : paidAmountNum > 0 && balanceDueNum > 0 && statusRaw !== "void"
+        ? latestPaymentDate
+          ? `Last payment ${fmtDateTime(latestPaymentDate)}`
+          : "Last payment —"
+        : "";
+
  
  
  
@@ -195,25 +274,104 @@ export default function InvoiceDetailPage() {
           marginBottom: "1rem",
         }}
       >
-        <div>
+    <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
 
-          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            {/* Status pill */}
-            <span
+          {/* NEW: Confidence money line */}
+          <div
               style={{
-                padding: "0.25rem 0.75rem",
-                borderRadius: "999px",
-                border: "1px solid #ccc",
-                fontSize: "0.85rem",
-                textTransform: "uppercase",
-                display: "inline-block",
+                marginTop: "0.35rem",
+                color: "#9ca3af",
+                fontWeight: 600,
+                fontSize: "0.95rem",
               }}
             >
-              {invoice.status ?? "draft"}
-            </span>
 
-            {/* Email meta */}
+            Total {Number(invoice.total ?? 0).toFixed(2)}{" "}
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
+            Paid {paidAmountNum.toFixed(2)}{" "}
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
+            Balance {balanceDueNum.toFixed(2)}
+          </div>
+
+          {/* Status + paid/last payment + email meta */}
+          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Status badge (your existing IIFE stays exactly the same) */}
+            {(() => {
+              const status = String(invoice.status ?? "draft").toLowerCase();
+
+              const paidAmount = Number((invoice as any).paidAmount ?? 0);
+              const balanceDue = Number((invoice as any).balanceDue ?? 0);
+
+              // Display-state (even if backend status is still "sent")
+              const isPartial =
+                paidAmount > 0 && balanceDue > 0 && status !== "paid" && status !== "void";
+
+              const label =
+                status === "paid"
+                  ? "PAID"
+                  : status === "void"
+                  ? "VOID"
+                  : isPartial
+                  ? "PARTIAL"
+                  : status.toUpperCase();
+
+              const stylesByLabel: Record<string, React.CSSProperties> = {
+                PAID: {
+                  border: "2px solid #16a34a",
+                  color: "#16a34a",
+                  background: "#f0fdf4",
+                },
+                VOID: {
+                  border: "2px solid #dc2626",
+                  color: "#dc2626",
+                  background: "#fef2f2",
+                },
+                PARTIAL: {
+                  border: "2px solid #d97706",
+                  color: "#b45309",
+                  background: "#fffbeb",
+                },
+                SENT: {
+                  border: "2px solid #2563eb",
+                  color: "#2563eb",
+                  background: "#eff6ff",
+                },
+                DRAFT: {
+                  border: "2px solid #6b7280",
+                  color: "#374151",
+                  background: "#f3f4f6",
+                },
+              };
+
+              const base: React.CSSProperties = {
+                padding: "0.4rem 0.9rem",
+                borderRadius: "999px",
+                fontSize: "0.95rem",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+              };
+
+              return (
+                <span style={{ ...base, ...(stylesByLabel[label] ?? stylesByLabel.DRAFT) }}>
+                  {label}
+                </span>
+              );
+            })()}
+
+            {/* NEW: Paid/Last payment line (truth = payments[]) */}
+            {paidOrLastPaymentLine ? (
+              <span style={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
+                {paidOrLastPaymentLine}
+              </span>
+            ) : null}
+
+            {/* Email meta (unchanged) */}
             <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
               Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
               {(invoice as any).email?.lastSentAt
@@ -224,7 +382,8 @@ export default function InvoiceDetailPage() {
           </div>
 
           {emailError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{emailError}</div> : null}
-        </div>
+    </div>
+
 
         {/* Actions */}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -264,9 +423,7 @@ export default function InvoiceDetailPage() {
         <button disabled={isSaving} onClick={() => handleSetStatus("sent")}>
           Mark Sent
         </button>
-        <button disabled={isSaving} onClick={() => handleSetStatus("paid")}>
-          Mark Paid
-        </button>
+       
         <button disabled={isSaving} onClick={() => handleSetStatus("void")}>
           Void
         </button>
@@ -365,6 +522,134 @@ export default function InvoiceDetailPage() {
           Total: {Number(invoice.total ?? 0).toFixed(2)}
         </div>
       </div>
+
+            {/* Payments */}
+    <div style={{ marginTop: "1.25rem", borderTop: "1px solid #eee", paddingTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Payments</h3>
+
+      <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+        <div>
+          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Paid to date</div>
+          <div style={{ fontWeight: 600 }}>
+            {Number((invoice as any).paidAmount ?? 0).toFixed(2)}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Balance due</div>
+          <div style={{ fontWeight: 600 }}>
+            {Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0)).toFixed(2)}
+          </div>
+        </div>
+
+       {statusRaw === "paid" && latestPaymentDate ? (
+            <div>
+              <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Date paid</div>
+              <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
+            </div>
+          ) : null}
+
+            {statusRaw !== "paid" && paidAmountNum > 0 && balanceDueNum > 0 && latestPaymentDate ? (
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Last payment</div>
+                <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
+              </div>
+        ) : null}
+
+      </div>
+
+      {/* Payment history (optional but useful now that you have payments[]) */}
+      {Array.isArray((invoice as any).payments) && (invoice as any).payments.length > 0 ? (
+        <div style={{ marginBottom: "0.75rem" }}>
+          <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.25rem" }}>History</div>
+          <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+            {(invoice as any).payments.map((p: any, idx: number) => (
+              <li key={idx} style={{ marginBottom: "0.25rem" }}>
+                {new Date(p.paidAt).toLocaleString()} • {p.method} • ${Number(p.amount ?? 0).toFixed(2)}
+                {p.reference ? ` • ${p.reference}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.9rem", color: "#6b7280", marginBottom: "0.75rem" }}>
+          No payments recorded yet.
+        </div>
+      )}
+
+      {/* Record payment form */}
+      {(() => {
+        const status = (invoice.status || "draft").toLowerCase();
+        const locked = status === "draft" || status === "paid" || status === "void";
+
+        return (
+          <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Amount</label>
+                <input
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  placeholder="e.g. 50"
+                  inputMode="decimal"
+                  style={{ padding: "0.5rem", border: "1px solid #ddd", borderRadius: "8px" }}
+                  disabled={locked || paying}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Method</label>
+                <select
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value as any)}
+                  style={{ padding: "0.5rem", border: "1px solid #ddd", borderRadius: "8px" }}
+                  disabled={locked || paying}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="e-transfer">e-Transfer</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </div>
+
+              <div style={{ flex: 1, minWidth: "220px", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Reference (optional)</label>
+                <input
+                  value={payRef}
+                  onChange={(e) => setPayRef(e.target.value)}
+                  placeholder="e.g. deposit, txn id, last 4"
+                  style={{ padding: "0.5rem", border: "1px solid #ddd", borderRadius: "8px" }}
+                  disabled={locked || paying}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRecordPayment}
+                disabled={locked || paying}
+                style={{ padding: "0.55rem 0.9rem" }}
+              >
+                {paying ? "Recording..." : "Record Payment"}
+              </button>
+            </div>
+
+            {locked ? (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                {status === "draft"
+                  ? "Send the invoice before recording payment."
+                  : status === "paid"
+                  ? "Invoice is fully paid."
+                  : "Invoice is voided."}
+              </div>
+            ) : null}
+
+            {payError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{payError}</div> : null}
+          </div>
+        );
+      })()}
+    </div>
+
+
 
       {/* Notes */}
       {invoice.notes ? (

@@ -1,11 +1,20 @@
 // frontend/src/api/invoices.ts
-import axios from "axios";
 import api from "./client";
 import type { Invoice } from "../types/invoice";
+
+
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
-//import { InvoiceSchema } from "./models/invoice.model"; // whatever your wrapper is
 
+export type FinancialSummaryResponse = {
+  range: { from: string; to: string };
+  revenuePaid: { count: number; amount: number; tax: number; subtotal: number };
+  outstandingSent: { count: number; amount: number };
+  drafts: { count: number; amount: number };
+  voided: { count: number; amount: number };
+  aging: Array<{ _id: "0-7" | "8-14" | "15-30" | "31+"; count: number; amount: number }>;
+};
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL; // http://localhost:4000/api
 
 // GET /api/invoices
 export async function fetchInvoices(): Promise<Invoice[]> {
@@ -19,43 +28,23 @@ export async function fetchInvoiceById(id: string): Promise<Invoice> {
   return res.data;
 }
 
-
+// For <a href> or window.open
 export function getInvoicePdfUrl(invoiceId: string) {
   return `${API_BASE}/invoices/${invoiceId}/pdf`;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL; // http://localhost:4000/api
-
-export async function emailInvoicePdf(
-  invoiceId: string,
-  to: string,
-  message?: string
-) {
-  const res = await axios.post(
-    `${API_BASE}/invoices/${invoiceId}/email`,
-    { to, message }
-  );
-  return res.data;
-}
-
-
+// POST /api/invoices/:id/email
 export async function emailInvoice(invoiceId: string) {
-  const res = await fetch(`${API_BASE}/invoices/${invoiceId}/email`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Failed to email invoice");
-  }
-
-  return res.json() as Promise<{
+  const res = await api.post(`/invoices/${invoiceId}/email`);
+  return res.data as {
     ok: boolean;
     message: string;
     email?: any;
-  }>;
+    status?: string;
+  };
 }
 
+// PATCH /api/invoices/:id/status
 export async function updateInvoiceStatus(
   invoiceId: string,
   status: InvoiceStatus
@@ -64,17 +53,25 @@ export async function updateInvoiceStatus(
   return res.data;
 }
 
-export async function fetchFinancialSummary(params?: { from?: string; to?: string }) {
-  const qs = new URLSearchParams();
-  if (params?.from) qs.set("from", params.from);
-  if (params?.to) qs.set("to", params.to);
-
-  const res = await fetch(`/api/invoices/financial/summary?${qs.toString()}`, {
-    headers: { "Content-Type": "application/json" },
-  });
-
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
+// GET /api/invoices/financial/summary
+export async function fetchFinancialSummary(
+  params?: { from?: string; to?: string }
+): Promise<FinancialSummaryResponse> {
+  const res = await api.get<FinancialSummaryResponse>(
+    "/invoices/financial/summary",
+    { params }
+  );
+  return res.data;
 }
 
-
+export async function recordInvoicePayment(
+  invoiceId: string,
+  payload: {
+    method: "cash" | "card" | "e-transfer" | "cheque";
+    amount: number;
+    reference?: string;
+  }
+): Promise<Invoice> {
+  const res = await api.post<{ invoice: Invoice }>(`/invoices/${invoiceId}/pay`, payload);
+  return res.data.invoice;
+}

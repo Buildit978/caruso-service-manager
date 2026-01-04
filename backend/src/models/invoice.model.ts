@@ -56,12 +56,16 @@ export interface IInvoice extends Document {
   voidedAt?: Date;
   voidReason?: string;
 
-  payment?: {
-    method: "cash" | "card" | "e-transfer" | "cheque";
-    referance?: string;
-    amount: number;
-  
-  }
+ payments: Array<{
+  method: PaymentMethod;
+  reference?: string;
+  amount: number;
+  paidAt: string; // ISO string from API
+}>;
+
+paidAmount: number;   // total paid so far
+balanceDue: number;   // total - paidAmount
+
 
   workOrderId: Types.ObjectId;
   customerId: Types.ObjectId;
@@ -150,6 +154,22 @@ const InvoiceVehicleSnapshotSchema = new Schema<IInvoiceVehicleSnapshot>(
   { _id: false }
 );
 
+  const InvoicePaymentSchema = new Schema(
+    {
+      method: {
+        type: String,
+        enum: ["cash", "card", "e-transfer", "cheque"],
+        required: true,
+      },
+      reference: { type: String, trim: true, default: "" },
+      amount: { type: Number, required: true, min: 0.01 },
+      paidAt: { type: Date, required: true, default: Date.now },
+    },
+    { _id: false }
+  );
+
+
+
 const InvoiceSchema = new Schema(
   {
     // 👇 NEW: accountId for multi-tenant scoping
@@ -181,11 +201,14 @@ const InvoiceSchema = new Schema(
     voidedAt: { type: Date },
     voidReason: { type: String, trim: true },
 
-    payment: {
-      method: { type: String, enum: ["cash", "card", "e-transfer", "cheque"] },
-      reference: { type: String, trim: true },
-      amount: { type: Number, min: 0 },
-    },
+    payments: {
+    type: [InvoicePaymentSchema],
+    required: true,
+    default: [],
+  },
+  paidAmount: { type: Number, required: true, default: 0, min: 0 },
+  balanceDue: { type: Number, required: true, default: 0, min: 0 },
+
 
     kind: {
           type: String,
@@ -285,6 +308,8 @@ parentInvoiceId: { type: Schema.Types.ObjectId, ref: "Invoice" },
   },
   { timestamps: true }
 );
+
+
 
 
 export type Invoice = mongoose.InferSchemaType<typeof InvoiceSchema>;

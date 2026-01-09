@@ -178,7 +178,11 @@ if (error || !data || !financial) {
                 <p className="stat-card__hint">Lifetime total from completed work (ops metric).</p>
                 </article>
 
-                <article className="stat-card stat-card--open stat-card--clickable" onClick={() => navigate("/invoices")}>
+                <article
+  className="stat-card stat-card--open stat-card--clickable"
+  onClick={() => navigate("/work-orders?view=financial")}
+>
+
                 <div className="stat-card__top">
                     <span className="stat-card__icon">🧾</span>
                     <span className="stat-card__label">Outstanding</span>

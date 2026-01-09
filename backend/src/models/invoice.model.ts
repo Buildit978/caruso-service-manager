@@ -1,7 +1,9 @@
 // backend/src/models/invoice.model.ts
 import { model, type Document, type Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
+
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
+export type FinancialStatus = "paid" | "partial" | "due"; // ✅ NEW
 export type PaymentMethod = "cash" | "card" | "e-transfer" | "cheque";
 export type InvoiceEmailStatus = "never_sent" | "sending" | "sent" | "failed";
 
@@ -40,9 +42,7 @@ export type InvoiceEmailMeta = {
   lastMessageId?: string;
   lastError?: string;
   attempts?: number;
-}
-
-
+};
 
 export interface IInvoice extends Document {
   accountId: Types.ObjectId;
@@ -50,22 +50,24 @@ export interface IInvoice extends Document {
   invoiceNumber: string;
   status: InvoiceStatus;
 
+  // ✅ NEW: canonical financial truth
+  financialStatus: FinancialStatus;
+
   // ✅ lifecycle stamps (used for snapshot locking + finance status)
   sentAt?: Date;
   paidAt?: Date;
   voidedAt?: Date;
   voidReason?: string;
 
- payments: Array<{
-  method: PaymentMethod;
-  reference?: string;
-  amount: number;
-  paidAt: string; // ISO string from API
-}>;
+  payments: Array<{
+    method: PaymentMethod;
+    reference?: string;
+    amount: number;
+    paidAt: string; // ISO string from API
+  }>;
 
-paidAmount: number;   // total paid so far
-balanceDue: number;   // total - paidAmount
-
+  paidAmount: number; // total paid so far
+  balanceDue: number; // total - paidAmount
 
   workOrderId: Types.ObjectId;
   customerId: Types.ObjectId;
@@ -85,13 +87,12 @@ balanceDue: number;   // total - paidAmount
 
   notes?: string;
 
- // ✅ email meta
+  // ✅ email meta
   email?: InvoiceEmailMeta;
 
   createdAt: Date;
   updatedAt: Date;
 }
-
 
 const InvoiceLineItemSchema = new Schema<IInvoiceLineItem>(
   {
@@ -154,21 +155,19 @@ const InvoiceVehicleSnapshotSchema = new Schema<IInvoiceVehicleSnapshot>(
   { _id: false }
 );
 
-  const InvoicePaymentSchema = new Schema(
-    {
-      method: {
-        type: String,
-        enum: ["cash", "card", "e-transfer", "cheque"],
-        required: true,
-      },
-      reference: { type: String, trim: true, default: "" },
-      amount: { type: Number, required: true, min: 0.01 },
-      paidAt: { type: Date, required: true, default: Date.now },
+const InvoicePaymentSchema = new Schema(
+  {
+    method: {
+      type: String,
+      enum: ["cash", "card", "e-transfer", "cheque"],
+      required: true,
     },
-    { _id: false }
-  );
-
-
+    reference: { type: String, trim: true, default: "" },
+    amount: { type: Number, required: true, min: 0.01 },
+    paidAt: { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
 
 const InvoiceSchema = new Schema(
   {
@@ -195,6 +194,16 @@ const InvoiceSchema = new Schema(
       index: true,
     },
 
+    // ✅ NEW: canonical financial status (backend truth)
+    financialStatus: {
+      type: String,
+      enum: ["paid", "partial", "due"],
+      default: "due",
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+
     // ✅ lifecycle stamps
     sentAt: { type: Date },
     paidAt: { type: Date },
@@ -202,26 +211,24 @@ const InvoiceSchema = new Schema(
     voidReason: { type: String, trim: true },
 
     payments: {
-    type: [InvoicePaymentSchema],
-    required: true,
-    default: [],
-  },
-  paidAmount: { type: Number, required: true, default: 0, min: 0 },
-  balanceDue: { type: Number, required: true, default: 0, min: 0 },
+      type: [InvoicePaymentSchema],
+      required: true,
+      default: [],
+    },
 
+    paidAmount: { type: Number, required: true, default: 0, min: 0 },
+    balanceDue: { type: Number, required: true, default: 0, min: 0 },
 
     kind: {
-          type: String,
-          enum: ["standard", "deposit", "final", "credit", "revision"],
-          default: "standard",
-          index: true,
-          },
+      type: String,
+      enum: ["standard", "deposit", "final", "credit", "revision"],
+      default: "standard",
+      index: true,
+    },
 
-revision: { type: Number, default: 0, min: 0 },
+    revision: { type: Number, default: 0, min: 0 },
 
-parentInvoiceId: { type: Schema.Types.ObjectId, ref: "Invoice" },
-
-
+    parentInvoiceId: { type: Schema.Types.ObjectId, ref: "Invoice" },
 
     workOrderId: {
       type: Schema.Types.ObjectId,
@@ -309,9 +316,6 @@ parentInvoiceId: { type: Schema.Types.ObjectId, ref: "Invoice" },
   { timestamps: true }
 );
 
-
-
-
 export type Invoice = mongoose.InferSchemaType<typeof InvoiceSchema>;
 export type InvoiceDoc = mongoose.HydratedDocument<Invoice>;
 
@@ -323,13 +327,8 @@ InvoiceSchema.index({ accountId: 1, status: 1, createdAt: -1 }); // helpful for 
 InvoiceSchema.index({ accountId: 1, status: 1, paidAt: -1 });
 InvoiceSchema.index({ accountId: 1, status: 1, sentAt: -1 });
 
+// ✅ NEW (optional but helpful): finance filtering/sorting
+InvoiceSchema.index({ accountId: 1, financialStatus: 1, createdAt: -1 });
+
 const InvoiceModel = mongoose.model<Invoice>("Invoice", InvoiceSchema);
 export default InvoiceModel;
-
-
-
-
-
-
-
-

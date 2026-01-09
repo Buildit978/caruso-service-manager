@@ -197,7 +197,15 @@ export default function InvoiceDetailPage() {
 
       const resp = await emailInvoice(invoice._id);
 
-      setInvoice((prev) => (prev ? { ...prev, email: resp.email ?? (prev as any).email } : prev));
+      setInvoice((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(resp?.status ? { status: resp.status as any } : null),
+              ...(resp?.email ? { email: resp.email as any } : null),
+            }
+          : prev
+      );
 
       alert("✅ Invoice emailed.");
       // Optional: mark as sent automatically after successful email:
@@ -230,6 +238,31 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  async function handleVoidInvoice() {
+  if (!invoice?._id) return;
+  if (String(invoice.financialStatus || "draft").toLowerCase() === "paid") {
+    alert("This invoice is PAID and cannot be voided.");
+    return;
+  }
+  if (String(invoice.financialStatus || "draft").toLowerCase() === "void") return;
+
+  const reason = window.prompt("Void reason (required):");
+  if (!reason || !reason.trim()) return;
+
+  try {
+    setIsSaving(true);
+    setError(null);
+
+    const updated = await updateInvoiceStatus(invoice._id, "void", reason.trim());
+    setInvoice(updated);
+  } catch (err: any) {
+    setError(err?.message || "Failed to void invoice");
+  } finally {
+    setIsSaving(false);
+  }
+}
+
+
   const customerName = [invoice.customerSnapshot?.firstName, invoice.customerSnapshot?.lastName]
     .filter(Boolean)
     .join(" ");
@@ -242,297 +275,328 @@ export default function InvoiceDetailPage() {
 
 
 
-    // --- Money + status clarity (header polish) ---
-    const statusRaw = String(invoice.status ?? "draft").toLowerCase();
+// --- Money + status clarity (backend truth) ---
+  const lifecycleRaw = String(invoice.financialStatus ?? "draft").toLowerCase();
 
-    const paidAmountNum = Number((invoice as any).paidAmount ?? 0);
-    const balanceDueNum = Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0));
+  // lifecycle flags (allowed: these are not financial inference)
+  const isDraft = lifecycleRaw === "draft";
+  const isVoid = lifecycleRaw === "void";
+  const isReadOnly = !isDraft;
 
-    const latestPaymentDate = getLatestPaymentDate(invoice);
+  // financial truth flags (backend decides paid/partial/due)
+  const financialRaw = String((invoice as any).financialStatus ?? "").toLowerCase();
+  const isPaid = financialRaw === "paid";
+  const isPartial = financialRaw === "partial";
+  const isDue = financialRaw === "due" || !financialRaw; // tolerate older invoices missing financialStatus
 
-    const paidOrLastPaymentLine =
-      statusRaw === "paid" && latestPaymentDate
-        ? `Paid on ${fmtDateTime(latestPaymentDate)}`
-        : paidAmountNum > 0 && balanceDueNum > 0 && statusRaw !== "void"
-        ? latestPaymentDate
-          ? `Last payment ${fmtDateTime(latestPaymentDate)}`
-          : "Last payment —"
-        : "";
+  // money values: display-only (never used to infer status)
+  const paidAmountNum = Number((invoice as any).paidAmount ?? 0);
+  const balanceDueNum = Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0));
+
+  const latestPaymentDate = getLatestPaymentDate(invoice);
+
+  // display-only helper line (driven by backend financialStatus + payments)
+  const paidOrLastPaymentLine =
+    isVoid
+      ? ""
+      : isPaid && latestPaymentDate
+      ? `Paid on ${fmtDateTime(latestPaymentDate)}`
+      : isPartial && latestPaymentDate
+      ? `Last payment ${fmtDateTime(latestPaymentDate)}`
+      : "";
 
  
  
  
-  return (
-    <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "1rem",
-          marginBottom: "1rem",
-        }}
-      >
-    <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
+return (
+  <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
+    {/* Header */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: "1rem",
+        marginBottom: "1rem",
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
 
-          {/* NEW: Confidence money line */}
-          <div
-              style={{
-                marginTop: "0.35rem",
-                color: "#9ca3af",
-                fontWeight: 600,
-                fontSize: "0.95rem",
-              }}
-            >
+        {/* NEW: Confidence money line */}
+        <div
+          style={{
+            marginTop: "0.35rem",
+            color: "#9ca3af",
+            fontWeight: 600,
+            fontSize: "0.95rem",
+          }}
+        >
+          Total {Number(invoice.total ?? 0).toFixed(2)}{" "}
+          <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
+          Paid {paidAmountNum.toFixed(2)}{" "}
+          <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
+          Balance {balanceDueNum.toFixed(2)}
+        </div>
 
-            Total {Number(invoice.total ?? 0).toFixed(2)}{" "}
-            <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
-            Paid {paidAmountNum.toFixed(2)}{" "}
-            <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
-            Balance {balanceDueNum.toFixed(2)}
-          </div>
+        {/* Status + paid/last payment + email meta */}
+        <div
+          style={{
+            marginTop: "0.5rem",
+            display: "flex",
+            gap: "0.75rem",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* Status badge (NOW: backend truth only, no amount math) */}
+          {(() => {
+            const lifecycle = String(invoice.financialStatus ?? "draft").toLowerCase();
+            const fin = String((invoice as any).financialStatus ?? "").toLowerCase();
 
-          {/* Status + paid/last payment + email meta */}
-          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Status badge (your existing IIFE stays exactly the same) */}
-            {(() => {
-              const status = String(invoice.status ?? "draft").toLowerCase();
+            // Label policy:
+            // - void/draft come from lifecycle
+            // - paid/partial come from backend financialStatus
+            // - due (or unknown) uses existing token "SENT"
+            const label =
+              lifecycle === "void"
+                ? "VOID"
+                : lifecycle === "draft"
+                ? "DRAFT"
+                : fin === "paid"
+                ? "PAID"
+                : fin === "partial"
+                ? "PARTIAL"
+                : "SENT";
 
-              const paidAmount = Number((invoice as any).paidAmount ?? 0);
-              const balanceDue = Number((invoice as any).balanceDue ?? 0);
+            const stylesByLabel: Record<string, React.CSSProperties> = {
+              PAID: {
+                border: "2px solid #16a34a",
+                color: "#16a34a",
+                background: "#f0fdf4",
+              },
+              VOID: {
+                border: "2px solid #dc2626",
+                color: "#dc2626",
+                background: "#fef2f2",
+              },
+              PARTIAL: {
+                border: "2px solid #d97706",
+                color: "#b45309",
+                background: "#fffbeb",
+              },
+              SENT: {
+                border: "2px solid #2563eb",
+                color: "#2563eb",
+                background: "#eff6ff",
+              },
+              DRAFT: {
+                border: "2px solid #6b7280",
+                color: "#374151",
+                background: "#f3f4f6",
+              },
+            };
 
-              // Display-state (even if backend status is still "sent")
-              const isPartial =
-                paidAmount > 0 && balanceDue > 0 && status !== "paid" && status !== "void";
+            const base: React.CSSProperties = {
+              padding: "0.4rem 0.9rem",
+              borderRadius: "999px",
+              fontSize: "0.95rem",
+              fontWeight: 900,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+            };
 
-              const label =
-                status === "paid"
-                  ? "PAID"
-                  : status === "void"
-                  ? "VOID"
-                  : isPartial
-                  ? "PARTIAL"
-                  : status.toUpperCase();
-
-              const stylesByLabel: Record<string, React.CSSProperties> = {
-                PAID: {
-                  border: "2px solid #16a34a",
-                  color: "#16a34a",
-                  background: "#f0fdf4",
-                },
-                VOID: {
-                  border: "2px solid #dc2626",
-                  color: "#dc2626",
-                  background: "#fef2f2",
-                },
-                PARTIAL: {
-                  border: "2px solid #d97706",
-                  color: "#b45309",
-                  background: "#fffbeb",
-                },
-                SENT: {
-                  border: "2px solid #2563eb",
-                  color: "#2563eb",
-                  background: "#eff6ff",
-                },
-                DRAFT: {
-                  border: "2px solid #6b7280",
-                  color: "#374151",
-                  background: "#f3f4f6",
-                },
-              };
-
-              const base: React.CSSProperties = {
-                padding: "0.4rem 0.9rem",
-                borderRadius: "999px",
-                fontSize: "0.95rem",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
-              };
-
-              return (
-                <span style={{ ...base, ...(stylesByLabel[label] ?? stylesByLabel.DRAFT) }}>
-                  {label}
-                </span>
-              );
-            })()}
-
-            {/* NEW: Paid/Last payment line (truth = payments[]) */}
-            {paidOrLastPaymentLine ? (
-              <span style={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
-                {paidOrLastPaymentLine}
+            return (
+              <span style={{ ...base, ...(stylesByLabel[label] ?? stylesByLabel.DRAFT) }}>
+                {label}
               </span>
-            ) : null}
+            );
+          })()}
 
-            {/* Email meta (unchanged) */}
-            <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-              Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
-              {(invoice as any).email?.lastSentAt
-                ? ` • Last: ${new Date((invoice as any).email.lastSentAt).toLocaleString()}`
-                : ""}
-              {liveCustomerLoading ? " • syncing…" : ""}
+          {/* NEW: Paid/Last payment line (truth = payments[]) */}
+          {paidOrLastPaymentLine ? (
+            <span style={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
+              {paidOrLastPaymentLine}
             </span>
-          </div>
+          ) : null}
 
-          {emailError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{emailError}</div> : null}
+          {/* Email meta (unchanged) */}
+          <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+            Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
+            {(invoice as any).email?.lastSentAt
+              ? ` • Last: ${new Date((invoice as any).email.lastSentAt).toLocaleString()}`
+              : ""}
+            {liveCustomerLoading ? " • syncing…" : ""}
+          </span>
+        </div>
+
+        {emailError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{emailError}</div> : null}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          disabled={!resolvedWorkOrderId}
+          onClick={() => resolvedWorkOrderId && navigate(`/work-orders/${resolvedWorkOrderId}`)}
+        >
+          Back to Work Order
+        </button>
+
+        <button type="button" disabled={isEmailing} onClick={handleSendOrResend}>
+          {isEmailing
+            ? "Sending..."
+            : (invoice as any).email?.status && (invoice as any).email.status !== "never_sent"
+            ? "Resend Email"
+            : "Email Invoice"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const url = getInvoicePdfUrl(invoice._id);
+            window.open(url, "_blank");
+          }}
+        >
+          View PDF
+        </button>
+      </div>
     </div>
 
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            disabled={!resolvedWorkOrderId}
-            onClick={() => resolvedWorkOrderId && navigate(`/work-orders/${resolvedWorkOrderId}`)}
-          >
-            Back to Work Order
-          </button>
-
-          <button type="button" disabled={isEmailing} onClick={handleSendOrResend}>
-            {isEmailing
-              ? "Sending..."
-              : (invoice as any).email?.status && (invoice as any).email.status !== "never_sent"
-              ? "Resend Email"
-              : "Email Invoice"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const url = getInvoicePdfUrl(invoice._id);
-              window.open(url, "_blank");
-            }}
-          >
-            View PDF
-          </button>
-        </div>
-      </div>
-
-      {/* Status controls */}
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-        <button disabled={isSaving} onClick={() => handleSetStatus("draft")}>
-          Mark Draft
-        </button>
-        <button disabled={isSaving} onClick={() => handleSetStatus("sent")}>
-          Mark Sent
-        </button>
-       
-        <button disabled={isSaving} onClick={() => handleSetStatus("void")}>
-          Void
-        </button>
-      </div>
-
-      {/* Dates row */}
-      <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
-        <strong>Issue Date:</strong>{" "}
-        {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}
-        {invoice.dueDate ? (
-          <>
-            {" "}
-            • <strong>Due Date:</strong> {new Date(invoice.dueDate).toLocaleDateString()}
-          </>
-        ) : null}
-      </div>
-
-      {/* Bill To + Vehicle */}
-      <div
+    {/* V1 Actions (no Mark Draft / no Mark Sent) */}
+    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+      <button
+        type="button"
+        disabled={isSaving || isPaid || isVoid}
+        onClick={handleVoidInvoice}
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "1rem",
-          marginBottom: "1rem",
+          border: "1px solid #dc2626",
+          color: "#dc2626",
+          background: "white",
         }}
+        title={isPaid ? "Paid invoices cannot be voided" : isVoid ? "Invoice is already void" : "Void this invoice"}
       >
-        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Bill To</h3>
-          <div>{customerName || "Unknown Customer"}</div>
-          {invoice.customerSnapshot?.address ? <div>{invoice.customerSnapshot.address}</div> : null}
-          {invoice.customerSnapshot?.phone ? <div>Phone: {invoice.customerSnapshot.phone}</div> : null}
-          {truthEmail && <div>Email: {truthEmail}</div>} 
-          {emailMismatch && (
-            <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-              On invoice: {snapshotEmail}
+        Void Invoice
+      </button>
+
+      {isReadOnly ? (
+        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#6b7280" }}>
+          This invoice is read-only ({lifecycleRaw.toUpperCase()}).
+        </span>
+      ) : (
+        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#6b7280" }}>
+          Draft invoice — editable until emailed/sent.
+        </span>
+      )}
+
+    </div>
+
+    {/* Dates row */}
+    <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
+      <strong>Issue Date:</strong>{" "}
+      {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}
+      {invoice.dueDate ? (
+        <>
+          {" "}
+          • <strong>Due Date:</strong> {new Date(invoice.dueDate).toLocaleDateString()}
+        </>
+      ) : null}
+    </div>
+
+    {/* Bill To + Vehicle */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+        gap: "1rem",
+        marginBottom: "1rem",
+      }}
+    >
+      <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Bill To</h3>
+        <div>{customerName || "Unknown Customer"}</div>
+        {invoice.customerSnapshot?.address ? <div>{invoice.customerSnapshot.address}</div> : null}
+        {invoice.customerSnapshot?.phone ? <div>Phone: {invoice.customerSnapshot.phone}</div> : null}
+        {truthEmail && <div>Email: {truthEmail}</div>}
+        {emailMismatch && (
+          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+            On invoice: {snapshotEmail}
+          </div>
+        )}
+      </div>
+
+      <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Vehicle</h3>
+        {invoice.vehicleSnapshot ? (
+          <>
+            <div>
+              {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make} {invoice.vehicleSnapshot.model}
             </div>
-          )}     
-        </div>
-
-        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Vehicle</h3>
-          {invoice.vehicleSnapshot ? (
-            <>
-              <div>
-                {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make} {invoice.vehicleSnapshot.model}
-              </div>
-              {invoice.vehicleSnapshot.licensePlate ? <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div> : null}
-              {invoice.vehicleSnapshot.vin ? <div>VIN: {invoice.vehicleSnapshot.vin}</div> : null}
-            </>
-          ) : (
-            <div style={{ color: "#6b7280" }}>No vehicle snapshot</div>
-          )}
-        </div>
+            {invoice.vehicleSnapshot.licensePlate ? <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div> : null}
+            {invoice.vehicleSnapshot.vin ? <div>VIN: {invoice.vehicleSnapshot.vin}</div> : null}
+          </>
+        ) : (
+          <div style={{ color: "#6b7280" }}>No vehicle snapshot</div>
+        )}
       </div>
+    </div>
 
-      {/* Line items */}
-      <div style={{ marginBottom: "1rem" }}>
-        <h3>Line Items</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
-                Description
-              </th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Qty</th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Unit</th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Total</th>
+    {/* Line items */}
+    <div style={{ marginBottom: "1rem" }}>
+      <h3>Line Items</h3>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>
+              Description
+            </th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Qty</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Unit</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: "0.5rem" }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.lineItems?.map((item: any, idx: number) => (
+            <tr key={idx}>
+              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
+              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                {item.quantity}
+              </td>
+              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                {Number(item.unitPrice ?? 0).toFixed(2)}
+              </td>
+              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                {Number(item.lineTotal ?? 0).toFixed(2)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {invoice.lineItems?.map((item: any, idx: number) => (
-              <tr key={idx}>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {item.quantity}
-                </td>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {Number(item.unitPrice ?? 0).toFixed(2)}
-                </td>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {Number(item.lineTotal ?? 0).toFixed(2)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
+    </div>
 
-      {/* Totals */}
-      <div style={{ marginTop: "1rem", textAlign: "right" }}>
-        <div>Subtotal: {Number(invoice.subtotal ?? 0).toFixed(2)}</div>
-        <div>
-          Tax ({Number(invoice.taxRate ?? 0)}%): {Number(invoice.taxAmount ?? 0).toFixed(2)}
-        </div>
-        <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
-          Total: {Number(invoice.total ?? 0).toFixed(2)}
-        </div>
+    {/* Totals */}
+    <div style={{ marginTop: "1rem", textAlign: "right" }}>
+      <div>Subtotal: {Number(invoice.subtotal ?? 0).toFixed(2)}</div>
+      <div>
+        Tax ({Number(invoice.taxRate ?? 0)}%): {Number(invoice.taxAmount ?? 0).toFixed(2)}
       </div>
+      <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
+        Total: {Number(invoice.total ?? 0).toFixed(2)}
+      </div>
+    </div>
 
-            {/* Payments */}
+    {/* Payments */}
     <div style={{ marginTop: "1.25rem", borderTop: "1px solid #eee", paddingTop: "1rem" }}>
       <h3 style={{ marginTop: 0 }}>Payments</h3>
 
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
         <div>
           <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Paid to date</div>
-          <div style={{ fontWeight: 600 }}>
-            {Number((invoice as any).paidAmount ?? 0).toFixed(2)}
-          </div>
+          <div style={{ fontWeight: 600 }}>{Number((invoice as any).paidAmount ?? 0).toFixed(2)}</div>
         </div>
 
         <div>
@@ -542,19 +606,18 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
-       {statusRaw === "paid" && latestPaymentDate ? (
-            <div>
-              <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Date paid</div>
-              <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
-            </div>
-          ) : null}
-
-            {statusRaw !== "paid" && paidAmountNum > 0 && balanceDueNum > 0 && latestPaymentDate ? (
+       {/* Date paid / Last payment (backend truth) */}
+            {isPaid && latestPaymentDate ? (
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Date paid</div>
+                <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
+              </div>
+            ) : isPartial && latestPaymentDate ? (
               <div>
                 <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Last payment</div>
                 <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
               </div>
-        ) : null}
+            ) : null}
 
       </div>
 
@@ -579,7 +642,7 @@ export default function InvoiceDetailPage() {
 
       {/* Record payment form */}
       {(() => {
-        const status = (invoice.status || "draft").toLowerCase();
+        const status = (invoice.financialStatus || "draft").toLowerCase();
         const locked = status === "draft" || status === "paid" || status === "void";
 
         return (
@@ -649,15 +712,14 @@ export default function InvoiceDetailPage() {
       })()}
     </div>
 
+    {/* Notes */}
+    {invoice.notes ? (
+      <div style={{ marginTop: "1rem" }}>
+        <h3>Notes</h3>
+        <p>{invoice.notes}</p>
+      </div>
+    ) : null}
+  </div>
+);
 
-
-      {/* Notes */}
-      {invoice.notes ? (
-        <div style={{ marginTop: "1rem" }}>
-          <h3>Notes</h3>
-          <p>{invoice.notes}</p>
-        </div>
-      ) : null}
-    </div>
-  );
 }

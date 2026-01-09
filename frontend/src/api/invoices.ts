@@ -1,9 +1,6 @@
-// frontend/src/api/invoices.ts
+//frontend/src/api/invoices.ts
 import api from "./client";
-import type { Invoice } from "../types/invoice";
-
-
-export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
+import type { Invoice, InvoiceStatus } from "../types/invoice";
 
 export type FinancialSummaryResponse = {
   range: { from: string; to: string };
@@ -14,7 +11,7 @@ export type FinancialSummaryResponse = {
   aging: Array<{ _id: "0-7" | "8-14" | "15-30" | "31+"; count: number; amount: number }>;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL; // http://localhost:4000/api
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // GET /api/invoices
 export async function fetchInvoices(): Promise<Invoice[]> {
@@ -28,7 +25,7 @@ export async function fetchInvoiceById(id: string): Promise<Invoice> {
   return res.data;
 }
 
-// For <a href> or window.open
+// PDF helper
 export function getInvoicePdfUrl(invoiceId: string) {
   return `${API_BASE}/invoices/${invoiceId}/pdf`;
 }
@@ -41,15 +38,22 @@ export async function emailInvoice(invoiceId: string) {
     message: string;
     email?: any;
     status?: string;
+    financialStatus?: string;
+    paidAmount?: number;
+    balanceDue?: number;
   };
 }
 
 // PATCH /api/invoices/:id/status
 export async function updateInvoiceStatus(
-  invoiceId: string,
-  status: InvoiceStatus
+  id: string,
+  status: InvoiceStatus,
+  reason?: string
 ): Promise<Invoice> {
-  const res = await api.patch<Invoice>(`/invoices/${invoiceId}/status`, { status });
+  const res = await api.patch<Invoice>(
+    `/invoices/${id}/status`,
+    status === "void" ? { status, reason } : { status }
+  );
   return res.data;
 }
 
@@ -64,6 +68,7 @@ export async function fetchFinancialSummary(
   return res.data;
 }
 
+// POST /api/invoices/:id/pay
 export async function recordInvoicePayment(
   invoiceId: string,
   payload: {
@@ -72,6 +77,6 @@ export async function recordInvoicePayment(
     reference?: string;
   }
 ): Promise<Invoice> {
-  const res = await api.post<{ invoice: Invoice }>(`/invoices/${invoiceId}/pay`, payload);
-  return res.data.invoice;
+  const res = await api.post<Invoice>(`/invoices/${invoiceId}/pay`, payload);
+  return res.data;
 }

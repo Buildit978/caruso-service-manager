@@ -42,28 +42,60 @@ export interface WorkOrderFilters {
 
 
 
+// frontend/src/api/workOrder.ts
 export async function fetchWorkOrders(
   filters: WorkOrderFilters = {}
 ): Promise<WorkOrder[]> {
   const params: Record<string, string> = {};
 
-  // ✅ NEW: view-based filtering (preferred)
   if (filters.view) params.view = filters.view;
-
-  // existing filters — KEEP THESE (status can still be used by other pages)
   if (filters.status) params.status = filters.status;
   if (filters.customerId) params.customerId = filters.customerId;
   if (filters.vehicleId) params.vehicleId = filters.vehicleId;
   if (filters.fromDate) params.fromDate = filters.fromDate;
   if (filters.toDate) params.toDate = filters.toDate;
-
-  // sorting params
   if (filters.sortBy) params.sortBy = filters.sortBy;
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
-  const res = await api.get<WorkOrder[]>("/work-orders", { params });
-  return res.data;
+  const res = await api.get<any>("/work-orders", { params });
+
+  const raw = res.data;
+
+  // ✅ MUST be WorkOrder[]
+  if (Array.isArray(raw)) return raw;
+
+  // 🔥 emergency compatibility (prevents blank UI)
+  const fallback =
+    raw?.workOrders ??
+    raw?.items ??
+    raw?.results ??
+    raw?.data ??
+    [];
+  
+  
+  // frontend/src/api/workOrder.ts
+    const workOrders = Array.isArray(raw) ? raw : Array.isArray(fallback) ? fallback : [];
+
+    return workOrders.map((wo: any) => {
+      const invoice =
+        wo.invoice ??
+        (wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined);
+
+      const customer =
+        wo.customer ??
+        (wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined);
+
+      return {
+        ...wo,
+        invoice,   // ✅ now wo.invoice exists for UI
+        customer,  // ✅ now wo.customer exists for formatCustomerName
+      };
+    });
+
+
+  return Array.isArray(fallback) ? fallback : [];
 }
+
 
 
 

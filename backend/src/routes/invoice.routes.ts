@@ -8,10 +8,10 @@ import { Vehicle } from "../models/vehicle.model";
 import { Customer } from "../models/customer.model";
 import { buildInvoicePdfBuffer } from "../utils/invoicePdf";
 import { getMailer } from "../utils/mailer";
-import {
-  assertCanEditInvoice,
-  assertValidInvoiceTransition,
-} from "../domain/invoices/invoiceLifecycle";
+import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/invoices/invoiceLifecycle";
+import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
+import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
+
 
 const router = Router();
 
@@ -70,202 +70,210 @@ async function getNextInvoiceNumber(accountId: Types.ObjectId): Promise<string> 
  */
 
 // GET /api/invoices/financial/summary
-router.get("/financial/summary", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.get(
+  "/financial/summary",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
-    const now = new Date();
-    const startDefault = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endDefault = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const now = new Date();
+      const startDefault = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endDefault = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const fromStr = typeof req.query.from === "string" ? req.query.from : "";
-    const toStr = typeof req.query.to === "string" ? req.query.to : "";
+      const fromStr = typeof req.query.from === "string" ? req.query.from : "";
+      const toStr = typeof req.query.to === "string" ? req.query.to : "";
 
-    const from = fromStr ? new Date(fromStr) : startDefault;
-    const to = toStr ? new Date(toStr) : endDefault;
+      const from = fromStr ? new Date(fromStr) : startDefault;
+      const to = toStr ? new Date(toStr) : endDefault;
 
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-      return res.status(400).json({ message: "Invalid from/to date. Use YYYY-MM-DD." });
-    }
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        return res.status(400).json({ message: "Invalid from/to date. Use YYYY-MM-DD." });
+      }
 
-    const baseMatch = { accountId };
+      const baseMatch = { accountId };
 
-    const [totals] = await Invoice.aggregate([
-      { $match: baseMatch },
-      {
-        $facet: {
-          revenuePaid: [
-            { $match: { status: "paid", paidAt: { $gte: from, $lt: to } } },
-            {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-                amount: { $sum: "$total" },
-                tax: { $sum: "$taxAmount" },
-                subtotal: { $sum: "$subtotal" },
-              },
-            },
-          ],
-          outstandingSent: [
-            { $match: { status: "sent", sentAt: { $exists: true } } },
-            {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-                amount: { $sum: "$total" },
-              },
-            },
-          ],
-          drafts: [
-            { $match: { status: "draft", createdAt: { $gte: from, $lt: to } } },
-            {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-                amount: { $sum: "$total" },
-              },
-            },
-          ],
-          voided: [
-            { $match: { status: "void", voidedAt: { $gte: from, $lt: to } } },
-            {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-                amount: { $sum: "$total" },
-              },
-            },
-          ],
-          aging: [
-            { $match: { status: "sent", sentAt: { $exists: true } } },
-            {
-              $addFields: {
-                daysOutstanding: {
-                  $dateDiff: { startDate: "$sentAt", endDate: now, unit: "day" },
+      const [totals] = await Invoice.aggregate([
+        { $match: baseMatch },
+        {
+          $facet: {
+            // ✅ Paid = canonical (status is only set to paid when balanceDue hits 0 in our backend logic)
+            revenuePaid: [
+              { $match: { status: "paid", paidAt: { $gte: from, $lt: to } } },
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                  amount: { $sum: "$total" },
+                  tax: { $sum: "$taxAmount" },
+                  subtotal: { $sum: "$subtotal" },
                 },
               },
-            },
-            {
-              $group: {
-                _id: {
-                  $switch: {
-                    branches: [
-                      { case: { $lte: ["$daysOutstanding", 7] }, then: "0-7" },
-                      { case: { $lte: ["$daysOutstanding", 14] }, then: "8-14" },
-                      { case: { $lte: ["$daysOutstanding", 30] }, then: "15-30" },
-                    ],
-                    default: "31+",
+            ],
+
+            // ✅ Outstanding = sent + money still due (prevents "sent but actually paid" drift)
+            outstandingSent: [
+              {
+                $match: {
+                  status: "sent",
+                  sentAt: { $exists: true },
+                  balanceDue: { $gt: 0 },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                  amount: { $sum: "$balanceDue" }, // outstanding dollars
+                },
+              },
+            ],
+
+            drafts: [
+              { $match: { status: "draft", createdAt: { $gte: from, $lt: to } } },
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                  amount: { $sum: "$total" },
+                },
+              },
+            ],
+
+            voided: [
+              { $match: { status: "void", voidedAt: { $gte: from, $lt: to } } },
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                  amount: { $sum: "$total" },
+                },
+              },
+            ],
+
+            // ✅ Aging only for invoices that are truly still outstanding
+            aging: [
+              {
+                $match: {
+                  status: "sent",
+                  sentAt: { $exists: true },
+                  balanceDue: { $gt: 0 },
+                },
+              },
+              {
+                $addFields: {
+                  daysOutstanding: {
+                    $dateDiff: { startDate: "$sentAt", endDate: now, unit: "day" },
                   },
                 },
-                count: { $sum: 1 },
-                amount: { $sum: "$total" },
+              },
+              {
+                $group: {
+                  _id: {
+                    $switch: {
+                      branches: [
+                        { case: { $lte: ["$daysOutstanding", 7] }, then: "0-7" },
+                        { case: { $lte: ["$daysOutstanding", 14] }, then: "8-14" },
+                        { case: { $lte: ["$daysOutstanding", 30] }, then: "15-30" },
+                      ],
+                      default: "31+",
+                    },
+                  },
+                  count: { $sum: 1 },
+                  amount: { $sum: "$balanceDue" }, // outstanding dollars in bucket
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+          },
+        },
+        {
+          $project: {
+            revenuePaid: {
+              $let: {
+                vars: {
+                  r: {
+                    $ifNull: [
+                      { $arrayElemAt: ["$revenuePaid", 0] },
+                      { count: 0, amount: 0, tax: 0, subtotal: 0 },
+                    ],
+                  },
+                },
+                in: {
+                  count: "$$r.count",
+                  amount: { $round: ["$$r.amount", 2] },
+                  tax: { $round: ["$$r.tax", 2] },
+                  subtotal: { $round: ["$$r.subtotal", 2] },
+                },
               },
             },
-            { $sort: { _id: 1 } },
-          ],
-        },
-      },
-      {
-  $project: {
-    revenuePaid: {
-      $let: {
-        vars: {
-          r: {
-            $ifNull: [
-              { $arrayElemAt: ["$revenuePaid", 0] },
-              { count: 0, amount: 0, tax: 0, subtotal: 0 }
-            ]
-          }
-        },
-        in: {
-          count: "$$r.count",
-          amount: { $round: ["$$r.amount", 2] },
-          tax: { $round: ["$$r.tax", 2] },
-          subtotal: { $round: ["$$r.subtotal", 2] }
-        }
-      }
-    },
 
-    outstandingSent: {
-      $let: {
-        vars: {
-          o: {
-            $ifNull: [
-              { $arrayElemAt: ["$outstandingSent", 0] },
-              { count: 0, amount: 0 }
-            ]
-          }
-        },
-        in: {
-          count: "$$o.count",
-          amount: { $round: ["$$o.amount", 2] }
-        }
-      }
-    },
+            outstandingSent: {
+              $let: {
+                vars: {
+                  o: {
+                    $ifNull: [{ $arrayElemAt: ["$outstandingSent", 0] }, { count: 0, amount: 0 }],
+                  },
+                },
+                in: {
+                  count: "$$o.count",
+                  amount: { $round: ["$$o.amount", 2] },
+                },
+              },
+            },
 
-    drafts: {
-      $let: {
-        vars: {
-          d: {
-            $ifNull: [
-              { $arrayElemAt: ["$drafts", 0] },
-              { count: 0, amount: 0 }
-            ]
-          }
-        },
-        in: {
-          count: "$$d.count",
-          amount: { $round: ["$$d.amount", 2] }
-        }
-      }
-    },
+            drafts: {
+              $let: {
+                vars: {
+                  d: { $ifNull: [{ $arrayElemAt: ["$drafts", 0] }, { count: 0, amount: 0 }] },
+                },
+                in: {
+                  count: "$$d.count",
+                  amount: { $round: ["$$d.amount", 2] },
+                },
+              },
+            },
 
-    voided: {
-      $let: {
-        vars: {
-          v: {
-            $ifNull: [
-              { $arrayElemAt: ["$voided", 0] },
-              { count: 0, amount: 0 }
-            ]
-          }
-        },
-        in: {
-          count: "$$v.count",
-          amount: { $round: ["$$v.amount", 2] }
-        }
-      }
-    },
+            voided: {
+              $let: {
+                vars: {
+                  v: { $ifNull: [{ $arrayElemAt: ["$voided", 0] }, { count: 0, amount: 0 }] },
+                },
+                in: {
+                  count: "$$v.count",
+                  amount: { $round: ["$$v.amount", 2] },
+                },
+              },
+            },
 
-    aging: {
-      $map: {
-        input: "$aging",
-        as: "a",
-        in: {
-          _id: "$$a._id",
-          count: "$$a.count",
-          amount: { $round: ["$$a.amount", 2] }
-        }
-      }
+            aging: {
+              $map: {
+                input: "$aging",
+                as: "a",
+                in: {
+                  _id: "$$a._id",
+                  count: "$$a.count",
+                  amount: { $round: ["$$a.amount", 2] },
+                },
+              },
+            },
+          },
+        },
+      ]);
+
+      return res.json({
+        range: { from: from.toISOString(), to: to.toISOString() },
+        revenuePaid: totals?.revenuePaid ?? { count: 0, amount: 0, tax: 0, subtotal: 0 },
+        outstandingSent: totals?.outstandingSent ?? { count: 0, amount: 0 },
+        drafts: totals?.drafts ?? { count: 0, amount: 0 },
+        voided: totals?.voided ?? { count: 0, amount: 0 },
+        aging: totals?.aging ?? [],
+      });
+    } catch (err) {
+      next(err);
     }
   }
-}
-
-    ]);
-
-    return res.json({
-      range: { from: from.toISOString(), to: to.toISOString() },
-      revenuePaid: totals?.revenuePaid ?? { count: 0, amount: 0, tax: 0, subtotal: 0 },
-      outstandingSent: totals?.outstandingSent ?? { count: 0, amount: 0 },
-      drafts: totals?.drafts ?? { count: 0, amount: 0 },
-      voided: totals?.voided ?? { count: 0, amount: 0 },
-      aging: totals?.aging ?? [],
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+);
 
 /**
  * ✅ 2) Collection routes
@@ -283,7 +291,36 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       .populate("workOrderId", "status")
       .lean();
 
-    res.json(invoices);
+    const withFinancials = invoices.map((inv: any) => {
+      const fin = computeInvoiceFinancials(inv);
+      return { ...inv, ...fin };
+    });
+
+    return res.json(withFinancials);
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+
+// GET /api/invoices/:id
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
+
+    const invoice = await Invoice.findOne({ _id: id, accountId })
+      .populate("customerId", "firstName lastName phone email address vehicles")
+      .populate("workOrderId", "status")
+      .lean();
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    res.json(invoice);
   } catch (err) {
     next(err);
   }
@@ -294,175 +331,232 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
  */
 
 // POST /api/invoices/from-work-order/:workOrderId
-router.post("/from-work-order/:workOrderId", async (req: Request, res: Response) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.post(
+  "/from-work-order/:workOrderId",
+  async (req: Request, res: Response) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId)
+        return res.status(400).json({ message: "Missing accountId" });
 
-    const { workOrderId } = req.params;
+      const { workOrderId } = req.params;
 
-    const workOrder = await WorkOrder.findOne({ _id: workOrderId, accountId }).populate(
-      "customerId",
-      "firstName lastName phone email address vehicles"
-    );
+      const workOrder = await WorkOrder.findOne({
+        _id: workOrderId,
+        accountId,
+      }).populate("customerId", "firstName lastName phone email address vehicles");
 
-    if (!workOrder) return res.status(404).json({ message: "Work order not found" });
+      if (!workOrder)
+        return res.status(404).json({ message: "Work order not found" });
 
-    const allowedStatuses = ["open", "in_progress", "completed"];
-    if (!allowedStatuses.includes(workOrder.status)) {
-      return res.status(400).json({
-        message: `Cannot create invoice from work order with status "${workOrder.status}".`,
+      // ✅ allow creating invoice from these statuses only
+      const allowedStatuses = ["open", "in_progress", "completed"];
+      if (!allowedStatuses.includes(workOrder.status)) {
+        return res.status(400).json({
+          message: `Cannot create invoice from work order with status "${workOrder.status}".`,
+        });
+      }
+
+      // ✅ If invoice already exists, return it (include financialStatus)
+      const existingInvoice = await Invoice.findOne({
+        accountId,
+        workOrderId: workOrder._id,
+      })
+        // include what computeInvoiceFinancials needs
+        .select(
+          "_id invoiceNumber status total payments paidAmount balanceDue sentAt paidAt voidedAt"
+        )
+        .lean();
+
+      if (existingInvoice) {
+        if (!workOrder.invoiceId) workOrder.invoiceId = existingInvoice._id as any;
+        if (workOrder.status !== "invoiced") workOrder.status = "invoiced";
+        await workOrder.save();
+
+        const total = Number(existingInvoice.total ?? 0);
+        const payments = Array.isArray(existingInvoice.payments)
+          ? existingInvoice.payments
+          : [];
+
+        // ✅ authoritative financial truth
+        const fin = computeInvoiceFinancials({ total, payments } as any);
+
+        return res.status(200).json({
+          ok: true,
+          alreadyExists: true,
+          invoice: {
+            _id: existingInvoice._id,
+            invoiceNumber: existingInvoice.invoiceNumber,
+
+            // lifecycle (keep)
+            status: existingInvoice.status,
+
+            // financial truth (add)
+            financialStatus: fin.financialStatus,
+
+            // helpful totals (consistent with other endpoints)
+            total,
+            paidAmount: fin.paidAmount,
+            balanceDue: fin.balanceDue,
+
+            // timestamps if you need them in UI
+            sentAt: existingInvoice.sentAt ?? null,
+            paidAt: existingInvoice.paidAt ?? null,
+            voidedAt: existingInvoice.voidedAt ?? null,
+          },
+        });
+      }
+
+      const customer: any = workOrder.customerId;
+      if (!customer || !customer._id) {
+        return res
+          .status(400)
+          .json({ message: "Work order has no valid customer" });
+      }
+
+      // ✅ normalize line items
+      const rawLineItems: any[] = Array.isArray(workOrder.lineItems)
+        ? workOrder.lineItems
+        : [];
+      const normalizedLineItems = rawLineItems.map((item: any) => {
+        const quantity = Number(item?.quantity) || 0;
+        const unitPrice = Number(item?.unitPrice) || 0;
+        const lineTotal =
+          typeof item?.lineTotal === "number"
+            ? item.lineTotal
+            : quantity * unitPrice;
+
+        return {
+          type: item?.type,
+          description: item?.description ?? "",
+          quantity,
+          unitPrice,
+          lineTotal,
+        };
       });
-    }
 
-    const existingInvoice = await Invoice.findOne({
-      accountId,
-      workOrderId: workOrder._id,
-    })
-      .select("_id invoiceNumber status")
-      .lean();
+      // ✅ totals
+      const subtotal =
+        typeof (workOrder as any).subtotal === "number"
+          ? (workOrder as any).subtotal
+          : normalizedLineItems.reduce(
+              (sum: number, item: any) => sum + (item.lineTotal || 0),
+              0
+            );
 
-    if (existingInvoice) {
-      if (!workOrder.invoiceId) workOrder.invoiceId = existingInvoice._id as any;
-      if (workOrder.status !== "invoiced") workOrder.status = "invoiced";
-      await workOrder.save();
-
-      return res.status(200).json({
-        ok: true,
-        alreadyExists: true,
-        invoice: {
-          _id: existingInvoice._id,
-          invoiceNumber: existingInvoice.invoiceNumber,
-          status: existingInvoice.status,
-        },
-      });
-    }
-
-    const customer: any = workOrder.customerId;
-    if (!customer || !customer._id) {
-      return res.status(400).json({ message: "Work order has no valid customer" });
-    }
-
-    const rawLineItems: any[] = Array.isArray(workOrder.lineItems) ? workOrder.lineItems : [];
-    const normalizedLineItems = rawLineItems.map((item: any) => {
-      const quantity = Number(item?.quantity) || 0;
-      const unitPrice = Number(item?.unitPrice) || 0;
-      const lineTotal = typeof item?.lineTotal === "number" ? item.lineTotal : quantity * unitPrice;
-      return {
-        type: item?.type,
-        description: item?.description ?? "",
-        quantity,
-        unitPrice,
-        lineTotal,
-      };
-    });
-
-    const subtotal =
-      typeof (workOrder as any).subtotal === "number"
-        ? (workOrder as any).subtotal
-        : normalizedLineItems.reduce((sum: number, item: any) => sum + (item.lineTotal || 0), 0);
-
-    const taxRate =
-      typeof (workOrder as any).taxRate === "number" && !Number.isNaN((workOrder as any).taxRate)
+      const taxRate =
+        typeof (workOrder as any).taxRate === "number" &&
+        !Number.isNaN((workOrder as any).taxRate)
         ? (workOrder as any).taxRate
         : 13;
 
-    const taxAmount =
-      typeof (workOrder as any).taxAmount === "number"
-        ? (workOrder as any).taxAmount
-        : subtotal * (taxRate / 100);
+      const taxAmount =
+        typeof (workOrder as any).taxAmount === "number"
+          ? (workOrder as any).taxAmount
+          : subtotal * (taxRate / 100);
 
-    const total =
-      typeof (workOrder as any).total === "number"
-        ? (workOrder as any).total
-        : subtotal + taxAmount;
+      const total =
+        typeof (workOrder as any).total === "number"
+          ? (workOrder as any).total
+          : subtotal + taxAmount;
 
-    const customerSnapshot = {
-      customerId: customer._id,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-      phone: customer.phone,
-      email: customer.email,
-      address: customer.address,
-    };
-
-    let vehicleSnapshot: any = undefined;
-    const vehicles = await Vehicle.find({ accountId, customerId: customer._id })
-      .sort({ createdAt: 1 })
-      .limit(1)
-      .lean();
-
-    const primaryVehicle = vehicles[0];
-    if (primaryVehicle) {
-      vehicleSnapshot = {
-        vehicleId: primaryVehicle._id.toString(),
-        year: primaryVehicle.year,
-        make: primaryVehicle.make,
-        model: primaryVehicle.model,
-        vin: primaryVehicle.vin,
-        licensePlate: primaryVehicle.licensePlate,
-        color: primaryVehicle.color,
-        notes: primaryVehicle.notes,
+      // ✅ customer snapshot
+      const customerSnapshot = {
+        customerId: customer._id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
       };
-    }
 
-    const invoiceNumber = await getNextInvoiceNumber(accountId);
-    const issueDate = new Date();
+      // ✅ vehicle snapshot (kept exactly as your approach)
+      let vehicleSnapshot: any = undefined;
 
-    let dueDate: Date | undefined;
-    if (req.body.dueDate) {
-      const parsed = new Date(req.body.dueDate);
-      if (!Number.isNaN(parsed.getTime())) dueDate = parsed;
-    }
-    if (!dueDate) {
-      dueDate = new Date(issueDate.getTime());
-      dueDate.setDate(issueDate.getDate() + 30);
-    }
+      const vehicles = await Vehicle.find({ accountId, customerId: customer._id })
+        .sort({ createdAt: 1 })
+        .limit(1)
+        .lean();
 
-    const invoice = await Invoice.create({
-    accountId,
-    invoiceNumber,
-    status: "draft",
-    workOrderId: workOrder._id,
-    customerId: customer._id,
-    customerSnapshot,
-    vehicleSnapshot,
-    issueDate,
-    dueDate,
-    lineItems: normalizedLineItems,
-    subtotal,
-    taxRate,
-    taxAmount,
-    total,
+      const primaryVehicle = vehicles[0];
+      if (primaryVehicle) {
+        vehicleSnapshot = {
+          vehicleId: primaryVehicle._id.toString(),
+          year: primaryVehicle.year,
+          make: primaryVehicle.make,
+          model: primaryVehicle.model,
+          vin: primaryVehicle.vin,
+          licensePlate: primaryVehicle.licensePlate,
+          color: primaryVehicle.color,
+          notes: primaryVehicle.notes,
+        };
+      }
 
-    // ✅ payments v1 (supports partial payments)
-    payments: [],
-    paidAmount: 0,
-    balanceDue: total,
+      const invoiceNumber = await getNextInvoiceNumber(accountId);
+      const issueDate = new Date();
 
-    notes: req.body.notes ?? workOrder.notes,
-  });
+      let dueDate: Date | undefined;
+      if (req.body.dueDate) {
+        const parsed = new Date(req.body.dueDate);
+        if (!Number.isNaN(parsed.getTime())) dueDate = parsed;
+      }
+      if (!dueDate) {
+        dueDate = new Date(issueDate.getTime());
+        dueDate.setDate(issueDate.getDate() + 30);
+      }
 
+      const invoice = await Invoice.create({
+        accountId,
+        invoiceNumber,
+        status: "draft",
+        workOrderId: workOrder._id,
+        customerId: customer._id,
+        customerSnapshot,
+        vehicleSnapshot,
+        issueDate,
+        dueDate,
+        lineItems: normalizedLineItems,
+        subtotal,
+        taxRate,
+        taxAmount,
+        total,
 
-    workOrder.status = "invoiced";
-    workOrder.invoiceId = invoice._id;
-    await workOrder.save();
+        // ✅ payments v1
+        payments: [],
+        paidAmount: 0,
+        balanceDue: total,
 
-    return res.status(201).json(invoice);
-  } catch (err: any) {
-    console.error("[invoice] Create from work order failed:", err);
-    if (err?.code === 11000) {
-      return res.status(400).json({
-        message: "Duplicate key error while creating invoice.",
-        details: err.keyValue ?? null,
+        notes: req.body.notes ?? workOrder.notes,
+      });
+
+      workOrder.status = "invoiced";
+      workOrder.invoiceId = invoice._id;
+      await workOrder.save();
+
+      // ✅ return invoice with computed truth attached
+      const fin = computeInvoiceFinancials({ total, payments: [] } as any);
+
+      return res.status(201).json({
+        ...invoice.toObject?.() ?? invoice,
+        financialStatus: fin.financialStatus,
+        paidAmount: fin.paidAmount,
+        balanceDue: fin.balanceDue,
+      });
+    } catch (err: any) {
+      console.error("[invoice] Create from work order failed:", err);
+      if (err?.code === 11000) {
+        return res.status(400).json({
+          message: "Duplicate key error while creating invoice.",
+          details: err.keyValue ?? null,
+        });
+      }
+      return res.status(500).json({
+        message: "Failed to create invoice.",
+        error: err?.message ?? null,
       });
     }
-    return res.status(500).json({
-      message: "Failed to create invoice.",
-      error: err?.message ?? null,
-    });
   }
-});
+);
 
 /**
  * ✅ 4) Action routes (still specific, but include :id)
@@ -470,7 +564,7 @@ router.post("/from-work-order/:workOrderId", async (req: Request, res: Response)
  */
 
 // POST /api/invoices/:id/send
-router.post("/:id/send", async (req, res, next) => {
+router.post("/:id/send", requireInvoiceNotPaid, async (req, res, next) => {
   try {
     const accountId = req.accountId;
     if (!accountId) return res.status(400).json({ message: "Missing accountId" });
@@ -481,19 +575,25 @@ router.post("/:id/send", async (req, res, next) => {
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    const from = ((invoice as any).status || "draft").toString().toLowerCase();
-    assertValidInvoiceTransition(from as any, "sent");
+    const from = String((invoice as any).status || "draft").toLowerCase() as any;
+    assertValidInvoiceTransition(from, "sent");
 
+    const now = new Date();
     (invoice as any).status = "sent";
-    invoice.sentAt = invoice.sentAt ?? new Date();
-    await invoice.save();
+    (invoice as any).sentAt = (invoice as any).sentAt ?? now;
 
+    await invoice.save();
     return res.json({ invoice });
   } catch (err) {
     next(err);
   }
 });
 
+
+
+
+
+// POST /api/invoices/:id/pay
 // POST /api/invoices/:id/pay
 router.post("/:id/pay", async (req, res, next) => {
   try {
@@ -517,17 +617,25 @@ router.post("/:id/pay", async (req, res, next) => {
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    const status = String((invoice as any).status || "draft").toLowerCase();
+    // lifecycle only: draft|sent|void
+    const lifecycle = String((invoice as any).status || "draft").toLowerCase();
+    const finStatus = String((invoice as any).financialStatus || "").toLowerCase();
 
-    // ✅ payments allowed only once sent (recommended)
-    if (status === "draft") {
+    // ✅ payments allowed only once sent
+    if (lifecycle === "draft") {
       return res.status(400).json({ message: "Invoice must be sent before recording payment." });
     }
-    if (status === "paid" || status === "void") {
-      return res.status(400).json({ message: `Cannot record payment when invoice is ${status}.` });
+    if (lifecycle === "void") {
+      return res.status(400).json({ message: "Cannot record payment when invoice is void." });
+    }
+    // block if already fully paid (financial truth)
+    if (finStatus === "paid" || Number((invoice as any).balanceDue ?? 0) === 0) {
+      return res
+        .status(400)
+        .json({ message: "Invoice is fully paid. No further payments can be recorded." });
     }
 
-    // append payment
+    // ✅ append payment
     const payment = {
       method,
       reference: (reference || "").trim(),
@@ -535,49 +643,37 @@ router.post("/:id/pay", async (req, res, next) => {
       paidAt: new Date(),
     };
 
-    (invoice as any).payments = Array.isArray((invoice as any).payments) ? (invoice as any).payments : [];
+    (invoice as any).payments = Array.isArray((invoice as any).payments)
+      ? (invoice as any).payments
+      : [];
     (invoice as any).payments.push(payment);
 
-    // recompute paidAmount + balanceDue
-    const total = Number((invoice as any).total ?? 0);
-    const paidAmount = (invoice as any).payments.reduce(
-      (sum: number, p: any) => sum + Number(p.amount || 0),
-      0
-    );
-
-    const balanceDue = Math.max(0, total - paidAmount);
-
-    (invoice as any).paidAmount = paidAmount;
-    (invoice as any).balanceDue = balanceDue;
-
-    // if fully paid → flip lifecycle
-    if (balanceDue === 0) {
-      (invoice as any).status = "paid";
-      (invoice as any).paidAt = (invoice as any).paidAt ?? new Date(); // first full payment time
-    } else {
-      // remain sent
-      (invoice as any).status = "sent";
-    }
+    // ✅ canonical money + authoritative financial truth
+    // IMPORTANT: this must NOT set invoice.status = "paid"
+    applyInvoiceFinancials(invoice as any);
 
     await invoice.save();
 
-    // If fully closed, sync WorkOrder.closedAt (same as your status route does)
-    if ((invoice as any).status === "paid") {
+    // ✅ if fully paid, also close the WorkOrder (financial truth)
+    const finNow = computeInvoiceFinancials(invoice as any);
+    if (finNow.financialStatus === "paid" || Number((invoice as any).balanceDue ?? 0) === 0) {
       await WorkOrder.updateOne(
         { _id: (invoice as any).workOrderId, accountId },
         { $set: { closedAt: new Date() } }
       );
     }
 
-    return res.json({ invoice });
+    // ✅ return canonical view for frontend
+    return res.json({ ...invoice.toObject(), ...finNow });
   } catch (err) {
     next(err);
   }
 });
 
 
+
 // POST /api/invoices/:id/void
-router.post("/:id/void", async (req, res, next) => {
+router.post("/:id/void", requireInvoiceNotPaid, async (req, res, next) => {
   try {
     const accountId = req.accountId;
     if (!accountId) return res.status(400).json({ message: "Missing accountId" });
@@ -593,19 +689,36 @@ router.post("/:id/void", async (req, res, next) => {
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-    const from = ((invoice as any).status || "draft").toString().toLowerCase();
-    assertValidInvoiceTransition(from as any, "void");
+    // ✅ keep cached paidAmount/balanceDue aligned before checks
+    applyInvoiceFinancials(invoice as any);
 
+    const from = String((invoice as any).status || "draft").toLowerCase() as any;
+    assertValidInvoiceTransition(from, "void");
+
+    const now = new Date();
     (invoice as any).status = "void";
-    (invoice as any).voidedAt = (invoice as any).voidedAt ?? new Date();
+    (invoice as any).voidedAt = (invoice as any).voidedAt ?? now;
     (invoice as any).voidReason = reason.trim();
 
+    // ✅ keep cached money fields aligned (safe even when voiding)
+    applyInvoiceFinancials(invoice as any);
+
     await invoice.save();
-    return res.json({ invoice });
+
+    // ✅ Keep "Archive = closed financial record" consistent
+    await WorkOrder.updateOne(
+      { _id: (invoice as any).workOrderId, accountId },
+      { $set: { closedAt: now } }
+    );
+
+    const fin = computeInvoiceFinancials(invoice as any);
+    return res.json({ ...invoice.toObject(), ...fin });
   } catch (err) {
     next(err);
   }
 });
+
+
 
 // POST /api/invoices/:id/email
 router.post("/:id/email", async (req, res) => {
@@ -618,6 +731,9 @@ router.post("/:id/email", async (req, res) => {
 
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    // ✅ keep cached paidAmount/balanceDue aligned (safe, no behavior change)
+    applyInvoiceFinancials(invoice as any);
 
     let customer: any = null;
     const custId: any = (invoice as any).customerId;
@@ -666,18 +782,27 @@ router.post("/:id/email", async (req, res) => {
         lastError: "",
       };
 
-      if (((invoice as any).status || "draft") === "draft") {
+      // ✅ email implies "sent" (keep your existing behavior)
+      if (String((invoice as any).status || "draft").toLowerCase() === "draft") {
         (invoice as any).status = "sent";
         (invoice as any).sentAt = (invoice as any).sentAt ?? new Date();
       }
 
+      // ✅ re-apply financials in case total/payments changed elsewhere before save
+      applyInvoiceFinancials(invoice as any);
+
       await invoice.save();
+
+      const fin = computeInvoiceFinancials(invoice as any);
 
       return res.json({
         ok: true,
         message: "Invoice emailed.",
         email: (invoice as any).email,
         status: (invoice as any).status,
+        financialStatus: fin.financialStatus,
+        paidAmount: fin.paidAmount,
+        balanceDue: fin.balanceDue,
       });
     } catch (err: any) {
       (invoice as any).email = {
@@ -701,15 +826,17 @@ router.post("/:id/email", async (req, res) => {
   }
 });
 
+
 /**
  * ✅ 5) Document routes
  */
 
 // invoices.route.ts (or wherever your invoice routes are)
 
+// GET /api/invoices/:id/pdf
 router.get("/:id/pdf", async (req, res, next) => {
   try {
-    const accountId = req.accountId; // if you’re using account scoping middleware
+    const accountId = req.accountId;
     const { id } = req.params;
 
     // 1) Fetch invoice (scoped)
@@ -719,9 +846,15 @@ router.get("/:id/pdf", async (req, res, next) => {
     const customer = await Customer.findById(invoice.customerId).lean();
     if (!customer) return res.status(404).json({ message: "Customer not found" });
 
+    // ✅ Attach canonical financial truth for PDF rendering
+    const fin = computeInvoiceFinancials(invoice as any);
+    const invoiceForPdf = { ...invoice, ...fin };
+
     // 2) Generate PDF buffer (reuse your existing PDF builder)
-    // IMPORTANT: replace this with YOUR actual function name:
-    const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
+    const pdfBuffer = await buildInvoicePdfBuffer({
+      invoice: invoiceForPdf,
+      customer,
+    });
 
     // 3) Stream PDF to browser
     res.setHeader("Content-Type", "application/pdf");
@@ -737,141 +870,192 @@ router.get("/:id/pdf", async (req, res, next) => {
 });
 
 
+
 /**
  * ✅ 6) Generic mutation routes (draft-only edit)
  */
 
 // PATCH /api/invoices/:id
-router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.patch(
+  "/:id",
+  requireInvoiceEditable,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId)
+        return res.status(400).json({ message: "Missing accountId" });
 
-    const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id))
+        return res.status(400).json({ message: "Invalid invoice id" });
 
-    const invoice = await Invoice.findOne({ _id: id, accountId });
-    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+      const invoice = await Invoice.findOne({ _id: id, accountId });
+      if (!invoice)
+        return res.status(404).json({ message: "Invoice not found" });
 
-    assertCanEditInvoice(((invoice as any).status || "draft").toString().toLowerCase() as any);
+      const { issueDate, dueDate, notes, taxRate, lineItems } = req.body ?? {};
 
-    const { issueDate, dueDate, notes, taxRate, lineItems } = req.body ?? {};
+      if (typeof issueDate !== "undefined")
+        (invoice as any).issueDate = new Date(issueDate);
 
-    if (typeof issueDate !== "undefined") (invoice as any).issueDate = new Date(issueDate);
-    if (typeof dueDate !== "undefined") (invoice as any).dueDate = dueDate ? new Date(dueDate) : undefined;
-    if (typeof notes !== "undefined") (invoice as any).notes = String(notes);
+      if (typeof dueDate !== "undefined")
+        (invoice as any).dueDate = dueDate ? new Date(dueDate) : undefined;
 
-    if (typeof taxRate !== "undefined") {
-      const n = Number(taxRate);
-      if (Number.isNaN(n) || n < 0) return res.status(400).json({ message: "taxRate must be >= 0" });
-      (invoice as any).taxRate = n;
+      if (typeof notes !== "undefined")
+        (invoice as any).notes = String(notes);
+
+      if (typeof taxRate !== "undefined") {
+        const n = Number(taxRate);
+        if (Number.isNaN(n) || n < 0)
+          return res.status(400).json({ message: "taxRate must be >= 0" });
+        (invoice as any).taxRate = n;
+      }
+
+      if (typeof lineItems !== "undefined") {
+        if (!Array.isArray(lineItems))
+          return res.status(400).json({ message: "lineItems must be an array" });
+        (invoice as any).lineItems = lineItems;
+      }
+
+      // recompute totals
+      const items = ((invoice as any).lineItems ?? []) as Array<{
+        quantity?: number;
+        unitPrice?: number;
+      }>;
+
+      const subtotal = items.reduce(
+        (sum, it) => sum + Number(it.quantity ?? 0) * Number(it.unitPrice ?? 0),
+        0
+      );
+
+      const rate = Number((invoice as any).taxRate ?? 0);
+      const taxAmount = subtotal * rate;
+      const total = subtotal + taxAmount;
+
+      (invoice as any).subtotal = Math.max(0, subtotal);
+      (invoice as any).taxAmount = Math.max(0, taxAmount);
+      (invoice as any).total = Math.max(0, total);
+
+      // ✅ canonical financial truth after total changes
+      applyInvoiceFinancials(invoice as any);
+
+      await invoice.save();
+
+      const fin = computeInvoiceFinancials(invoice as any);
+      return res.json({ ...invoice.toObject(), ...fin });
+    } catch (err) {
+      next(err);
     }
-
-    if (typeof lineItems !== "undefined") {
-      if (!Array.isArray(lineItems)) return res.status(400).json({ message: "lineItems must be an array" });
-      (invoice as any).lineItems = lineItems;
-    }
-
-    const items = ((invoice as any).lineItems ?? []) as Array<{ quantity?: number; unitPrice?: number }>;
-    const subtotal = items.reduce((sum, it) => sum + Number(it.quantity ?? 0) * Number(it.unitPrice ?? 0), 0);
-    const rate = Number((invoice as any).taxRate ?? 0);
-    const taxAmount = subtotal * rate;
-    const total = subtotal + taxAmount;
-
-    (invoice as any).subtotal = Math.max(0, subtotal);
-    (invoice as any).taxAmount = Math.max(0, taxAmount);
-    (invoice as any).total = Math.max(0, total);
-
-    await invoice.save();
-    return res.json(invoice);
-  } catch (err) {
-    next(err);
   }
-});
+);
+
+
 
 /**
  * ✅ 7) Lifecycle status route
  */
 
 // PATCH /api/invoices/:id/status
-router.patch("/:id/status", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.patch(
+  "/:id/status",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId)
+        return res.status(400).json({ message: "Missing accountId" });
 
-    const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id))
+        return res.status(400).json({ message: "Invalid invoice id" });
 
-    const nextStatus = (req.body?.status || "").trim().toLowerCase();
-    if (!nextStatus) return res.status(400).json({ message: "status is required" });
+      const nextStatus = (req.body?.status || "").trim().toLowerCase();
+      if (!nextStatus)
+        return res.status(400).json({ message: "status is required" });
 
-    const allowed = ["draft", "sent", "paid", "void"] as const;
-    if (!allowed.includes(nextStatus as any)) {
-      return res.status(400).json({ message: `Invalid status. Allowed: ${allowed.join(", ")}` });
+      if (nextStatus === "draft") {
+        return res
+          .status(400)
+          .json({ message: "Reverting invoices to draft is not supported in V1." });
+      }
+
+      const allowed = ["sent", "paid", "void"] as const;
+      if (!allowed.includes(nextStatus as any)) {
+        return res
+          .status(400)
+          .json({ message: `Invalid status. Allowed: ${allowed.join(", ")}` });
+      }
+
+      const invoice = await Invoice.findOne({ _id: id, accountId });
+      if (!invoice)
+        return res.status(404).json({ message: "Invoice not found" });
+
+      const currentStatus = ((invoice as any).status || "draft")
+        .toString()
+        .toLowerCase();
+
+      // ✅ Canonical financial truth BEFORE allowing a manual "paid" flip
+      const finNow = computeInvoiceFinancials(invoice as any);
+
+      // If there is still money due, block setting status=paid here.
+      // Paid status must come from payments (our backend truth).
+      if (nextStatus === "paid" && finNow.financialStatus !== "paid") {
+        return res.status(400).json({
+          message:
+            "Cannot mark as paid while balance is still due. Record a payment instead.",
+        });
+      }
+
+      assertValidInvoiceTransition(currentStatus as any, nextStatus as any);
+
+      const now = new Date();
+      (invoice as any).status = nextStatus;
+
+      if (nextStatus === "sent" && !(invoice as any).sentAt)
+        (invoice as any).sentAt = now;
+
+      if (nextStatus === "paid" && !(invoice as any).paidAt)
+        (invoice as any).paidAt = now;
+
+      if (nextStatus === "void") {
+        if (!(req.body?.reason || "").trim())
+          return res
+            .status(400)
+            .json({ message: "Void reason is required" });
+
+        if (!(invoice as any).voidedAt) (invoice as any).voidedAt = now;
+        (invoice as any).voidReason = (req.body.reason || "").trim();
+      }
+
+      // ✅ Keep cached money fields aligned (paidAmount/balanceDue) no matter what
+      applyInvoiceFinancials(invoice as any);
+
+      await invoice.save();
+
+      if (nextStatus === "paid" || nextStatus === "void") {
+        await WorkOrder.updateOne(
+          { _id: (invoice as any).workOrderId, accountId },
+          { $set: { closedAt: now } }
+        );
+      } else {
+        await WorkOrder.updateOne(
+          { _id: (invoice as any).workOrderId, accountId },
+          { $unset: { closedAt: 1 } }
+        );
+      }
+
+      const fin = computeInvoiceFinancials(invoice as any);
+      return res.json({ ...invoice.toObject(), ...fin });
+    } catch (err) {
+      next(err);
     }
-
-    const invoice = await Invoice.findOne({ _id: id, accountId });
-    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
-
-    const currentStatus = ((invoice as any).status || "draft").toString().toLowerCase();
-    assertValidInvoiceTransition(currentStatus as any, nextStatus as any);
-
-    const now = new Date();
-    (invoice as any).status = nextStatus;
-
-    if (nextStatus === "sent" && !(invoice as any).sentAt) (invoice as any).sentAt = now;
-    if (nextStatus === "paid" && !(invoice as any).paidAt) (invoice as any).paidAt = now;
-
-    if (nextStatus === "void") {
-      if (!(req.body?.reason || "").trim()) return res.status(400).json({ message: "Void reason is required" });
-      if (!(invoice as any).voidedAt) (invoice as any).voidedAt = now;
-      (invoice as any).voidReason = (req.body.reason || "").trim();
-    }
-
-    await invoice.save();
-
-    if (nextStatus === "paid" || nextStatus === "void") {
-      await WorkOrder.updateOne(
-        { _id: (invoice as any).workOrderId, accountId },
-        { $set: { closedAt: now } }
-      );
-    } else {
-      await WorkOrder.updateOne(
-        { _id: (invoice as any).workOrderId, accountId },
-        { $unset: { closedAt: 1 } }
-      );
-    }
-
-    res.json(invoice);
-  } catch (err) {
-    next(err);
   }
-});
+);
+
 
 /**
  * ✅ 8) Most generic route LAST
  */
 
-// GET /api/invoices/:id
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
-    const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
-
-    const invoice = await Invoice.findOne({ _id: id, accountId })
-      .populate("customerId", "firstName lastName phone email address vehicles")
-      .populate("workOrderId", "status")
-      .lean();
-
-    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
-
-    res.json(invoice);
-  } catch (err) {
-    next(err);
-  }
-});
 
 export default router;

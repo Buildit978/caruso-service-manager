@@ -1,8 +1,9 @@
-// frontend/src/types/invoice.ts
+//frontend/src/types/invoice.ts
 import type { WorkOrderLineItem, WorkOrderVehicle } from "./workOrder";
 import type { Customer } from "./customer";
 
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
+export type FinancialStatus = "paid" | "partial" | "due";
 
 export interface InvoiceLineItem {
   type?: WorkOrderLineItem["type"];
@@ -12,9 +13,8 @@ export interface InvoiceLineItem {
   lineTotal: number;
 }
 
-// Snapshot of customer at the time of invoicing
 export interface InvoiceCustomerSnapshot {
-  customerId: string;               // for linking back if needed
+  customerId: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
@@ -22,29 +22,34 @@ export interface InvoiceCustomerSnapshot {
   address?: string;
 }
 
+export type InvoiceEmailStatus = "never_sent" | "sending" | "sent" | "failed";
 
-  export type InvoiceEmailStatus = "never_sent" | "sending" | "sent" | "failed";
+export type InvoiceEmailMeta = {
+  status: InvoiceEmailStatus;
+  lastTo?: string;
+  lastSentAt?: string;
+  lastMessageId?: string;
+  lastError?: string;
+  attempts?: number;
+};
 
-  export type InvoiceEmailMeta = {
-    status: InvoiceEmailStatus;
-    lastTo?: string;
-    lastSentAt?: string;     // ISO string from API
-    lastMessageId?: string;
-    lastError?: string;
-    attempts?: number;
-  };
-
-// Main Invoice type
 export interface Invoice {
   _id: string;
-  invoiceNumber: string;            // human-visible number, e.g. "1001" or "2025-001"
-  status: "draft" | "sent" | "paid" | "void";
+  invoiceNumber: string;
 
-  workOrderId: string | { _id: string };  // for quick reference
+  // lifecycle
+  status: InvoiceStatus;
+
+  // ✅ canonical financial truth (from backend)
+  financialStatus: FinancialStatus;
+  paidAmount: number;
+  balanceDue: number;
+
+  workOrderId: string | { _id: string };
   customerSnapshot: InvoiceCustomerSnapshot;
   vehicleSnapshot?: WorkOrderVehicle;
 
-  issueDate: string;                // ISO strings
+  issueDate: string;
   dueDate?: string;
 
   lineItems: InvoiceLineItem[];
@@ -59,7 +64,7 @@ export interface Invoice {
   createdAt?: string;
   updatedAt?: string;
 
-  // Optional population for UI niceness later (not required by backend)
+  // optional populated helpers
   workOrder?: {
     _id: string;
     status: string;
@@ -67,7 +72,3 @@ export interface Invoice {
   customer?: Customer;
   email?: InvoiceEmailMeta;
 }
-
-
-
-

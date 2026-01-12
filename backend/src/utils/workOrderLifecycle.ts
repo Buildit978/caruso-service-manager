@@ -110,6 +110,9 @@ export function applyWorkOrderLifecycle(workOrder: any, patch: Patch) {
 
       if (nextStatus === "invoiced") {
         if (!workOrder.invoicedAt) workOrder.invoicedAt = now;
+
+        // 🔒 closedAt is controlled ONLY by invoice truth (paid/void).
+        // Do not set/clear closedAt in lifecycle transitions like completed/invoiced/etc.
         if (!workOrder.closedAt) workOrder.closedAt = now;
 
         // invoiced implies completed
@@ -123,6 +126,9 @@ export function applyWorkOrderLifecycle(workOrder: any, patch: Patch) {
 
       if (nextStatus === "cancelled") {
         if (!workOrder.cancelledAt) workOrder.cancelledAt = now;
+        // 🔒 closedAt is controlled ONLY by invoice truth (paid/void).
+        // Do not set/clear closedAt in lifecycle transitions like completed/invoiced/etc.
+
         if (!workOrder.closedAt) workOrder.closedAt = now;
       }
 

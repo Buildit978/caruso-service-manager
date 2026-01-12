@@ -239,15 +239,20 @@ export default function InvoiceDetailPage() {
   }
 
   async function handleVoidInvoice() {
-  if (!invoice?._id) return;
-  if (String(invoice.financialStatus || "draft").toLowerCase() === "paid") {
-    alert("This invoice is PAID and cannot be voided.");
-    return;
-  }
-  if (String(invoice.financialStatus || "draft").toLowerCase() === "void") return;
+    if (!invoice?._id) return;
 
-  const reason = window.prompt("Void reason (required):");
-  if (!reason || !reason.trim()) return;
+    const lifecycle = String((invoice as any).status ?? "draft").toLowerCase();
+    const fin = String((invoice as any).financialStatus ?? "").toLowerCase();
+
+    if (fin === "paid") {
+      alert("This invoice is PAID and cannot be voided.");
+      return;
+    }
+    if (lifecycle === "void") return;
+
+    const reason = window.prompt("Void reason (required):");
+    if (!reason || !reason.trim()) return;
+
 
   try {
     setIsSaving(true);
@@ -276,18 +281,21 @@ export default function InvoiceDetailPage() {
 
 
 // --- Money + status clarity (backend truth) ---
-  const lifecycleRaw = String(invoice.financialStatus ?? "draft").toLowerCase();
 
-  // lifecycle flags (allowed: these are not financial inference)
-  const isDraft = lifecycleRaw === "draft";
-  const isVoid = lifecycleRaw === "void";
-  const isReadOnly = !isDraft;
+// Lifecycle truth: comes from invoice.status (updated by updateInvoiceStatus)
+const lifecycleRaw = String((invoice as any).status ?? "draft").toLowerCase();
 
-  // financial truth flags (backend decides paid/partial/due)
-  const financialRaw = String((invoice as any).financialStatus ?? "").toLowerCase();
-  const isPaid = financialRaw === "paid";
-  const isPartial = financialRaw === "partial";
-  const isDue = financialRaw === "due" || !financialRaw; // tolerate older invoices missing financialStatus
+// lifecycle flags
+const isDraft = lifecycleRaw === "draft";
+const isVoid = lifecycleRaw === "void";
+const isReadOnly = !isDraft;
+
+// Financial truth: comes from invoice.financialStatus (set by backend)
+const financialRaw = String((invoice as any).financialStatus ?? "").toLowerCase();
+const isPaid = financialRaw === "paid";
+const isPartial = financialRaw === "partial";
+const isDue = financialRaw === "due" || !financialRaw; // tolerate older invoices missing financialStatus
+
 
   // money values: display-only (never used to infer status)
   const paidAmountNum = Number((invoice as any).paidAmount ?? 0);
@@ -349,73 +357,73 @@ return (
             flexWrap: "wrap",
           }}
         >
-          {/* Status badge (NOW: backend truth only, no amount math) */}
-          {(() => {
-            const lifecycle = String(invoice.financialStatus ?? "draft").toLowerCase();
-            const fin = String((invoice as any).financialStatus ?? "").toLowerCase();
+      {/* Status badges: Lifecycle + Financial (VOID overrides everything) */}
+{(() => {
+  const lifecycle = String((invoice as any).status ?? "draft").toLowerCase();
+  const fin = String((invoice as any).financialStatus ?? "").toLowerCase();
 
-            // Label policy:
-            // - void/draft come from lifecycle
-            // - paid/partial come from backend financialStatus
-            // - due (or unknown) uses existing token "SENT"
-            const label =
-              lifecycle === "void"
-                ? "VOID"
-                : lifecycle === "draft"
-                ? "DRAFT"
-                : fin === "paid"
-                ? "PAID"
-                : fin === "partial"
-                ? "PARTIAL"
-                : "SENT";
+  // VOID overrides everything
+  if (lifecycle === "void") {
+    return (
+      <span
+        style={{
+          padding: "0.4rem 0.9rem",
+          borderRadius: "999px",
+          fontSize: "0.95rem",
+          fontWeight: 900,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          display: "inline-flex",
+          alignItems: "center",
+          boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+          border: "2px solid #dc2626",
+          color: "#dc2626",
+          background: "#fef2f2",
+        }}
+      >
+        VOID
+      </span>
+    );
+  }
 
-            const stylesByLabel: Record<string, React.CSSProperties> = {
-              PAID: {
-                border: "2px solid #16a34a",
-                color: "#16a34a",
-                background: "#f0fdf4",
-              },
-              VOID: {
-                border: "2px solid #dc2626",
-                color: "#dc2626",
-                background: "#fef2f2",
-              },
-              PARTIAL: {
-                border: "2px solid #d97706",
-                color: "#b45309",
-                background: "#fffbeb",
-              },
-              SENT: {
-                border: "2px solid #2563eb",
-                color: "#2563eb",
-                background: "#eff6ff",
-              },
-              DRAFT: {
-                border: "2px solid #6b7280",
-                color: "#374151",
-                background: "#f3f4f6",
-              },
-            };
+  const base: React.CSSProperties = {
+    padding: "0.35rem 0.75rem",
+    borderRadius: "999px",
+    fontSize: "0.85rem",
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    display: "inline-flex",
+    alignItems: "center",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+  };
 
-            const base: React.CSSProperties = {
-              padding: "0.4rem 0.9rem",
-              borderRadius: "999px",
-              fontSize: "0.95rem",
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
-            };
+  // Lifecycle badge (DRAFT/SENT)
+  const lifecycleLabel = lifecycle === "draft" ? "DRAFT" : "SENT";
+  const lifecycleStyle =
+    lifecycleLabel === "DRAFT"
+      ? { border: "2px solid #6b7280", color: "#374151", background: "#f3f4f6" }
+      : { border: "2px solid #2563eb", color: "#2563eb", background: "#eff6ff" };
 
-            return (
-              <span style={{ ...base, ...(stylesByLabel[label] ?? stylesByLabel.DRAFT) }}>
-                {label}
-              </span>
-            );
-          })()}
+  // Financial badge (DUE/PARTIAL/PAID) — default DUE if missing/unknown
+  const finLabel =
+    fin === "paid" ? "PAID" : fin === "partial" ? "PARTIAL" : "DUE";
+
+  const finStyle =
+    finLabel === "PAID"
+      ? { border: "2px solid #16a34a", color: "#16a34a", background: "#f0fdf4" }
+      : finLabel === "PARTIAL"
+      ? { border: "2px solid #d97706", color: "#b45309", background: "#fffbeb" }
+      : { border: "2px solid #2563eb", color: "#2563eb", background: "#eff6ff" };
+
+  return (
+    <span style={{ display: "inline-flex", gap: "0.5rem", alignItems: "center" }}>
+      <span style={{ ...base, ...lifecycleStyle }}>{lifecycleLabel}</span>
+      <span style={{ ...base, ...finStyle }}>{finLabel}</span>
+    </span>
+  );
+})()}
+
 
           {/* NEW: Paid/Last payment line (truth = payments[]) */}
           {paidOrLastPaymentLine ? (

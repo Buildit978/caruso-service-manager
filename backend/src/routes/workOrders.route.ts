@@ -6,6 +6,8 @@ import { Customer } from '../models/customer.model';
 import { attachAccountId } from '../middleware/account.middleware';
 import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
+import Invoice from "../models/invoice.model";
+
 
 
 const router = Router();
@@ -38,34 +40,64 @@ router.use(attachAccountId);
 
 
 // GET /api/work-orders/summary
-router.get("/summary", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const accountId = req.accountId;
-    if (!accountId) return res.status(400).json({ message: "Missing accountId" });
+router.get(
+  "/summary",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
-    const base = { accountId };
+      const base = { accountId };
 
-    const [active, financial, archive] = await Promise.all([
-      WorkOrder.countDocuments({ ...base, status: { $in: ["open", "in_progress", "on_hold"] } }),
-      WorkOrder.countDocuments({
-        ...base,
-        status: { $in: ["completed", "invoiced"] },
-        closedAt: { $exists: false },
-      }),
-      WorkOrder.countDocuments({ ...base, closedAt: { $exists: true, $ne: null } }),
-    ]);
+      // ✅ Archive = Paid or Void ONLY (invoice truth)
+      const archiveInvoiceIds = await Invoice.find({
+        accountId,
+        $or: [
+          { status: "void" },
+          {
+            $expr: {
+              $and: [
+                { $gt: ["$total", 0] },
+                { $gte: [{ $ifNull: ["$paidAmount", 0] }, "$total"] },
+              ],
+            },
+          },
+        ],
+      }).distinct("_id");
 
-    const byStatus = await WorkOrder.aggregate([
-      { $match: { accountId: new Types.ObjectId(accountId) } },
-      { $group: { _id: "$status", count: { $sum: 1 } } },
-      { $project: { _id: 0, status: "$_id", count: 1 } },
-    ]);
+      const [active, financial, archive] = await Promise.all([
+        // Active
+        WorkOrder.countDocuments({
+          ...base,
+          status: { $in: ["open", "in_progress", "on_hold"] },
+        }),
 
-    res.json({ active, financial, archive, byStatus });
-  } catch (err) {
-    next(err);
+        // Financial (leave as-is to avoid regressions)
+        WorkOrder.countDocuments({
+          ...base,
+          status: { $in: ["completed", "invoiced"] },
+          closedAt: { $exists: false },
+        }),
+
+        // Archive (Paid or Void ONLY)
+        WorkOrder.countDocuments({
+          ...base,
+          invoiceId: { $in: archiveInvoiceIds },
+        }),
+      ]);
+
+      const byStatus = await WorkOrder.aggregate([
+        { $match: { accountId: new Types.ObjectId(accountId) } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $project: { _id: 0, status: "$_id", count: 1 } },
+      ]);
+
+      return res.json({ active, financial, archive, byStatus });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 
 
@@ -102,12 +134,34 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     } else if (view === "financial") {
       q.status = { $in: ["completed", "invoiced"] };
       // TEMP: do not filter by closedAt until we confirm data shape
+      q.$or = [{ closedAt: { $exists: false } }, { closedAt: null }];
     }
+
+    
     else if (view === "archive") {
-      q.closedAt = { $exists: true, $ne: null };
-    } else {
-      // all -> no extra filter
+      // Archive = Paid or Void ONLY (invoice truth)
+      const invoiceIds = await Invoice.find({
+        accountId,
+        $or: [
+          // lifecycle void always archived
+          { status: "void" },
+
+          // financially paid: paidAmount >= total (and total > 0)
+          {
+            $expr: {
+              $and: [
+                { $gt: ["$total", 0] },
+                { $gte: [{ $ifNull: ["$paidAmount", 0] }, "$total"] },
+              ],
+            },
+          },
+        ],
+      }).distinct("_id");
+
+      q.invoiceId = { $in: invoiceIds };
     }
+
+
   
     // Sorting
     const dir = sortDir === "asc" ? 1 : -1;
@@ -116,46 +170,65 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     
   
 
-const workOrders = await WorkOrder.find(q)
-  .sort(sort)
-  .populate("customerId", "name fullName firstName lastName address") // optional
-  .populate(
-    "invoiceId",
-    "status invoiceNumber sentAt paidAt voidedAt total paidAmount balanceDue payments"
-  )
-  .lean();
+    const workOrders = await WorkOrder.find(q)
+      .sort(sort)
+      .populate("customerId", "name fullName firstName lastName address") // optional
+      .populate(
+        "invoiceId",
+        "status invoiceNumber sentAt paidAt voidedAt total paidAmount balanceDue payments"
+      )
+      .lean();
 
-// Normalize shape + attach authoritative financialStatus (no frontend compute)
-const normalized = workOrders.map((wo: any) => {
-  const customer =
-    wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined;
+    // Normalize shape + attach authoritative financialStatus (no frontend compute)
+    const normalized = workOrders.map((wo: any) => {
+      const customer =
+        wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined;
 
-  const invoiceObj =
-    wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined;
+      const invoiceObj =
+        wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined;
 
-  let invoice = invoiceObj;
+      let invoice = invoiceObj;
 
- if (invoiceObj) {
-  const fin = computeInvoiceFinancials({
-    total: Number(invoiceObj.total ?? 0),
-    payments: Array.isArray(invoiceObj.payments) ? invoiceObj.payments : [],
-    paidAmount: Number(invoiceObj.paidAmount ?? 0),
-    balanceDue: Number(invoiceObj.balanceDue ?? 0),
-  } as any);
+      if (invoiceObj) {
+        const fin = computeInvoiceFinancials({
+          total: Number(invoiceObj.total ?? 0),
+          payments: Array.isArray(invoiceObj.payments) ? invoiceObj.payments : [],
+          paidAmount: Number(invoiceObj.paidAmount ?? 0),
+          balanceDue: Number(invoiceObj.balanceDue ?? 0),
+        } as any);
 
-  invoice = { ...invoiceObj, ...fin };
-}
+        invoice = { ...invoiceObj, ...fin };
+      }
 
+      return { ...wo, customer, invoice };
+    });
 
-  return { ...wo, customer, invoice };
-});
+    // ✅ View-level post-filter (authoritative, handles legacy data)
+    let result = normalized;
 
-// ✅ IMPORTANT: return normalized (not raw workOrders)
- return res.json(normalized);
-  } catch (err) {
+    if (view === "financial") {
+      result = normalized.filter((wo: any) => {
+        const inv = wo?.invoice;
+        if (!inv) return false;
+
+        // Void never belongs in Financial
+        const lifecycle = String(inv.status || "").toLowerCase();
+        if (lifecycle === "void") return false;
+
+        // Financial = open money only
+        const fs = String(inv.financialStatus || "").toLowerCase();
+        return fs === "due" || fs === "partial";
+      });
+    }
+
+    // ✅ IMPORTANT: return result (not raw workOrders)
+    return res.json(result);
+      } catch (err) {
     next(err);
   }
 });
+
+
 
   
 
@@ -630,5 +703,6 @@ const normalized = workOrders.map((wo: any) => {
           next(err);
         }
       }
-);
+    
+    );
 export default router;

@@ -1,6 +1,6 @@
 // frontend/src/pages/InvoiceDetailPage.tsx
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
 import { fetchInvoiceById, getInvoicePdfUrl, emailInvoice, updateInvoiceStatus, type InvoiceStatus } from "../api/invoices";
 import { fetchCustomerById } from "../api/customers";
@@ -60,10 +60,54 @@ function resolveCustomerId(inv: any): string | null {
     return dates[0] ?? null;
   }
 
+type LocationState = { from?: string };
+
+function isSameOriginUrl(url: string) {
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+    function getReturnTo(location: { state?: unknown; search: string }): string {
+      // 1) Best: location.state.from
+      const state = (location.state || {}) as LocationState;
+      if (state.from) return state.from;
+
+      // 2) Next: ?from=...
+      const params = new URLSearchParams(location.search);
+      const fromQ = params.get("from");
+      if (fromQ) return fromQ;
+
+      // 3) Next: same-origin referrer
+      if (document.referrer && isSameOriginUrl(document.referrer)) {
+        const u = new URL(document.referrer);
+        return u.pathname + u.search;
+      }
+
+      // 4) Final fallback
+      return "/work-orders?view=financial";
+    }
+
+
+
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+const returnTo = useMemo(() => getReturnTo(location), [location.state, location.search]);
+
+
+  function handleBack() {
+    // If user came from somewhere inside the app, return there.
+    if (returnTo) return navigate(returnTo);
+
+    // ultra-safe fallback (probably never hit)
+    navigate(-1);
+  }
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,35 +132,44 @@ export default function InvoiceDetailPage() {
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
-  async function handleRecordPayment() {
-    if (!invoice?._id) return;
+async function handleRecordPayment() {
+  if (!invoice?._id) return;
 
-    const amountNum = Number(payAmount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      setPayError("Enter a valid payment amount.");
-      return;
-    }
+  setPayError(null);
 
-    try {
-      setPaying(true);
-      setPayError(null);
-
-      const updated = await recordInvoicePayment(invoice._id, {
-        method: payMethod,
-        amount: amountNum,
-        reference: payRef.trim() || undefined,
-      });
-
-      setInvoice(updated);
-      setPayAmount("");
-      setPayRef("");
-
-    } catch (err: any) {
-      setPayError(err?.message || "Failed to record payment.");
-    } finally {
-      setPaying(false);
-    }
+  const amountNum = Number(String(payAmount).replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    setPayError("Enter a valid payment amount.");
+    return;
   }
+
+  const method = payMethod as "cash" | "card" | "e-transfer" | "cheque";
+  const reference = payRef.trim() || undefined;
+
+  try {
+    setPaying(true);
+
+    const updated = await recordInvoicePayment(invoice._id, {
+      method,
+      amount: amountNum,
+      reference,
+    });
+
+    setInvoice(updated);
+
+    // optional: clear inputs after success
+    setPayAmount("");
+    setPayRef("");
+  } catch (err: any) {
+    // ✅ show the backend message (this is the “truth” for 400s)
+    const msg = err?.response?.data?.message || err?.message || "Payment failed";
+    setPayError(msg);
+    console.error("[InvoiceDetail] record payment failed:", err?.response?.data || err);
+  } finally {
+    setPaying(false);
+  }
+}
+
 
 
   // ✅ Load invoice by route param
@@ -311,8 +364,35 @@ const isDue = financialRaw === "due" || !financialRaw; // tolerate older invoice
       ? `Paid on ${fmtDateTime(latestPaymentDate)}`
       : isPartial && latestPaymentDate
       ? `Last payment ${fmtDateTime(latestPaymentDate)}`
-      : "";
+          : "";
+  
+  type LocationState = { from?: string };
 
+function isSameOriginUrl(url: string) {
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+  function getReturnTo(location: ReturnType<typeof useLocation>) {
+    // 1) Best: location.state.from
+    const state = (location.state || {}) as LocationState;
+    if (state.from) return state.from;
+
+    // 2) Next: ?from=... (lets you preserve back target across refresh if you choose to add it later)
+    const params = new URLSearchParams(location.search);
+    const fromQ = params.get("from");
+    if (fromQ) return fromQ;
+
+    // 3) Next: same-origin referrer (only if it looks like your app)
+    if (document.referrer && isSameOriginUrl(document.referrer)) {
+      const u = new URL(document.referrer);
+      return u.pathname + u.search;
+    }
+  }
  
  
  
@@ -328,6 +408,9 @@ return (
         marginBottom: "1rem",
       }}
     >
+
+
+
       <div style={{ flex: 1 }}>
         <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
 
@@ -386,7 +469,7 @@ return (
     );
   }
 
-  const base: React.CSSProperties = {
+const base: CSSProperties = {
     padding: "0.35rem 0.75rem",
     borderRadius: "999px",
     fontSize: "0.85rem",
@@ -454,6 +537,17 @@ return (
         >
           Back to Work Order
         </button>
+        <div>
+      <div className="flex items-center justify-between">
+        <button onClick={handleBack} className="btn">
+          ← Back
+        </button>
+
+        {/* keep your existing header actions */}
+      </div>
+
+      {/* rest of invoice detail */}
+    </div>
 
         <button type="button" disabled={isEmailing} onClick={handleSendOrResend}>
           {isEmailing
@@ -472,6 +566,7 @@ return (
         >
           View PDF
         </button>
+        
       </div>
     </div>
 
@@ -650,8 +745,21 @@ return (
 
       {/* Record payment form */}
       {(() => {
-        const status = (invoice.financialStatus || "draft").toLowerCase();
-        const locked = status === "draft" || status === "paid" || status === "void";
+        const lifecycle = String((invoice as any).status ?? "draft").toLowerCase();     // draft | sent | void
+        const fin = String((invoice as any).financialStatus ?? "").toLowerCase();      // due | partial | paid | ""
+        const totalAmt = Number(invoice.total ?? 0);
+        const paidAmt = Number((invoice as any).paidAmount ?? 0);
+        const balanceAmt =
+          (invoice as any).balanceDue != null
+            ? Number((invoice as any).balanceDue)
+            : Math.max(0, totalAmt - paidAmt);
+
+        // Only treat as paid if the balance is actually zero-ish
+        const isActuallyPaid = fin === "paid" && balanceAmt <= 0.01;
+
+        const locked = lifecycle === "void" || isActuallyPaid;
+
+
 
         return (
           <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "0.75rem" }}>
@@ -705,14 +813,21 @@ return (
             </div>
 
             {locked ? (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
-                {status === "draft"
-                  ? "Send the invoice before recording payment."
-                  : status === "paid"
-                  ? "Invoice is fully paid."
-                  : "Invoice is voided."}
-              </div>
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                      {lifecycle === "void"
+                        ? "Invoice is voided."
+                        : "Invoice is fully paid."}
+                    </div>
             ) : null}
+            
+            {!locked && lifecycle === "draft" ? (
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                      Note: This invoice is still a draft. You can record a payment, but consider sending the invoice first.
+                    </div>
+                  ) : null}
+
+
+
 
             {payError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{payError}</div> : null}
           </div>

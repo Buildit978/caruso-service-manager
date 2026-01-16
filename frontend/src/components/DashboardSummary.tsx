@@ -1,8 +1,11 @@
+// frontend/src/components/DashboardSummary.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";      // 👈 NEW
 import "./Dashboard.css";
 import { fetchSummary, type SummaryResponse } from "../api/summary";
 import { fetchFinancialSummary } from "../api/invoices";
+import { isOutstanding, getOutstandingBalance } from "../utils/outstanding";
+import { formatMoney } from "../utils/money"; // assuming you use this
 
 
 
@@ -13,38 +16,44 @@ export function DashboardSummary() {
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();                   // 👈 NEW
     
-    type PaidScope = "today" | "week" | "month";
+    type PaidScope = "today" | "week" | "month" | "ytd";
     const [paidScope, setPaidScope] = useState<PaidScope>("month");
     const [financial, setFinancial] = useState<any | null>(null); // type later if you want
 
-    function getRange(scope: PaidScope) {
-    const now = new Date();
+   function getRange(scope: PaidScope) {
+        const now = new Date();
 
-    if (scope === "today") {
-        const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        if (scope === "today") {
+            const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            return { from, to };
+        }
+
+        if (scope === "week") {
+            // Monday-based week
+            const day = now.getDay(); // 0=Sun
+            const diffToMon = (day + 6) % 7; // Mon=0
+            const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon);
+            const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7);
+            return { from, to };
+        }
+
+        if (scope === "month") {
+            const from = new Date(now.getFullYear(), now.getMonth(), 1);
+            const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            return { from, to };
+        }
+
+        // ytd
+        const from = new Date(now.getFullYear(), 0, 1); // Jan 1
+        const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1); // tomorrow (inclusive)
         return { from, to };
-    }
+        }
 
-    if (scope === "week") {
-        // Monday-based week
-        const day = now.getDay(); // 0=Sun
-        const diffToMon = (day + 6) % 7; // Mon=0
-        const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon);
-        const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7);
-        return { from, to };
-    }
+  function toISODateTime(d: Date) {
+  return d.toISOString(); // full UTC timestamp
+}
 
-    // month
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return { from, to };
-    }
-
-    function toISODate(d: Date) {
-    // YYYY-MM-DD
-    return d.toISOString().slice(0, 10);
-    }
 
 
 useEffect(() => {
@@ -59,11 +68,13 @@ useEffect(() => {
       setError(null);
 
       // 2) load scoped paidAt financial summary
-      const { from, to } = getRange(paidScope);
-      const financialSummary = await fetchFinancialSummary({
-        from: toISODate(from),
-        to: toISODate(to),
-      });
+    const { from, to } = getRange(paidScope);
+
+        const financialSummary = await fetchFinancialSummary({
+        from: toISODateTime(from),
+        to: toISODateTime(to),
+        });
+
 
       if (!isMounted) return;
       setFinancial(financialSummary);
@@ -104,15 +115,18 @@ if (error || !data || !financial) {
         );
     }
 
-    const {
-        totalCustomers,
-        openWorkOrders,
-        completedWorkOrders,
-        totalRevenue,
-        workOrdersThisWeek,
-        revenueThisWeek,
-        averageOrderValue,
-    } = data;
+   const {
+    totalCustomers,
+    openWorkOrders,
+    completedWorkOrders,
+    workOrdersThisWeek,
+
+    // paid truth fields (new)
+    revenuePaidAllTime,
+    revenuePaidYtd,
+    avgOrderValueYtd,
+    } = data as any; // tighten type next if needed
+
 
     const paidRevenue = new Intl.NumberFormat("en-CA", {
     style: "currency",
@@ -120,11 +134,10 @@ if (error || !data || !financial) {
     maximumFractionDigits: 2,
     }).format(financial.revenuePaid.amount ?? 0);
 
-    const allTimeRevenue = new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 2,
-    }).format(totalRevenue ?? 0);
+    const allTimeRevenue = formatMoney(revenuePaidAllTime?.amount ?? 0);
+    const ytdRevenue = formatMoney(revenuePaidYtd?.amount ?? 0);
+
+
 
     const outstanding = new Intl.NumberFormat("en-CA", {
     style: "currency",
@@ -132,11 +145,21 @@ if (error || !data || !financial) {
     maximumFractionDigits: 2,
     }).format(financial.outstandingSent.amount ?? 0);
 
-    const formattedAOV = new Intl.NumberFormat("en-CA", {
-        style: "currency",
-        currency: "CAD",
-        maximumFractionDigits: 2,
-    }).format(averageOrderValue ?? 0);
+    const formattedAOV = formatMoney(avgOrderValueYtd ?? 0);
+    
+    const paidScopeLabel =
+  paidScope === "today"
+    ? "Today"
+    : paidScope === "week"
+    ? "This Week"
+    : "This Month";
+
+
+
+
+
+
+
 
     return (
         <div className="dashboard">
@@ -157,7 +180,55 @@ if (error || !data || !financial) {
 
             <section className="dashboard__grid">
 
-                <article className="stat-card stat-card--revenue">
+                 <article className="stat-card stat-card--open stat-card--clickable"
+                    onClick={() => navigate("/work-orders")}
+                >
+                    <div className="stat-card__top">
+                        <span className="stat-card__icon">🧰</span>
+                        <span className="stat-card__label">Open Work Orders</span>
+                    </div>
+                    <div className="stat-card__value">{openWorkOrders}</div>
+                    <p className="stat-card__hint">
+                        Currently in progress or awaiting work.
+          </p>
+                </article>
+
+                {/* ✅ Completed Work Orders card (clickable) */}
+                <article
+                className="stat-card stat-card--completed stat-card--clickable"
+                onClick={() => navigate("/work-orders?view=to-invoice")}
+                >           
+                <div className="stat-card__top">
+                    <span className="stat-card__icon">✅</span>
+                    <span className="stat-card__label">Completed Work Orders</span>
+                </div>
+                <div className="stat-card__value">{completedWorkOrders}</div>
+                <p className="stat-card__hint">Jobs finished and ready to invoice.</p>
+                </article>
+
+
+                <article
+                    className="stat-card stat-card--weekly stat-card--clickable"
+                    onClick={() => navigate("/work-orders?view=this-week")}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate("/work-orders?view=this-week");
+                        }
+                    }}
+                    >
+                    <div className="stat-card__top">
+                        <span className="stat-card__icon">📅</span>
+                        <span className="stat-card__label">Work Orders This Week</span>
+                    </div>
+                    <div className="stat-card__value">{workOrdersThisWeek}</div>
+                    <p className="stat-card__hint">Completed jobs since Monday.</p>
+                    </article>
+
+
+                 <article className="stat-card stat-card--revenue">
                 <div className="stat-card__top">
                     <span className="stat-card__icon">✅</span>
                     <span className="stat-card__label">
@@ -168,19 +239,11 @@ if (error || !data || !financial) {
                 <p className="stat-card__hint">Money received (paid invoices).</p>
                 </article>
 
+            
 
-                <article className="stat-card stat-card--revenue">
-                <div className="stat-card__top">
-                    <span className="stat-card__icon">💵</span>
-                    <span className="stat-card__label">All-Time Revenue</span>
-                </div>
-                <div className="stat-card__value">{allTimeRevenue}</div>
-                <p className="stat-card__hint">Lifetime total from completed work (ops metric).</p>
-                </article>
-
-                <article
+                     <article
   className="stat-card stat-card--open stat-card--clickable"
-  onClick={() => navigate("/work-orders?view=financial")}
+  onClick={() => navigate("/work-orders?view=financial&sub=outstanding")}
 >
 
                 <div className="stat-card__top">
@@ -189,6 +252,36 @@ if (error || !data || !financial) {
                 </div>
                 <div className="stat-card__value">{outstanding}</div>
                 <p className="stat-card__hint">Sent invoices not yet paid.</p>
+                </article>
+
+              <article className="stat-card stat-card--aov">
+                <div className="stat-card__top">
+                    <span className="stat-card__icon">📈</span>
+                    <span className="stat-card__label">Avg Order Value (YTD)</span>
+                </div>
+                <div className="stat-card__value">{formattedAOV}</div>
+                <p className="stat-card__hint">Average paid per invoice this year.</p>
+                </article>
+                     <article
+                className="stat-card stat-card--revenue stat-card--clickable"
+                onClick={() => navigate("/reports/revenue?view=ytd")}
+                >
+                <div className="stat-card__top">
+                    <span className="stat-card__icon">📊</span>
+                    <span className="stat-card__label">YTD Revenue</span>
+                </div>
+                <div className="stat-card__value">{ytdRevenue}</div>
+                <p className="stat-card__hint">Total paid since Jan 1.</p>
+                </article>
+                
+
+                <article className="stat-card stat-card--revenue">
+                <div className="stat-card__top">
+                    <span className="stat-card__icon">💵</span>
+                    <span className="stat-card__label">All-Time Revenue</span>
+                </div>
+                <div className="stat-card__value">{allTimeRevenue}</div>
+                <p className="stat-card__hint">Total paid, all time.</p>
                 </article>
 
 
@@ -205,57 +298,9 @@ if (error || !data || !financial) {
                 </article>
 
 
+                
 
-                <article className="stat-card stat-card--open stat-card--clickable"
-                    onClick={() => navigate("/work-orders")}
-                >
-                    <div className="stat-card__top">
-                        <span className="stat-card__icon">🧰</span>
-                        <span className="stat-card__label">Open Work Orders</span>
-                    </div>
-                    <div className="stat-card__value">{openWorkOrders}</div>
-                    <p className="stat-card__hint">
-                        Currently in progress or awaiting work.
-          </p>
-                </article>
-
-                <article className="stat-card stat-card--completed">
-                    <div className="stat-card__top">
-                        <span className="stat-card__icon">✅</span>
-                        <span className="stat-card__label">Completed Work Orders</span>
-                    </div>
-                    <div className="stat-card__value">{completedWorkOrders}</div>
-                    <p className="stat-card__hint">Jobs finished and ready to invoice.</p>
-                </article>
-
-                <article className="stat-card stat-card--revenue">
-                    <div className="stat-card__top">
-                        <span className="stat-card__icon">💵</span>
-                        <span className="stat-card__label">Total Revenue</span>
-                    </div>
-                    <div className="stat-card__value">{paidRevenue}</div>
-                    <p className="stat-card__hint">All-time revenue from completed orders.</p>
-                </article>
-
-                <article className="stat-card stat-card--weekly">
-                    <div className="stat-card__top">
-                        <span className="stat-card__icon">📅</span>
-                        <span className="stat-card__label">Work Orders This Week</span>
-                    </div>
-                    <div className="stat-card__value">{workOrdersThisWeek}</div>
-                    <p className="stat-card__hint">Completed jobs since Monday.</p>
-                </article>
-
-                <article className="stat-card stat-card--aov">
-                    <div className="stat-card__top">
-                        <span className="stat-card__icon">📈</span>
-                        <span className="stat-card__label">Avg Order Value</span>
-                    </div>
-                    <div className="stat-card__value">{formattedAOV}</div>
-                    <p className="stat-card__hint">
-                        Average revenue per completed work order.
-          </p>
-                </article>
+                
 
                 {/* Optional: show weekly revenue too instead of or in addition */}
                 {/* 

@@ -5,10 +5,30 @@ import type { WorkOrder } from "../types/workOrder";
 import type { Customer } from "../types/customer";
 import { fetchWorkOrders } from "../api/workOrders";
 import { formatMoney } from "../utils/money";
+import { getThisWeekRangeMondayBased, isDateInRangeInclusive } from "../utils/weekRange";
 
-type ViewFilter = "active" | "financial" | "archive" | "all";
 
 type InvoiceFinancialStatus = "paid" | "partial" | "due";
+type WorkOrderView = "active" | "financial" | "archive" | "all" | "this-week";
+type DashboardDerivedView = "to-invoice";
+type ViewFilter = WorkOrderView | DashboardDerivedView;
+
+function isValidWorkOrderView(v: string): v is WorkOrderView {
+  return (["active", "financial", "archive", "all", "this-week"] as const).includes(
+    v as any
+  );
+}
+
+
+
+const isValidView = (v: string | null): v is ViewFilter =>
+  v === "active" ||
+  v === "financial" ||
+  v === "archive" ||
+  v === "all" ||
+  v === "this-week" ||
+  v === "to-invoice";
+
 
 export default function WorkOrdersPage() {
   const navigate = useNavigate();
@@ -19,21 +39,53 @@ export default function WorkOrdersPage() {
     () => new URLSearchParams(location.search),
     [location.search]
   );
-  const viewParam = query.get("view"); // e.g. financial
+
+  const viewParam = query.get("view"); // e.g. financial | to-invoice | this-week
   const customerId = query.get("customerId") || null;
 
   // State
-  const [view, setView] = useState<ViewFilter>(() => {
-    if (
-      viewParam === "active" ||
-      viewParam === "financial" ||
-      viewParam === "archive" ||
-      viewParam === "all"
-    ) {
-      return viewParam;
-    }
-    return "active";
-  });
+
+  const [view, setView] = useState<ViewFilter>(() =>
+    isValidView(viewParam) ? viewParam : "active"
+  );
+
+  // If URL view changes (Dashboard click again), sync it into state
+  useEffect(() => {
+  if (!viewParam) return;
+
+  // Dashboard-derived views
+  if (viewParam === "to-invoice") {
+    setView("to-invoice");
+    return;
+  }
+
+  // Work-order-backed views
+  if (isValidWorkOrderView(viewParam)) {
+    setView(viewParam);
+    return;
+  }
+
+  // Fallback safety (optional)
+  setView("active");
+}, [viewParam]);
+
+
+  const { pathname, search: locationSearch } = location;
+
+  // ✅ return target for Invoice Detail (always matches current view state)
+  const from = useMemo(() => {
+    const params = new URLSearchParams(locationSearch);
+
+    // keep the UI view in the URL (including "to-invoice")
+    params.set("view", view);
+
+    // preserve customerId if you're filtered
+    if (customerId) params.set("customerId", customerId);
+    else params.delete("customerId");
+
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, locationSearch, view, customerId]);
 
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,18 +101,6 @@ export default function WorkOrdersPage() {
   >("createdAt-desc");
 
   const [search, setSearch] = useState("");
-
-  // If URL view changes (Dashboard click again), sync it into state
-  useEffect(() => {
-    if (
-      viewParam === "active" ||
-      viewParam === "financial" ||
-      viewParam === "archive" ||
-      viewParam === "all"
-    ) {
-      setView(viewParam);
-    }
-  }, [viewParam]);
 
   // Helpers
   const formatCustomerName = (customer?: Customer) => {
@@ -85,12 +125,16 @@ export default function WorkOrdersPage() {
 
     if (typeof raw === "object") {
       if (typeof raw._id === "string") return raw._id;
-      if (raw._id && typeof raw._id.toString === "function")
-        return raw._id.toString();
+      if (raw._id && typeof raw._id.toString === "function") return raw._id.toString();
       if (typeof raw.toString === "function") return raw.toString();
     }
 
     return null;
+  }
+
+  // ✅ central “open invoice” helper that always passes return target
+  function openInvoice(invoiceId: string) {
+    navigate(`/invoices/${invoiceId}`, { state: { from } });
   }
 
   function handleView(wo: any) {
@@ -98,7 +142,7 @@ export default function WorkOrdersPage() {
     const invoiceId = resolveInvoiceId(wo);
 
     if (inFinancialMode && invoiceId && isValidMongoId(invoiceId)) {
-      navigate(`/invoices/${invoiceId}`);
+      openInvoice(invoiceId);
       return;
     }
 
@@ -180,9 +224,14 @@ export default function WorkOrdersPage() {
           }
         }
 
+        // ✅ Backend-safe view only (never send dashboard-derived views)
+        const serverView: WorkOrderView =
+          view === "this-week" ? "all" : view === "to-invoice" ? "all" : view;
+
+
         const raw = await fetchWorkOrders({
           customerId: customerId || undefined,
-          view,
+          view: serverView, // ✅ IMPORTANT: backend-safe view
           ...(sortBy ? { sortBy } : {}),
           ...(sortDir ? { sortDir } : {}),
         });
@@ -225,26 +274,48 @@ export default function WorkOrdersPage() {
     };
 
     loadWorkOrders();
-  }, [customerId, sort, view]);
-
-  // Title
-  const title = customerId ? "Work Orders for Selected Customer" : "All Work Orders";
-
-  if (loading) return <div className="p-6">Loading work orders...</div>;
-
-  if (error) {
-    return (
-      <div className="p-6 text-red-600">
-        There was a problem loading work orders: {error}
-      </div>
-    );
-  }
+  }, [customerId, sort, view]); // ✅ depends on serverView (not raw view)
 
   // Client-side search + customer sort only (view filtering is server-driven)
   const displayedWorkOrders = (() => {
     let list = Array.isArray(workOrders) ? [...workOrders] : [];
 
-    // Search
+
+    // ✅ Dedicated "To Invoice" ops view (Completed + Not Invoiced)
+    if (view === "to-invoice") {
+      list = list.filter((wo: any) => {
+        const isCompleted = wo?.status === "completed";
+
+        const hasInvoice =
+          !!wo?.invoice ||
+          !!wo?.invoiceId ||
+          !!wo?.invoice?._id;
+
+        return isCompleted && !hasInvoice;
+      });
+    }
+   
+
+   // ✅ Card #3: Work Orders This Week (completedAt-based, Mon→Sun)
+            if (view === "this-week") {
+              const { start, end } = getThisWeekRangeMondayBased(new Date());
+
+              list = list
+                .filter((wo: any) => {
+                  const raw = wo?.completedAt;
+                  if (!raw) return false;
+                  const d = new Date(raw);
+                  return isDateInRangeInclusive(d, start, end);
+                })
+                .sort((a: any, b: any) => {
+                  const ad = new Date(a?.completedAt).getTime();
+                  const bd = new Date(b?.completedAt).getTime();
+                  return bd - ad; // newest completed first
+                });
+            }
+
+
+    // 🔍 Search
     const q = String(search || "").trim().toLowerCase();
     if (q) {
       list = list.filter((wo: any) =>
@@ -252,7 +323,7 @@ export default function WorkOrdersPage() {
       );
     }
 
-    // Customer sorting (frontend)
+    // 🔀 Customer sorting (frontend)
     if (sort === "customer-asc" || sort === "customer-desc") {
       const dir = sort === "customer-asc" ? 1 : -1;
 
@@ -268,116 +339,167 @@ export default function WorkOrdersPage() {
     return list;
   })();
 
+// Title (used in header JSX)
+const title =
+  customerId
+    ? "Work Orders for Selected Customer"
+    : view === "to-invoice"
+    ? "To Invoice (Completed)"
+    : view === "this-week"
+    ? "Work Orders This Week"
+    : "Work Orders";
+
+
+
+
+  // ... keep the rest of your component (render JSX) below this
+
+
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Page Header */}
-      <div className="mb-6">
-        <div
+     <div className="mb-6">
+  <div
+    style={{
+      maxWidth: "1100px",
+      marginLeft: "auto",
+      marginRight: "auto",
+      paddingRight: "100px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: "1rem",
+    }}
+  >
+    {/* Left: Title + Back + helper */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {(view === "this-week" || view === "to-invoice") ? (
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          title="Back to Dashboard Summary"
           style={{
-            maxWidth: "1100px",
-            marginLeft: "auto",
-            marginRight: "auto",
-            paddingRight: "100px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "1rem",
+            alignSelf: "flex-start",
+            fontSize: "1.3rem",
+            color: "#ebeef2",
+            background: "transparent",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
+            padding: "10px 10px",
+            cursor: "pointer",
           }}
         >
-          {/* Left: Title */}
-          <h1 className="text-2xl font-semibold">{title}</h1>
+          ← Back to Summary
+        </button>
+      ) : null}
 
-          {/* Right: Controls */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            {/* 🔍 Search */}
-            <input
-              type="text"
-              placeholder="Search by customer…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                height: "32px",
-                padding: "0 10px",
-                fontSize: "0.9rem",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "white",
-                color: "#111827",
-                minWidth: "220px",
-              }}
-            />
+      <h1 className="text-xl font-semibold" style={{ margin: 0 }}>
+        {title}
+      </h1>
 
-            {/* 🧾 View Filter */}
-            <select
-              aria-label="Filter by status"
-              title="Filter by status"
-              value={view}
-              onChange={(e) => setView(e.target.value as ViewFilter)}
-              style={{
-                height: "32px",
-                padding: "0 8px",
-                fontSize: "0.9rem",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "white",
-                color: "#111827",
-              }}
-            >
-              <option value="active">Active</option>
-              <option value="financial">Financial</option>
-              <option value="archive">Archive</option>
-              <option value="all">All</option>
-            </select>
-
-            {/* 🔃 Sort */}
-            <select
-              aria-label="Sort work orders"
-              title="Sort work orders"
-              value={sort}
-              onChange={(e) =>
-                setSort(
-                  e.target.value as
-                    | "createdAt-desc"
-                    | "createdAt-asc"
-                    | "status-asc"
-                    | "status-desc"
-                    | "customer-asc"
-                    | "customer-desc"
-                )
-              }
-              style={{
-                height: "32px",
-                padding: "0 8px",
-                fontSize: "0.9rem",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "white",
-                color: "#111827",
-              }}
-            >
-              <option value="createdAt-desc">Created (Newest)</option>
-              <option value="createdAt-asc">Created (Oldest)</option>
-              <option value="status-asc">Status A–Z</option>
-              <option value="status-desc">Status Z–A</option>
-              <option value="customer-asc">Customer A–Z</option>
-              <option value="customer-desc">Customer Z–A</option>
-            </select>
-
-            {/* ➕ Button */}
-            <Link
-              to="/work-orders/new"
-              className="inline-block font-medium text-sm px-4 py-2 rounded"
-              style={{
-                backgroundColor: "#2563eb",
-                color: "white",
-                whiteSpace: "nowrap",
-              }}
-            >
-              + New Work Order
-            </Link>
-          </div>
+      {view === "this-week" ? (
+        <div className="text-sm text-slate-500">
+          Completed work orders for the current week (Mon–Sun), based on{" "}
+          <span className="font-medium">completedAt</span>.
         </div>
-      </div>
+      ) : null}
+    </div>
+
+    {/* Right: Controls */}
+    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      {/* 🔍 Search */}
+      <input
+        type="text"
+        placeholder="Search by customer…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{
+          height: "32px",
+          padding: "0 10px",
+          fontSize: "0.9rem",
+          borderRadius: "6px",
+          border: "1px solid #cbd5e1",
+          backgroundColor: "white",
+          color: "#111827",
+          minWidth: "220px",
+        }}
+      />
+
+      {/* 🧾 View Filter (hide for dedicated this-week view) */}
+      {view !== "this-week" ? (
+        <select
+          aria-label="Filter by status"
+          title="Filter by status"
+          value={view}
+          onChange={(e) => setView(e.target.value as ViewFilter)}
+          style={{
+            height: "32px",
+            padding: "0 8px",
+            fontSize: "0.9rem",
+            borderRadius: "6px",
+            border: "1px solid #cbd5e1",
+            backgroundColor: "white",
+            color: "#111827",
+          }}
+        >
+          <option value="active">Active</option>
+          <option value="financial">Financial</option>
+          <option value="archive">Archive</option>
+          <option value="to-invoice">To Invoice</option>
+          <option value="all">All</option>
+        </select>
+      ) : null}
+
+      {/* 🔃 Sort */}
+      <select
+        aria-label="Sort work orders"
+        title="Sort work orders"
+        value={sort}
+        onChange={(e) =>
+          setSort(
+            e.target.value as
+              | "createdAt-desc"
+              | "createdAt-asc"
+              | "status-asc"
+              | "status-desc"
+              | "customer-asc"
+              | "customer-desc"
+          )
+        }
+        style={{
+          height: "32px",
+          padding: "0 8px",
+          fontSize: "0.9rem",
+          borderRadius: "6px",
+          border: "1px solid #cbd5e1",
+          backgroundColor: "white",
+          color: "#111827",
+        }}
+      >
+        <option value="createdAt-desc">Created (Newest)</option>
+        <option value="createdAt-asc">Created (Oldest)</option>
+        <option value="status-asc">Status A–Z</option>
+        <option value="status-desc">Status Z–A</option>
+        <option value="customer-asc">Customer A–Z</option>
+        <option value="customer-desc">Customer Z–A</option>
+      </select>
+
+      {/* ➕ Button */}
+      <Link
+        to="/work-orders/new"
+        className="inline-block font-medium text-sm px-4 py-2 rounded"
+        style={{
+          backgroundColor: "#2563eb",
+          color: "white",
+          whiteSpace: "nowrap",
+        }}
+      >
+        + New Work Order
+      </Link>
+    </div>
+  </div>
+</div>
 
       <div className="mt-6"></div>
 
@@ -431,6 +553,10 @@ export default function WorkOrdersPage() {
                     ? `${formatMoney(total)}`
                     : "";
 
+                const invoiceId = resolveInvoiceId(wo);
+                const canOpenInvoice =
+                  invoiceId && isValidMongoId(String(invoiceId));
+
                 return (
                   <tr
                     key={wo._id}
@@ -471,13 +597,36 @@ export default function WorkOrdersPage() {
                     <td className="px-4 py-2 whitespace-nowrap">
                       {inv ? (
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${invoicePillClass(
-                              label
-                            )}`}
-                          >
-                            {label}
-                          </span>
+                          {/* ✅ Make pill clickable when invoice exists */}
+                          {canOpenInvoice ? (
+                            <button
+                                type="button"
+                                onClick={() => openInvoice(String(invoiceId))}
+                                title="Open invoice"
+                                className={`${invoicePillClass(label)}`}
+                                style={{
+                                  cursor: "pointer",
+                                  padding: ".5px 10px",
+                                  fontSize: "14px",
+                                  lineHeight: "2",
+                                  borderRadius: "07px",
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {label}
+                              </button>
+
+
+                          ) : (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${invoicePillClass(
+                                label
+                              )}`}
+                            >
+                              {label}
+                            </span>
+                          )}
+
                           {detail ? (
                             <span className="text-slate-600">{detail}</span>
                           ) : null}

@@ -11,6 +11,8 @@ import settingsRouter from "./routes/settings.route";
 import invoiceRoutes from './routes/invoice.routes';
 console.log("✅ Mounted /api/invoices routes");
 import { getMailer } from "./utils/mailer";
+import reportsRouter from "./routes/reports.routes";
+
 
 
 import { attachAccountId } from "./middleware/account.middleware";
@@ -32,6 +34,9 @@ app.use('/api/summary', summaryRoutes);
 app.use("/api/settings", settingsRouter);
 app.use('/api/invoices', invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/reports", reportsRouter);
+console.log("✅ Mounted /api/reports routes");
+
 
 
 

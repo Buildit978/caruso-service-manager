@@ -2,6 +2,8 @@
 import { model, type Document, type Types } from "mongoose";
 import mongoose, { Schema } from "mongoose";
 
+
+
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
 export type FinancialStatus = "paid" | "partial" | "due"; // ✅ NEW
 export type PaymentMethod = "cash" | "card" | "e-transfer" | "cheque";
@@ -63,7 +65,7 @@ export interface IInvoice extends Document {
     method: PaymentMethod;
     reference?: string;
     amount: number;
-    paidAt: string; // ISO string from API
+    paidAt: Date; // ✅ match schema truth
   }>;
 
   paidAmount: number; // total paid so far

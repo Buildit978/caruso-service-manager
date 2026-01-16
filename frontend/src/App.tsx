@@ -1,6 +1,7 @@
 // src/App.tsx
 //import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Routes, Route } from 'react-router-dom'
+import { Navigate } from "react-router-dom";
 import Layout from './components/layout/Layout'
 import DashboardPage from './pages/DashboardPage'
 import WorkOrdersPage from './pages/WorkOrdersPage'
@@ -15,6 +16,8 @@ import CustomerDetailPage from "./pages/CustomerDetailPage";
 import InvoiceDetailPage from "./pages/InvoiceDetailPage";
 import VehicleDetailPage from "./pages/VehicleDetailPage";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
+import RevenueReportPage from "./pages/RevenueReportPage";
+
 
 
 
@@ -35,7 +38,8 @@ function App() {
         <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
         <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
         <Route path="/vehicles" element={<VehiclesPage />} />
-
+        <Route path="/invoices" element={<Navigate to="/work-orders?view=financial" replace />} />
+        <Route path="/reports/revenue" element={<RevenueReportPage />} />
       </Routes>
     </Layout>
   )

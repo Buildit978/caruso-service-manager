@@ -24,12 +24,82 @@ export async function buildInvoicePdfBuffer(args: {
   doc.moveDown(0.5);
   doc.fontSize(10).text(`Invoice #: ${invoiceNumber}`, { align: "right" });
 
+    const finStatus = String(invoice.financialStatus ?? "").toLowerCase();
+  if (finStatus === "partial") {
+    doc.moveDown(0.2);
+    doc.fontSize(12).fillColor("#b45309").text("STATEMENT", { align: "right" });
+    doc.fillColor("#111111"); // reset
+  }
+
+
   if (invoice.issueDate) {
     doc.text(`Date: ${new Date(invoice.issueDate).toLocaleDateString()}`, { align: "right" });
   }
   if (invoice.dueDate) {
     doc.text(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`, { align: "right" });
   }
+
+      // ---- Payments summary (truth from backend fields)
+  const totalAmt = Number(invoice.total ?? 0);
+  const paidAmt = Number(invoice.paidAmount ?? 0);
+  const balanceAmt =
+    invoice.balanceDue != null
+      ? Number(invoice.balanceDue)
+      : Math.max(0, totalAmt - paidAmt);
+
+  doc.moveDown(0.5);
+  doc.fontSize(11).fillColor("#111111").text(`Total: ${money(totalAmt)}`, { align: "right" });
+  doc.text(`Paid: ${money(paidAmt)}`, { align: "right" });
+
+  doc.font("Helvetica-Bold").text(`Balance Due: ${money(balanceAmt)}`, { align: "right" });
+  doc.font("Helvetica"); // reset
+
+
+    // ---- Payment history (tiny, last 5)
+  const payments = Array.isArray(invoice.payments) ? invoice.payments : [];
+  if (payments.length > 0) {
+    const sorted = [...payments].sort((a, b) => {
+      const da = new Date(a?.createdAt ?? a?.date ?? 0).getTime();
+      const db = new Date(b?.createdAt ?? b?.date ?? 0).getTime();
+      return db - da; // newest first
+    });
+
+    const recent = sorted.slice(0, 5);
+
+    doc.moveDown(0.6);
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#111111").text("Payment History", { align: "right" });
+    doc.font("Helvetica").fontSize(9).fillColor("#374151");
+
+    for (const p of recent) {
+      const amt = Number(p?.amount ?? 0);
+      const method = String(p?.method ?? "").toUpperCase();
+      const ref = String(p?.reference ?? "").trim();
+
+      const dtRaw = p?.createdAt ?? p?.date;
+      const dt = dtRaw ? new Date(dtRaw) : null;
+      const dtText = dt ? dt.toLocaleDateString() : "";
+
+      const lineParts = [
+        dtText,
+        method ? method : null,
+        `$${money(amt)}`,
+        ref ? `(${ref})` : null,
+      ].filter(Boolean);
+
+      doc.text(lineParts.join(" "), { align: "right" });
+    }
+
+    doc.fillColor("#111111"); // reset
+  }
+
+  const finStatusPaidInFull = String(invoice.financialStatus ?? "").toLowerCase();
+  if (finStatusPaidInFull === "paid") {
+    doc.moveDown(0.2);
+    doc.fontSize(15).fillColor("#16a34a").text("PAID IN FULL", { align: "right" });
+    doc.fillColor("#111111");
+  }
+
+
 
   doc.moveDown(1);
 

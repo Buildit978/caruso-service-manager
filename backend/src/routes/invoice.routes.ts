@@ -98,18 +98,35 @@ router.get(
         {
           $facet: {
             // ✅ Paid = canonical (status is only set to paid when balanceDue hits 0 in our backend logic)
-            revenuePaid: [
-              { $match: { status: "paid", paidAt: { $gte: from, $lt: to } } },
-              {
-                $group: {
-                  _id: null,
-                  count: { $sum: 1 },
-                  amount: { $sum: "$total" },
-                  tax: { $sum: "$taxAmount" },
-                  subtotal: { $sum: "$subtotal" },
+            // ✅ Paid Revenue = sum of PAYMENTS in range (counts partials + deposits)
+              revenuePaid: [
+                // never count void invoices as paid revenue
+                { $match: { status: { $ne: "void" } } },
+
+                // unwind payments and filter by paidAt range
+                { $unwind: "$payments" },
+                { $match: { "payments.paidAt": { $gte: from, $lt: to } } },
+
+                // group by invoice first (so count = number of invoices with at least one payment in range)
+                {
+                  $group: {
+                    _id: "$_id",
+                    amount: { $sum: "$payments.amount" },
+                  },
                 },
-              },
-            ],
+
+                // now compute totals
+                {
+                  $group: {
+                    _id: null,
+                    count: { $sum: 1 },          // invoices that had payments in range
+                    amount: { $sum: "$amount" }, // total payments received in range
+                    tax: { $sum: 0 },            // not meaningful for payments; keep 0 for now
+                    subtotal: { $sum: 0 },       // not meaningful for payments; keep 0 for now
+                  },
+                },
+              ],
+
 
             // ✅ Outstanding = sent + money still due (prevents "sent but actually paid" drift)
             outstandingSent: [
@@ -594,7 +611,6 @@ router.post("/:id/send", requireInvoiceNotPaid, async (req, res, next) => {
 
 
 // POST /api/invoices/:id/pay
-// POST /api/invoices/:id/pay
 router.post("/:id/pay", async (req, res, next) => {
   try {
     const accountId = req.accountId;
@@ -629,11 +645,19 @@ router.post("/:id/pay", async (req, res, next) => {
       return res.status(400).json({ message: "Cannot record payment when invoice is void." });
     }
     // block if already fully paid (financial truth)
-    if (finStatus === "paid" || Number((invoice as any).balanceDue ?? 0) === 0) {
-      return res
-        .status(400)
-        .json({ message: "Invoice is fully paid. No further payments can be recorded." });
-    }
+// IMPORTANT: some older invoices may not have balanceDue stored, so compute safely.
+  const finPre = computeInvoiceFinancials(invoice as any);
+  const balPre =
+    finPre.balanceDue != null
+      ? Number(finPre.balanceDue)
+      : Number((invoice as any).balanceDue); // last resort
+
+  if (finPre.financialStatus === "paid" || (Number.isFinite(balPre) && balPre <= 0.01)) {
+    return res
+      .status(400)
+      .json({ message: "Invoice is fully paid. No further payments can be recorded." });
+  }
+
 
     // ✅ append payment
     const payment = {
@@ -782,11 +806,18 @@ router.post("/:id/email", async (req, res) => {
         lastError: "",
       };
 
-      // ✅ email implies "sent" (keep your existing behavior)
-      if (String((invoice as any).status || "draft").toLowerCase() === "draft") {
-        (invoice as any).status = "sent";
-        (invoice as any).sentAt = (invoice as any).sentAt ?? new Date();
-      }
+      // ✅ email implies "sent" (truth stamp)
+            const now = new Date();
+
+            // ALWAYS stamp sentAt after a successful email
+            (invoice as any).sentAt = (invoice as any).sentAt ?? now;
+
+            // Only upgrade lifecycle status if still draft
+            const curStatus = String((invoice as any).status || "draft").toLowerCase();
+            if (curStatus === "draft") {
+              (invoice as any).status = "sent";
+            }
+
 
       // ✅ re-apply financials in case total/payments changed elsewhere before save
       applyInvoiceFinancials(invoice as any);

@@ -1,0 +1,35 @@
+# Caruso Service Manager — Cursor Rules (V1)
+
+## V1 Scope
+- Web app only (no PWA polish yet)
+- Stability > refactors
+- Shipping focus
+
+## Non-negotiables
+- accountId scoping on all backend queries
+- Single financial truth (paid / partial / due)
+- No duplicate financial logic
+- If UI + backend disagree, backend truth wins
+
+## Repo structure (do not invent)
+- backend/src/routes
+- backend/src/models
+- backend/src/utils
+- frontend/src/pages
+- frontend/src/api
+- frontend/src/components
+- frontend/src/utils
+
+## Workflow (MANDATORY)
+PLAN → PATCH → VERIFY
+
+- PLAN: explain files + approach
+- PATCH: minimal diffs only
+- VERIFY: how to test + what to watch
+- No refactors unless explicitly approved
+
+## Cursor behavior
+- Inspection-only unless told otherwise
+- Do not modify files during inspection
+- List risks before proposing fixes
+

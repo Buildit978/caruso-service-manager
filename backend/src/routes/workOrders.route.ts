@@ -657,12 +657,21 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
           }
 
           if (nextStatus === "cancelled") {
-            if (!workOrder.cancelledAt) workOrder.cancelledAt = now;
+          if (!workOrder.cancelledAt) workOrder.cancelledAt = now;
 
-            // Optional: treat cancelled as archived
-            // If you want cancelled items to show in Archive view:
-            // if (!workOrder.closedAt) workOrder.closedAt = now;
+          // Close the loop: auto-void invoice if cancellable
+          if (workOrder.invoiceId) {
+            const invoice = await Invoice.findOne({ _id: workOrder.invoiceId, accountId });
+
+            if (invoice && (invoice.status === "draft" || invoice.status === "sent")) {
+              invoice.status = "void";
+              (invoice as any).voidedAt = now;
+              (invoice as any).voidReason = "Work order cancelled";
+              await invoice.save();
+            }
           }
+        }
+
 
           // ✅ Keep your existing lifecycle helper (does totals, normalization, etc.)
           // Pass the normalized status so it stays consistent

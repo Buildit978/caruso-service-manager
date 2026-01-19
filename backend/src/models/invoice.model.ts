@@ -171,6 +171,9 @@ const InvoicePaymentSchema = new Schema(
   { _id: false }
 );
 
+
+
+
 const InvoiceSchema = new Schema(
   {
     // 👇 NEW: accountId for multi-tenant scoping
@@ -317,6 +320,16 @@ const InvoiceSchema = new Schema(
   },
   { timestamps: true }
 );
+
+    // ✅ Guard: void invoices must always have financialStatus === "void"
+    InvoiceSchema.pre("save", function (next) {
+      // `this` is the invoice doc
+      if (this.status === "void" && this.financialStatus !== "void") {
+        this.financialStatus = "void";
+      }
+      next();
+    });
+
 
 export type Invoice = mongoose.InferSchemaType<typeof InvoiceSchema>;
 export type InvoiceDoc = mongoose.HydratedDocument<Invoice>;

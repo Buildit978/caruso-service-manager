@@ -5,7 +5,7 @@ import mongoose, { Schema } from "mongoose";
 
 
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
-export type FinancialStatus = "paid" | "partial" | "due"; // ✅ NEW
+export type FinancialStatus = "paid" | "partial" | "due" | "void"; // ✅ NEW
 export type PaymentMethod = "cash" | "card" | "e-transfer" | "cheque";
 export type InvoiceEmailStatus = "never_sent" | "sending" | "sent" | "failed";
 
@@ -199,7 +199,7 @@ const InvoiceSchema = new Schema(
     // ✅ NEW: canonical financial status (backend truth)
     financialStatus: {
       type: String,
-      enum: ["paid", "partial", "due"],
+      enum: ["paid", "partial", "due", "void"],
       default: "due",
       lowercase: true,
       trim: true,

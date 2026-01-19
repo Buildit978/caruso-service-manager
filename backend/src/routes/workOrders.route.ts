@@ -664,11 +664,20 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             const invoice = await Invoice.findOne({ _id: workOrder.invoiceId, accountId });
 
             if (invoice && (invoice.status === "draft" || invoice.status === "sent")) {
-              invoice.status = "void";
-              (invoice as any).voidedAt = now;
-              (invoice as any).voidReason = "Work order cancelled";
+                invoice.status = "void";
+                invoice.financialStatus = "void"; // ✅ one truth
+                (invoice as any).voidedAt = now;
+                (invoice as any).voidReason = "Work order cancelled";
+                await invoice.save();
+            }
+            
+            // ✅ Backfill: if invoice is already void, keep financialStatus in sync
+            if (invoice && invoice.status === "void" && invoice.financialStatus !== "void") {
+              invoice.financialStatus = "void";
               await invoice.save();
             }
+
+
           }
         }
 

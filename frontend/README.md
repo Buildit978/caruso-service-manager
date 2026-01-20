@@ -1,3 +1,36 @@
+# Caruso Service Manager
+
+## Frontend API + Auth (v1)
+
+All frontend network calls are centralized in:
+
+- `frontend/src/api/http.ts`
+
+Auth is handled via a JWT stored in `localStorage` under:
+
+- `csm_token`
+
+The token is automatically injected on every request as:
+
+- `x-auth-token: <jwt>`
+
+Important rules:
+
+- Identity + tenant scope are server-derived only (no trusted frontend headers like accountId).
+- On `401/403`, the frontend clears the stored token.
+- A dev-only Token Panel exists at `Settings` to paste a JWT manually for v1 testing.
+
+## Work Order Messages (v1)
+
+Work Order Messages are append-only and auditable:
+
+- API:
+  - `GET /api/work-orders/:id/messages`
+  - `POST /api/work-orders/:id/messages`
+- UI:
+  - `frontend/src/components/workOrders/WorkOrderMessages.tsx`
+  - Mounted in `frontend/src/pages/WorkOrderDetailPage.tsx`
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

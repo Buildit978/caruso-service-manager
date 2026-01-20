@@ -1,5 +1,5 @@
 // src/api/workOrders.ts
-import api from "./client";
+import { http } from "./http";
 import type { WorkOrder, WorkOrderStatus, WorkOrderVehicle } from "../types/workOrder";
 
 
@@ -57,9 +57,14 @@ export async function fetchWorkOrders(
   if (filters.sortBy) params.sortBy = filters.sortBy;
   if (filters.sortDir) params.sortDir = filters.sortDir;
 
-  const res = await api.get<any>("/work-orders", { params });
+  const queryParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) queryParams.set(key, value);
+  });
+  const query = queryParams.toString();
+  const url = query ? `/work-orders?${query}` : "/work-orders";
 
-  const raw = res.data;
+  const raw = await http<any>(url);
 
   // ✅ MUST be WorkOrder[]
   if (Array.isArray(raw)) return raw;
@@ -100,13 +105,14 @@ export async function fetchWorkOrders(
 
 
 export async function fetchWorkOrder(id: string): Promise<WorkOrder> {
-    const res = await api.get<WorkOrder>(`/work-orders/${id}`);
-    return res.data;
+    return await http<WorkOrder>(`/work-orders/${id}`);
 }
 
 export async function createWorkOrder(payload: CreateWorkOrderPayload): Promise<WorkOrder> {
-    const res = await api.post<WorkOrder>("/work-orders", payload);
-    return res.data;
+    return await http<WorkOrder>("/work-orders", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 }
 
 
@@ -115,34 +121,41 @@ export async function updateWorkOrder(
     id: string,
     payload: UpdateWorkOrderPayload
 ): Promise<WorkOrder> {
-    const res = await api.put<WorkOrder>(`/work-orders/${id}`, payload);
-    return res.data;
+    return await http<WorkOrder>(`/work-orders/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
 }
 
 export async function updateWorkOrderStatus(
     id: string,
     status: WorkOrderStatus
 ): Promise<WorkOrder> {
-    const res = await api.patch<WorkOrder>(`/work-orders/${id}/status`, { status });
-    return res.data;
+    return await http<WorkOrder>(`/work-orders/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+    });
 }
 
 export async function deleteWorkOrder(id: string): Promise<void> {
+    await http<void>(`/work-orders/${id}`, {
+        method: "DELETE",
+    });
 }
 
 export async function createInvoiceFromWorkOrder(
   id: string,
   opts?: { notes?: string; dueDate?: string }
 ) {
-
-  try{
-
-    const res = await api.post(`/invoices/from-work-order/${id}`, opts ?? {});
-  return res.data;
-  } catch(err: any) {console.log("[createInvoiceFromWorkOrder] status:", err?.response?.status);
-                    console.log("[createInvoiceFromWorkOrder] data:", err?.response?.data);
-                    console.log("[createInvoiceFromWorkOrder] headers:", err?.config?.headers);
-                    throw err;}
-  
+  try {
+    return await http<any>(`/invoices/from-work-order/${id}`, {
+      method: "POST",
+      body: JSON.stringify(opts ?? {}),
+    });
+  } catch (err: any) {
+    console.log("[createInvoiceFromWorkOrder] status:", err?.status);
+    console.log("[createInvoiceFromWorkOrder] data:", err?.data);
+    throw err;
+  }
 }
 

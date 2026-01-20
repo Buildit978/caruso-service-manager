@@ -1,5 +1,5 @@
 // frontend/src/api/settings.ts
-import api from "./client";
+import { http } from "./http";
 
 export type DiscountType = "none" | "percent" | "flat";
 
@@ -19,13 +19,14 @@ export type UpdateSettingsPayload = {
 };
 
 export async function fetchSettings(): Promise<SettingsResponse> {
-    const res = await api.get<SettingsResponse>("/settings");
-    return res.data;
+    return await http<SettingsResponse>("/settings");
 }
 
 export async function updateSettings(
     payload: UpdateSettingsPayload
 ): Promise<SettingsResponse> {
-    const res = await api.put<SettingsResponse>("/settings", payload);
-    return res.data;
+    return await http<SettingsResponse>("/settings", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
 }

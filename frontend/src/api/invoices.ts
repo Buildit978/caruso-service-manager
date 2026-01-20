@@ -1,5 +1,5 @@
 //frontend/src/api/invoices.ts
-import api from "./client";
+import { http } from "./http";
 import type { Invoice, InvoiceStatus } from "../types/invoice";
 
 export type FinancialSummaryResponse = {
@@ -15,14 +15,12 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // GET /api/invoices
 export async function fetchInvoices(): Promise<Invoice[]> {
-  const res = await api.get<Invoice[]>("/invoices");
-  return res.data;
+  return await http<Invoice[]>("/invoices");
 }
 
 // GET /api/invoices/:id
 export async function fetchInvoiceById(id: string): Promise<Invoice> {
-  const res = await api.get<Invoice>(`/invoices/${id}`);
-  return res.data;
+  return await http<Invoice>(`/invoices/${id}`);
 }
 
 // PDF helper
@@ -32,8 +30,7 @@ export function getInvoicePdfUrl(invoiceId: string) {
 
 // POST /api/invoices/:id/email
 export async function emailInvoice(invoiceId: string) {
-  const res = await api.post(`/invoices/${invoiceId}/email`);
-  return res.data as {
+  return await http<{
     ok: boolean;
     message: string;
     email?: any;
@@ -41,7 +38,9 @@ export async function emailInvoice(invoiceId: string) {
     financialStatus?: string;
     paidAmount?: number;
     balanceDue?: number;
-  };
+  }>(`/invoices/${invoiceId}/email`, {
+    method: "POST",
+  });
 }
 
 // PATCH /api/invoices/:id/status
@@ -50,22 +49,22 @@ export async function updateInvoiceStatus(
   status: InvoiceStatus,
   reason?: string
 ): Promise<Invoice> {
-  const res = await api.patch<Invoice>(
-    `/invoices/${id}/status`,
-    status === "void" ? { status, reason } : { status }
-  );
-  return res.data;
+  return await http<Invoice>(`/invoices/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(status === "void" ? { status, reason } : { status }),
+  });
 }
 
 // GET /api/invoices/financial/summary
 export async function fetchFinancialSummary(
   params?: { from?: string; to?: string }
 ): Promise<FinancialSummaryResponse> {
-  const res = await api.get<FinancialSummaryResponse>(
-    "/invoices/financial/summary",
-    { params }
-  );
-  return res.data;
+  const queryParams = new URLSearchParams();
+  if (params?.from) queryParams.set("from", params.from);
+  if (params?.to) queryParams.set("to", params.to);
+  const query = queryParams.toString();
+  const url = query ? `/invoices/financial/summary?${query}` : "/invoices/financial/summary";
+  return await http<FinancialSummaryResponse>(url);
 }
 
 // POST /api/invoices/:id/pay
@@ -77,6 +76,8 @@ export async function recordInvoicePayment(
     reference?: string;
   }
 ): Promise<Invoice> {
-  const res = await api.post<Invoice>(`/invoices/${invoiceId}/pay`, payload);
-  return res.data;
+  return await http<Invoice>(`/invoices/${invoiceId}/pay`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

@@ -1,5 +1,5 @@
 // frontend/src/api/summary.ts
-import api from './client';
+import { http } from './http';
 
 export type SummaryResponse = {
   totalCustomers: number;
@@ -20,6 +20,5 @@ export type SummaryResponse = {
 };
 
 export async function fetchSummary(): Promise<SummaryResponse> {
-  const res = await api.get<SummaryResponse>("/summary");
-  return res.data;
+  return await http<SummaryResponse>("/summary");
 }

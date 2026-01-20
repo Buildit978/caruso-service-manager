@@ -6,6 +6,7 @@ import {
     type SettingsResponse,
     type DiscountType,
 } from "../api/settings";
+import TokenPanel from "../components/auth/TokenPanel";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -299,6 +300,8 @@ export default function SettingsPage() {
                     {saving ? "Saving…" : "Save Settings"}
                 </button>
             </form>
+
+            <TokenPanel />
         </div>
     );
 }

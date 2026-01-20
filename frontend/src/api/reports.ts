@@ -1,4 +1,4 @@
-import api from "./client";
+import { http } from "./http";
 
 export type YtdMonthlyRevenueResponse = {
   year: number;
@@ -7,6 +7,5 @@ export type YtdMonthlyRevenueResponse = {
 };
 
 export async function fetchYtdMonthlyRevenue(): Promise<YtdMonthlyRevenueResponse> {
-  const res = await api.get<YtdMonthlyRevenueResponse>("/reports/revenue/ytd-monthly");
-  return res.data;
+  return await http<YtdMonthlyRevenueResponse>("/reports/revenue/ytd-monthly");
 }

@@ -9,6 +9,7 @@ import {
   updateWorkOrderStatus,
 } from "../api/workOrders";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
+import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -1032,6 +1033,9 @@ export default function WorkOrderDetailPage() {
           {deleteError ? <div style={{ marginTop: "0.5rem", color: "#ef4444" }}>{deleteError}</div> : null}
         </div>
       ) : null}
+
+      {/* Work Order Messages */}
+      <WorkOrderMessages workOrderId={workOrder._id} />
     </div>
   );
 }

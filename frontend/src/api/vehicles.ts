@@ -1,5 +1,5 @@
 // src/api/vehicles.ts
-import api from "./client";
+import { http } from "./http";
 
 /**
  * Vehicle as returned by the backend
@@ -41,10 +41,7 @@ export interface NewVehiclePayload {
 export async function getCustomerVehicles(
   customerId: string
 ): Promise<Vehicle[]> {
-  const res = await api.get("/vehicles", {
-    params: { customerId },
-  });
-  return res.data;
+  return await http<Vehicle[]>(`/vehicles?customerId=${encodeURIComponent(customerId)}`);
 }
 
 /**
@@ -54,8 +51,10 @@ export async function getCustomerVehicles(
 export async function createVehicle(
   payload: NewVehiclePayload
 ): Promise<Vehicle> {
-  const res = await api.post("/vehicles", payload);
-  return res.data;
+  return await http<Vehicle>("/vehicles", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 /**
@@ -90,8 +89,10 @@ export async function updateCustomerVehicle(
   vehicleId: string,
   data: Partial<NewVehiclePayload>
 ): Promise<Vehicle> {
-  const res = await api.patch(`/vehicles/${vehicleId}`, data);
-  return res.data;
+  return await http<Vehicle>(`/vehicles/${vehicleId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 /**
@@ -102,9 +103,10 @@ export async function deleteCustomerVehicle(
   _customerId: string,
   vehicleId: string
 ): Promise<void> {
-  await api.delete(`/vehicles/${vehicleId}`);
+  await http<void>(`/vehicles/${vehicleId}`, {
+    method: "DELETE",
+  });
 }
 export async function fetchVehicleById(id: string) {
-  const res = await api.get(`/vehicles/${id}`);
-  return res.data;
+  return await http<Vehicle>(`/vehicles/${id}`);
 }

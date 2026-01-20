@@ -1,6 +1,5 @@
 // src/api/customers.ts
-import axios from "axios";
-import api from "./client";
+import { http } from "./http";
 import type { Customer } from "../types/customer";
 
 export type CustomerPayload = {
@@ -39,34 +38,37 @@ export async function fetchCustomers(
   const query = params.toString();
   const url = query ? `/customers?${query}` : "/customers";
 
-  const res = await api.get<Customer[]>(url);
-  return res.data;
+  return await http<Customer[]>(url);
 }
 
 
 export async function fetchCustomer(id: string): Promise<Customer> {
-    const res = await api.get<Customer>(`/customers/${id}`);
-    return res.data;
+    return await http<Customer>(`/customers/${id}`);
 }
 
 export async function createCustomer(payload: CustomerPayload): Promise<Customer> {
-    const res = await api.post<Customer>("/customers", payload);
-    return res.data;
+    return await http<Customer>("/customers", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 }
 
 export async function updateCustomer(
     id: string,
     payload: Partial<CustomerPayload>
 ): Promise<Customer> {
-    const res = await api.put<Customer>(`/customers/${id}`, payload);
-    return res.data;
+    return await http<Customer>(`/customers/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    });
 }
 
 export async function deleteCustomer(id: string): Promise<void> {
-    await api.delete(`/customers/${id}`);
+    await http<void>(`/customers/${id}`, {
+        method: "DELETE",
+    });
 }
 
 export async function fetchCustomerById(customerId: string) {
-  const res = await axios.get(`/api/customers/${customerId}`);
-  return res.data;
+  return await http<any>(`/customers/${customerId}`);
 }

@@ -4,7 +4,6 @@ import { Customer } from "../models/customer.model";
 import { WorkOrder } from "../models/workOrder.model";
 import { Settings } from "../models/settings.model";
 import { Invoice } from "../models/invoice.model";
-import { attachAccountId } from "../middleware/account.middleware";
 import InvoiceModel from "../models/invoice.model";
 import { requireRole } from "../middleware/requireRole";
 
@@ -12,11 +11,7 @@ import { requireRole } from "../middleware/requireRole";
 
 
         const router = express.Router();
-                
-
         router.use(requireRole(["owner", "manager"]));
-
-        router.use(attachAccountId);
 
         /**
          * Get the start of the current week (Monday, 00:00:00)

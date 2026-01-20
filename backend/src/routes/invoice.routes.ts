@@ -3,7 +3,6 @@ import { Types } from "mongoose";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { WorkOrder } from "../models/workOrder.model";
 import Invoice from "../models/invoice.model"; // ✅ default export = runtime model
-import { attachAccountId } from "../middleware/account.middleware";
 import { Vehicle } from "../models/vehicle.model";
 import { Customer } from "../models/customer.model";
 import { buildInvoicePdfBuffer } from "../utils/invoicePdf";
@@ -21,11 +20,6 @@ const router = Router();
 router.get("/__ping", (_req, res) => {
   res.json({ ok: true, where: "invoice.routes.ts" });
 });
-
-/**
- * ✅ Apply account middleware for all real routes
- */
-router.use(attachAccountId);
 
 router.use(requireRole(["owner", "manager"]));
 

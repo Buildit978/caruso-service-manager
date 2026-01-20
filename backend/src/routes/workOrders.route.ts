@@ -3,16 +3,18 @@ import { Types } from 'mongoose';
 import { Router, Request, Response, NextFunction } from 'express';
 import { WorkOrder } from '../models/workOrder.model';
 import { Customer } from '../models/customer.model';
-import { attachAccountId } from '../middleware/account.middleware';
 import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import Invoice from "../models/invoice.model";
+import workOrderMessagesRouter from "./workOrderMessages.route";
+
 
 
 
 const router = Router();
 
-router.use(attachAccountId);
+router.use("/:id/messages", workOrderMessagesRouter);
+
 
 
         async function writeBackVehicleOdometer(opts: {

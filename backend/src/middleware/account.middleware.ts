@@ -8,43 +8,28 @@ declare module "express-serve-static-core" {
   interface Request {
     accountId?: Types.ObjectId;
     actor?: {
+      _id: Types.ObjectId;
       role: ActorRole;
     };
   }
 }
 
-function normalizeRole(raw: unknown): ActorRole {
-  const v = String(raw || "").trim().toLowerCase();
-  if (v === "owner" || v === "manager" || v === "technician") return v;
-  return "owner"; // safe default; preserves current behavior
-}
-
-export function attachAccountId(req: Request, res: Response, next: NextFunction) {
-  const headerId = req.header("x-account-id");
-  const envId = process.env.DEFAULT_ACCOUNT_ID;
-
-  let id: Types.ObjectId | null = null;
-
-  if (headerId && Types.ObjectId.isValid(headerId)) {
-    id = new Types.ObjectId(headerId);
-  } else if (envId && Types.ObjectId.isValid(envId)) {
-    id = new Types.ObjectId(envId);
+/**
+ * Legacy middleware shim.
+ *
+ * In Auth v1, identity comes exclusively from requireAuth (x-auth-token).
+ * This guard simply ensures that downstream routes do not accidentally
+ * run without an authenticated account/actor context.
+ */
+export function ensureAccountContext(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.accountId || !req.actor?._id || !req.actor?.role) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (!id) {
-    console.error(
-      "[account] No valid account id found on request. headerId=%s envId=%s",
-      headerId,
-      envId
-    );
-    return res.status(500).json({ message: "Account not configured on server" });
-  }
-
-  req.accountId = id;
-
-  // ✅ Minimal actor context (no auth system yet)
-  // Later: replace header-based role with real user auth.
-  req.actor = { role: normalizeRole(req.header("x-caruso-role")) };
-
-  next();
+  return next();
 }
+

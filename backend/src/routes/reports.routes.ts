@@ -1,9 +1,12 @@
 import express, { Request, Response } from "express";
-import { attachAccountId } from "../middleware/account.middleware";
 import InvoiceModel from "../models/invoice.model";
+import { requireRole } from "../middleware/requireRole";
 
 const router = express.Router();
-router.use(attachAccountId);
+
+router.use(requireRole(["owner", "manager"]));
+
+
 
 function getStartOfYear(): Date {
   const now = new Date();

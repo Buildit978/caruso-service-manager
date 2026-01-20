@@ -4,23 +4,12 @@ import { Router, Request, Response, NextFunction } from "express";
 import { Vehicle } from "../models/vehicle.model";
 import { Types } from "mongoose";
 import { Customer } from "../models/customer.model";
-import { attachAccountId } from "../middleware/account.middleware";
 
 const router = Router();
-router.use(attachAccountId);
 
 
-// Helper to resolve accountId (SaaS)
-// Uses req.user.accountId if present, otherwise DEFAULT_ACCOUNT_ID from env
 function getAccountId(req: Request): string | undefined {
-  const userAccountId = (req as any).user?.accountId;
-  if (userAccountId) return String(userAccountId);
-
-  if (process.env.DEFAULT_ACCOUNT_ID) {
-    return process.env.DEFAULT_ACCOUNT_ID;
-  }
-
-  return undefined;
+  return req.accountId ? String(req.accountId) : undefined;
 }
 
 /**

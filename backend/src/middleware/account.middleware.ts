@@ -2,17 +2,24 @@
 import type { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 
+type ActorRole = "owner" | "manager" | "technician";
+
 declare module "express-serve-static-core" {
   interface Request {
     accountId?: Types.ObjectId;
+    actor?: {
+      role: ActorRole;
+    };
   }
 }
 
-export function attachAccountId(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+function normalizeRole(raw: unknown): ActorRole {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "owner" || v === "manager" || v === "technician") return v;
+  return "owner"; // safe default; preserves current behavior
+}
+
+export function attachAccountId(req: Request, res: Response, next: NextFunction) {
   const headerId = req.header("x-account-id");
   const envId = process.env.DEFAULT_ACCOUNT_ID;
 
@@ -30,11 +37,14 @@ export function attachAccountId(
       headerId,
       envId
     );
-    return res
-      .status(500)
-      .json({ message: "Account not configured on server" });
+    return res.status(500).json({ message: "Account not configured on server" });
   }
 
   req.accountId = id;
+
+  // ✅ Minimal actor context (no auth system yet)
+  // Later: replace header-based role with real user auth.
+  req.actor = { role: normalizeRole(req.header("x-caruso-role")) };
+
   next();
 }

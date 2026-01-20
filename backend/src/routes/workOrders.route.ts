@@ -108,6 +108,38 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     const accountId = req.accountId;
     if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
+    const isTech = req.actor?.role === "technician";
+
+    const stripMoneyFromWorkOrder = (wo: any) => {
+      const x = { ...wo };
+
+      // WorkOrder-level money fields (remove from tech responses)
+      delete x.subtotal;
+      delete x.taxAmount;
+      delete x.total;
+      delete x.taxRate;
+
+      // Common money-ish fields inside line items (best-effort)
+      if (Array.isArray(x.lineItems)) {
+        x.lineItems = x.lineItems.map((li: any) => {
+          const y = { ...li };
+          delete y.unitPrice;
+          delete y.price;
+          delete y.amount;
+          delete y.cost;
+          delete y.subtotal;
+          delete y.tax;
+          delete y.total;
+          delete y.rate;
+          delete y.hours;
+          return y;
+        });
+      }
+
+      return x;
+    };
+
+
     const {
       view = "active",
       customerId,
@@ -118,10 +150,13 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       customerId?: string;
       sortBy?: "createdAt" | "status";
       sortDir?: "asc" | "desc";
-    };
+      };
+    
+    console.log("[GET /api/work-orders] view=%s role=%s", view, req.actor?.role);
+
 
     const q: any = { accountId };
-  
+
     // Optional customer filter
     if (customerId && Types.ObjectId.isValid(customerId)) {
       q.customerId = new Types.ObjectId(customerId);
@@ -132,13 +167,15 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       q.status = { $in: ["open", "in_progress", "on_hold"] };
       // optional: hide cancelled from active automatically
     } else if (view === "financial") {
+      // 🔒 Financial view returns money-related info; technicians are blocked.
+      if (isTech) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
       q.status = { $in: ["completed", "invoiced"] };
       // TEMP: do not filter by closedAt until we confirm data shape
       q.$or = [{ closedAt: { $exists: false } }, { closedAt: null }];
-    }
-
-    
-    else if (view === "archive") {
+    } else if (view === "archive") {
       // Archive = Paid or Void ONLY (invoice truth)
       const invoiceIds = await Invoice.find({
         accountId,
@@ -161,43 +198,62 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       q.invoiceId = { $in: invoiceIds };
     }
 
-
-  
     // Sorting
     const dir = sortDir === "asc" ? 1 : -1;
     const sort: any =
       sortBy === "status" ? { status: dir, createdAt: -1 } : { createdAt: dir };
-    
-  
+
+    // ✅ Role-aware invoice projection:
+    // - Techs get lifecycle-only (no money fields)
+    // - Owner/Manager get full financial fields
+    const invoiceSelect = isTech
+      ? "status invoiceNumber sentAt paidAt voidedAt"
+      : "status invoiceNumber sentAt paidAt voidedAt total paidAmount balanceDue payments";
 
     const workOrders = await WorkOrder.find(q)
       .sort(sort)
       .populate("customerId", "name fullName firstName lastName address") // optional
-      .populate(
-        "invoiceId",
-        "status invoiceNumber sentAt paidAt voidedAt total paidAmount balanceDue payments"
-      )
+      .populate("invoiceId", invoiceSelect)
       .lean();
 
     // Normalize shape + attach authoritative financialStatus (no frontend compute)
     const normalized = workOrders.map((wo: any) => {
       const customer =
-        wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined;
+        wo.customerId && typeof wo.customerId === "object"
+          ? wo.customerId
+          : undefined;
 
       const invoiceObj =
-        wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined;
+        wo.invoiceId && typeof wo.invoiceId === "object"
+          ? wo.invoiceId
+          : undefined;
 
       let invoice = invoiceObj;
 
       if (invoiceObj) {
-        const fin = computeInvoiceFinancials({
-          total: Number(invoiceObj.total ?? 0),
-          payments: Array.isArray(invoiceObj.payments) ? invoiceObj.payments : [],
-          paidAmount: Number(invoiceObj.paidAmount ?? 0),
-          balanceDue: Number(invoiceObj.balanceDue ?? 0),
-        } as any);
+        // Only compute financials when money fields exist (owner/manager).
+        // This also prevents accidental "0" computations for technicians.
+        const hasMoneyFields =
+          typeof (invoiceObj as any).total !== "undefined" ||
+          typeof (invoiceObj as any).paidAmount !== "undefined" ||
+          typeof (invoiceObj as any).balanceDue !== "undefined" ||
+          Array.isArray((invoiceObj as any).payments);
 
-        invoice = { ...invoiceObj, ...fin };
+        if (!isTech && hasMoneyFields) {
+          const fin = computeInvoiceFinancials({
+            total: Number((invoiceObj as any).total ?? 0),
+            payments: Array.isArray((invoiceObj as any).payments)
+              ? (invoiceObj as any).payments
+              : [],
+            paidAmount: Number((invoiceObj as any).paidAmount ?? 0),
+            balanceDue: Number((invoiceObj as any).balanceDue ?? 0),
+          } as any);
+
+          invoice = { ...invoiceObj, ...fin };
+        } else {
+          // Technician: keep invoice lifecycle/status only (no financialStatus computed)
+          invoice = invoiceObj;
+        }
       }
 
       return { ...wo, customer, invoice };
@@ -222,11 +278,17 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     }
 
     // ✅ IMPORTANT: return result (not raw workOrders)
-    return res.json(result);
-      } catch (err) {
+   if (isTech) {
+  return res.json(result.map(stripMoneyFromWorkOrder));
+}
+
+return res.json(result);
+
+  } catch (err) {
     next(err);
   }
 });
+
 
 
 

@@ -11,7 +11,7 @@ import { getMailer } from "../utils/mailer";
 import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/invoices/invoiceLifecycle";
 import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
-
+import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -26,6 +26,8 @@ router.get("/__ping", (_req, res) => {
  * ✅ Apply account middleware for all real routes
  */
 router.use(attachAccountId);
+
+router.use(requireRole(["owner", "manager"]));
 
 /**
  * Generate the next invoice number for a given account.

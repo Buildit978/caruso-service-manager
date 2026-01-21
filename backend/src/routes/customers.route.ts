@@ -3,6 +3,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { Customer } from '../models/customer.model';  // 👈 named import
 import { Vehicle } from '../models/vehicle.model';
 import { WorkOrder } from '../models/workOrder.model';
+import { requireRole } from '../middleware/requireRole';
+import { sanitizeCustomerForActor, sanitizeCustomersForActor } from '../utils/customerRedaction';
 
 const router = Router();
 
@@ -16,9 +18,10 @@ interface VehicleBody {
     notes ?: string;
 }
 
-            // GET /api/customers?search=...
+            // GET /api/customers?search=... (owner/manager only)
            router.get(
   "/",
+  requireRole(["owner", "manager"]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const accountId = req.accountId;
@@ -110,7 +113,11 @@ interface VehicleBody {
         openWorkOrders: countsByCustomer[c._id.toString()] ?? 0,
       }));
 
-      res.json(enriched);
+      // Redact PII for technicians
+      const actorRole = (req as any).actor?.role || "owner";
+      const sanitized = sanitizeCustomersForActor(enriched, actorRole);
+
+      res.json(sanitized);
     } catch (err) {
       next(err);
     }
@@ -118,8 +125,8 @@ interface VehicleBody {
 );
 
 
-// GET /api/customers/:id
-            router.get("/:id", async (req, res, next) => {
+// GET /api/customers/:id (owner/manager only)
+            router.get("/:id", requireRole(["owner", "manager"]), async (req, res, next) => {
             try {
                 const accountId = req.accountId;
                 if (!accountId) {
@@ -175,8 +182,8 @@ interface VehicleBody {
             );
 
 
-// POST /api/customers
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/customers (owner/manager only)
+router.post('/', requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
     try {
 
          const accountId = req.accountId;
@@ -203,9 +210,10 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 
-// POST /api/customers/:id/vehicles
+// POST /api/customers/:id/vehicles (owner/manager only)
             router.post(
             "/:id/vehicles",
+            requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
                 const accountId = req.accountId;
@@ -244,9 +252,10 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 
 
-// PATCH /api/customers/:customerId/vehicles/:vehicleId
+// PATCH /api/customers/:customerId/vehicles/:vehicleId (owner/manager only)
             router.patch(
             "/:customerId/vehicles/:vehicleId",
+            requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
                 const accountId = req.accountId;
@@ -279,9 +288,10 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
             );
 
 
-// DELETE /api/customers/:customerId/vehicles/:vehicleId
+// DELETE /api/customers/:customerId/vehicles/:vehicleId (owner/manager only)
             router.delete(
             "/:customerId/vehicles/:vehicleId",
+            requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
                 const accountId = req.accountId;
@@ -310,8 +320,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 
 
-// PUT /api/customers/:id
-            router.put("/:id", async (req, res, next) => {
+// PUT /api/customers/:id (owner/manager only)
+            router.put("/:id", requireRole(["owner", "manager"]), async (req, res, next) => {
             try {
                 const accountId = req.accountId;
                 if (!accountId) {
@@ -337,8 +347,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
 
 
-// DELETE /api/customers/:id
-            router.delete("/:id", async (req, res, next) => {
+// DELETE /api/customers/:id (owner/manager only)
+            router.delete("/:id", requireRole(["owner", "manager"]), async (req, res, next) => {
             try {
                 const accountId = req.accountId;
                 if (!accountId) {

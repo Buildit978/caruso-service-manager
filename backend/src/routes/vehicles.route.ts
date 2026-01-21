@@ -4,6 +4,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { Vehicle } from "../models/vehicle.model";
 import { Types } from "mongoose";
 import { Customer } from "../models/customer.model";
+import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -13,10 +14,10 @@ function getAccountId(req: Request): string | undefined {
 }
 
 /**
- * GET /api/vehicles?customerId=123
+ * GET /api/vehicles?customerId=123 (owner/manager only)
  * Returns all vehicles for a given customer
  */
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { customerId } = req.query;
 
@@ -39,10 +40,10 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 });
 
 /**
- * POST /api/vehicles
+ * POST /api/vehicles (owner/manager only)
  * Creates a new vehicle for a customer
  */
-router.post("/", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = getAccountId(req);
     if (!accountId) {
@@ -98,8 +99,8 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// GET /api/vehicles/:id  (vehicle subdoc id)
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/vehicles/:id  (owner/manager only)
+router.get("/:id", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
     if (!accountId) {

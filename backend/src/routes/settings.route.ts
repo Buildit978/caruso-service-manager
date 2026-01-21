@@ -1,8 +1,12 @@
 // backend/src/routes/settings.route.ts
 import express from "express";
 import { Settings } from "../models/settings.model";
+import { requireRole } from "../middleware/requireRole";
 
 const router = express.Router();
+
+// All settings routes require owner or manager role
+router.use(requireRole(["owner", "manager"]));
 
 // Helper: always return a settings doc (create default if none)
 async function getOrCreateSettings() {

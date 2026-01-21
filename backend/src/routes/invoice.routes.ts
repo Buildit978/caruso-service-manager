@@ -11,6 +11,7 @@ import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/i
 import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import { requireRole } from "../middleware/requireRole";
+import { sanitizeCustomerForActor } from "../utils/customerRedaction";
 
 const router = Router();
 

@@ -7,6 +7,8 @@ import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import Invoice from "../models/invoice.model";
 import workOrderMessagesRouter from "./workOrderMessages.route";
+import { sanitizeCustomerForActor } from "../utils/customerRedaction";
+import { requireRole } from "../middleware/requireRole";
 
 
 
@@ -212,18 +214,31 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       ? "status invoiceNumber sentAt paidAt voidedAt"
       : "status invoiceNumber sentAt paidAt voidedAt total paidAmount balanceDue payments";
 
+    // ✅ Role-aware customer projection:
+    // - Techs get name-only (no PII: phone/email/address/notes)
+    // - Owner/Manager get full customer data
+    const customerSelect = isTech
+      ? "firstName lastName fullName"
+      : "firstName lastName fullName phone email address notes";
+
     const workOrders = await WorkOrder.find(q)
       .sort(sort)
-      .populate("customerId", "name fullName firstName lastName address") // optional
+      .populate("customerId", customerSelect)
       .populate("invoiceId", invoiceSelect)
       .lean();
 
-    // Normalize shape + attach authoritative financialStatus (no frontend compute)
-    const normalized = workOrders.map((wo: any) => {
-      const customer =
-        wo.customerId && typeof wo.customerId === "object"
-          ? wo.customerId
-          : undefined;
+      // Normalize shape + attach authoritative financialStatus (no frontend compute)
+      const actorRole = req.actor?.role || "owner";
+      const normalized = workOrders.map((wo: any) => {
+        let customer =
+          wo.customerId && typeof wo.customerId === "object"
+            ? wo.customerId
+            : undefined;
+
+        // Redact customer PII for technicians
+        if (customer) {
+          customer = sanitizeCustomerForActor(customer, actorRole);
+        }
 
       const invoiceObj =
         wo.invoiceId && typeof wo.invoiceId === "object"
@@ -304,19 +319,36 @@ return res.json(result);
         const accountId = req.accountId;
         if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
+        const isTech = req.actor?.role === "technician";
+
         const { id } = req.params;
         if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid id" });
 
+        // ✅ Role-aware customer projection:
+        // - Techs get name-only (no PII: phone/email/address/notes)
+        // - Owner/Manager get full customer data
+        const customerSelect = isTech
+          ? "firstName lastName fullName"
+          : "firstName lastName fullName phone email address notes";
+
         const wo = await WorkOrder.findOne({ _id: id, accountId })
-          .populate("customerId", "name fullName firstName lastName phone email address ")
+          .populate("customerId", customerSelect)
           .populate("invoiceId", "status invoiceNumber sentAt paidAt voidedAt lineItems subtotal taxAmount total")
           .lean();
 
         if (!wo) return res.status(404).json({ message: "Work order not found" });
 
+        // Additional sanitization layer (defense in depth)
+        // Even though populate is restricted, sanitizeCustomerForActor ensures no PII leaks
+        const actorRole = req.actor?.role || "owner";
+        let customer = wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined;
+        if (customer) {
+          customer = sanitizeCustomerForActor(customer, actorRole);
+        }
+
         res.json({
           ...wo,
-          customer: wo.customerId && typeof wo.customerId === "object" ? wo.customerId : undefined,
+          customer,
           invoice: wo.invoiceId && typeof wo.invoiceId === "object" ? wo.invoiceId : undefined,
         });
       } catch (err) {
@@ -503,12 +535,12 @@ return res.json(result);
 
 
     /**
-     * PATCH /api/work-orders/:id
+     * PATCH /api/work-orders/:id (owner/manager only)
      * Safe patch: whitelist + run hooks via save()
      */
     // PATCH /api/work-orders/:id
     // Safe patch: whitelist + lifecycle + totals recalculation + runs schema hooks via save()
-    router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
+    router.patch("/:id", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
       try {
         const accountId = req.accountId;
         if (!accountId) return res.status(400).json({ message: "Missing accountId" });
@@ -684,6 +716,19 @@ return res.json(result);
             });
           }
 
+          // ✅ RBAC: Technicians can only transition to operational statuses
+          const actorRole = req.actor?.role;
+          const isTech = actorRole === "technician";
+          
+          if (isTech) {
+            const techAllowedStatuses = ["in_progress", "on_hold", "completed"];
+            if (!techAllowedStatuses.includes(nextStatus)) {
+              return res.status(403).json({
+                message: `Technicians can only set status to: ${techAllowedStatuses.join(", ")}. Requested status "${nextStatus}" is not allowed.`,
+              });
+            }
+          }
+
           // Fetch scoped by accountId
           const workOrder = await WorkOrder.findOne({ _id: id, accountId });
           if (!workOrder)
@@ -761,8 +806,10 @@ return res.json(result);
 
 
 
+    // DELETE /api/work-orders/:id (owner/manager only)
     router.delete(
       "/:id",
+      requireRole(["owner", "manager"]),
       async (req: Request, res: Response, next: NextFunction) => {
         try {
           const accountId = req.accountId;

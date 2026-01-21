@@ -39,10 +39,18 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     // If you have technician scoping to assigned WOs, enforce it here.
     // Minimal version: if actor can fetch WO detail today, allow this too.
 
-    const items = await WorkOrderMessageModel.find({
+    // Technicians only see internal messages
+    const isTech = actor.role === "technician";
+    const query: any = {
       accountId,
       workOrderId: wo._id,
-    })
+    };
+
+    if (isTech) {
+      query.visibility = "internal";
+    }
+
+    const items = await WorkOrderMessageModel.find(query)
       .sort({ createdAt: 1 }) // chronological read
       .lean();
 
@@ -71,13 +79,17 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     if (rawBody.length > 2000)
       return res.status(400).json({ message: "body too long (max 2000)" });
 
-    const channel =
-      req.body?.channel === "customer" ? "customer" : "internal";
+    // Technicians are forced to internal only
+    const isTech = actor.role === "technician";
+    const requestedVisibility = req.body?.visibility || req.body?.channel || "internal";
+    const visibility = isTech ? "internal" : (requestedVisibility === "customer" ? "customer" : "internal");
+    const channel = visibility; // keep channel for backward compat
 
     const doc = await WorkOrderMessageModel.create({
       accountId,
       workOrderId: wo._id,
       channel,
+      visibility,
       body: rawBody,
       actor: {
         id: actor._id,

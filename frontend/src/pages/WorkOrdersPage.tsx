@@ -359,7 +359,7 @@ const title =
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Page Header */}
-     <div className="mb-6">
+     <div style={{ marginBottom: "40px" }}>
   <div
     style={{
       maxWidth: "1100px",
@@ -501,8 +501,6 @@ const title =
   </div>
 </div>
 
-      <div className="mt-6"></div>
-
       {displayedWorkOrders.length === 0 ? (
         <p className="text-sm text-slate-500">
           {customerId
@@ -596,8 +594,8 @@ const title =
                     {/* ✅ Invoice / Financial Status */}
                     <td className="px-4 py-2 whitespace-nowrap">
                       {inv ? (
-                        <div className="flex items-center gap-2">
-                          {/* ✅ Make pill clickable when invoice exists */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                          {/* ✅ Status Badge - separate element */}
                           {canOpenInvoice ? (
                             <button
                                 type="button"
@@ -615,8 +613,6 @@ const title =
                               >
                                 {label}
                               </button>
-
-
                           ) : (
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${invoicePillClass(
@@ -627,6 +623,7 @@ const title =
                             </span>
                           )}
 
+                          {/* ✅ Monetary text - separate element */}
                           {detail ? (
                             <span className="text-slate-600">{detail}</span>
                           ) : null}

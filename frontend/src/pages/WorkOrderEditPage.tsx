@@ -6,6 +6,8 @@ import type { Customer } from "../types/customer";
 import { fetchWorkOrder, updateWorkOrder } from "../api/workOrders";
 import ConfirmLeaveModal from "../components/ConfirmLeaveModal";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import type { HttpError } from "../api/http";
+import { detectRole } from "../utils/roleDetection";
 
 
 // Helper: parse "Qty / Hours" input.
@@ -62,6 +64,7 @@ function requestNavigation(action: () => void) {
   const [lineItems, setLineItems] = useState<WorkOrderLineItem[]>([]);
   const [quantityInputs, setQuantityInputs] = useState<string[]>([]);
   const [taxRate, setTaxRate] = useState<number>(13);
+  const [canSeePricing, setCanSeePricing] = useState<boolean>(false); // deny-by-default
 
   // Load work order
   useEffect(() => {
@@ -82,6 +85,10 @@ function requestNavigation(action: () => void) {
           )
         );
         setTaxRate(data.taxRate ?? 13);
+
+        // Determine if user can see pricing (deny-by-default: only owner/manager)
+        const role = detectRole();
+        setCanSeePricing(role === "owner" || role === "manager");
 
         setForm({
           complaint: data.complaint || "",
@@ -177,11 +184,22 @@ function requestNavigation(action: () => void) {
       taxRate,
     };
 
-    await updateWorkOrder(workOrder._id, payload);
-    markClean();  // ✅ mark page as having no unsaved changes
+    try {
+      await updateWorkOrder(workOrder._id, payload);
+      markClean();  // ✅ mark page as having no unsaved changes
 
-    alert("✅ Work order updated");
-    navigate(`/work-orders/${workOrder._id}`);
+      alert("✅ Work order updated");
+      navigate(`/work-orders/${workOrder._id}`);
+    } catch (err: any) {
+      const httpError = err as HttpError;
+      
+      // Friendly 403 message
+      if (httpError?.status === 403) {
+        alert("You don't have permission to edit work order details.");
+      } else {
+        throw err; // Re-throw for outer catch
+      }
+    }
   };
 
   const handleLineItemChange = (
@@ -758,16 +776,20 @@ function requestNavigation(action: () => void) {
                       >
                         Qty / Hours
                       </th>
-                      <th
-                        style={{ textAlign: "right", padding: "8px 12px" }}
-                      >
-                        Unit Price
-                      </th>
-                      <th
-                        style={{ textAlign: "right", padding: "8px 12px" }}
-                      >
-                        Line Total
-                      </th>
+                      {canSeePricing && (
+                        <>
+                          <th
+                            style={{ textAlign: "right", padding: "8px 12px" }}
+                          >
+                            Unit Price
+                          </th>
+                          <th
+                            style={{ textAlign: "right", padding: "8px 12px" }}
+                          >
+                            Line Total
+                          </th>
+                        </>
+                      )}
                       <th
                         style={{ padding: "8px 12px", width: "1%" }}
                       />
@@ -777,7 +799,7 @@ function requestNavigation(action: () => void) {
                     {(!lineItems || lineItems.length === 0) && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={canSeePricing ? 6 : 4}
                           style={{
                             padding: "12px",
                             textAlign: "center",
@@ -891,51 +913,60 @@ function requestNavigation(action: () => void) {
                           </td>
 
                           {/* Unit Price */}
-                          <td
-                            style={{
-                              padding: "8px 12px",
-                              textAlign: "right",
-                            }}
-                          >
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              value={unitPrice === 0 ? "" : unitPrice}
-                              onChange={(e) =>
-                                handleLineItemChange(
-                                  index,
-                                  "unitPrice",
-                                  e.target.value
-                                )
-                              }
-                              placeholder={
-                                item.type === "labour"
-                                  ? "Rate/hr"
-                                  : "Price"
-                              }
-                              style={{
-                                width: "140px",
-                                border: "1px solid #4b5563",
-                                borderRadius: "4px",
-                                padding: "4px 8px",
-                                fontSize: "0.85rem",
-                                textAlign: "right",
-                                backgroundColor: "#020617",
-                                color: "#e5e7eb",
-                              }}
-                            />
-                          </td>
+                          {canSeePricing ? (
+                            <>
+                              <td
+                                style={{
+                                  padding: "8px 12px",
+                                  textAlign: "right",
+                                }}
+                              >
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  value={unitPrice === 0 ? "" : unitPrice}
+                                  onChange={(e) =>
+                                    handleLineItemChange(
+                                      index,
+                                      "unitPrice",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder={
+                                    item.type === "labour"
+                                      ? "Rate/hr"
+                                      : "Price"
+                                  }
+                                  style={{
+                                    width: "140px",
+                                    border: "1px solid #4b5563",
+                                    borderRadius: "4px",
+                                    padding: "4px 8px",
+                                    fontSize: "0.85rem",
+                                    textAlign: "right",
+                                    backgroundColor: "#020617",
+                                    color: "#e5e7eb",
+                                  }}
+                                />
+                              </td>
 
-                          {/* Line Total */}
-                          <td
-                            style={{
-                              padding: "8px 12px",
-                              textAlign: "right",
-                            }}
-                          >
-                            {formatMoney(lineTotal)}
-                          </td>
+                              {/* Line Total */}
+                              <td
+                                style={{
+                                  padding: "8px 12px",
+                                  textAlign: "right",
+                                }}
+                              >
+                                {formatMoney(lineTotal)}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
+                            </>
+                          )}
 
                           {/* Remove */}
                           <td
@@ -968,70 +999,72 @@ function requestNavigation(action: () => void) {
               </div>
 
               {/* Totals */}
-              <div
-                style={{
-                  marginTop: "12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: "4px",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <div style={{ display: "flex", gap: "12px" }}>
-                  <span style={{ fontWeight: 600 }}>Subtotal:</span>
-                  <span>${formatMoney(computedSubtotal)}</span>
-                </div>
-
+              {canSeePricing && (
                 <div
                   style={{
+                    marginTop: "12px",
                     display: "flex",
-                    gap: "8px",
-                    alignItems: "center",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "4px",
+                    fontSize: "0.9rem",
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>Tax Rate:</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={taxRate}
-                    onChange={(e) => {
-                      markDirty(); // ✅ mark page as having unsaved changes
-                      setTaxRate(Number(e.target.value) || 0)
-                    }}
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <span style={{ fontWeight: 600 }}>Subtotal:</span>
+                    <span>${formatMoney(computedSubtotal)}</span>
+                  </div>
+
+                  <div
                     style={{
-                      width: "80px",
-                      border: "1px solid #4b5563",
-                      borderRadius: "4px",
-                      padding: "4px 8px",
-                      fontSize: "0.85rem",
-                      textAlign: "right",
-                      backgroundColor: "#020617",
-                      color: "#e5e7eb",
+                      display: "flex",
+                      gap: "8px",
+                      alignItems: "center",
                     }}
-                  />
-                  <span>%</span>
-                </div>
+                  >
+                    <span style={{ fontWeight: 600 }}>Tax Rate:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={taxRate}
+                      onChange={(e) => {
+                        markDirty(); // ✅ mark page as having unsaved changes
+                        setTaxRate(Number(e.target.value) || 0)
+                      }}
+                      style={{
+                        width: "80px",
+                        border: "1px solid #4b5563",
+                        borderRadius: "4px",
+                        padding: "4px 8px",
+                        fontSize: "0.85rem",
+                        textAlign: "right",
+                        backgroundColor: "#020617",
+                        color: "#e5e7eb",
+                      }}
+                    />
+                    <span>%</span>
+                  </div>
 
-                <div style={{ display: "flex", gap: "12px" }}>
-                  <span style={{ fontWeight: 600 }}>Tax Amount:</span>
-                  <span>${formatMoney(computedTaxAmount)}</span>
-                </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <span style={{ fontWeight: 600 }}>Tax Amount:</span>
+                    <span>${formatMoney(computedTaxAmount)}</span>
+                  </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "12px",
-                    fontWeight: 700,
-                    fontSize: "1rem",
-                    marginTop: "4px",
-                  }}
-                >
-                  <span>Total:</span>
-                  <span>${formatMoney(computedTotal)}</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      fontWeight: 700,
+                      fontSize: "1rem",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <span>Total:</span>
+                    <span>${formatMoney(computedTotal)}</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
 
             {/* Footer buttons */}

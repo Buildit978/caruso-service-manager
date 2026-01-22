@@ -1,6 +1,8 @@
 // src/components/layout/Layout.tsx
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useSettingsAccess } from '../../contexts/SettingsAccessContext'
+import { useAccess } from '../../contexts/AccessContext'
 
 interface LayoutProps {
     children: ReactNode
@@ -8,6 +10,8 @@ interface LayoutProps {
 
 function Layout({ children }: LayoutProps) {
     const location = useLocation()
+    const { hasAccess } = useSettingsAccess()
+    const { customersAccess, vehiclesAccess } = useAccess()
 
     const linkStyle = (path: string) => ({
         display: 'block',
@@ -18,6 +22,13 @@ function Layout({ children }: LayoutProps) {
         fontSize: '0.9rem',
         color: location.pathname === path ? '#fff' : '#e5e7eb',
         background: location.pathname === path ? '#1f74d4' : 'transparent',
+    })
+
+    const disabledLinkStyle = (path: string) => ({
+        ...linkStyle(path),
+        opacity: 0.5,
+        cursor: 'not-allowed',
+        pointerEvents: 'none' as const,
     })
 
     return (
@@ -37,6 +48,10 @@ function Layout({ children }: LayoutProps) {
                     borderRight: '1px solid #1f2937',
                     background: '#020617',
                     flexShrink: 0,
+                    position: 'sticky',
+                    top: 0,
+                    height: '100vh',
+                    overflowY: 'auto',
                 }}
             >
                 <h1
@@ -55,17 +70,27 @@ function Layout({ children }: LayoutProps) {
                     <Link to="/work-orders" style={linkStyle('/work-orders')}>
                         Work Orders
           </Link>
-                    <Link to="/customers" style={linkStyle('/customers')}>
-                        Customers
-         </Link>
-
-                    <Link to="/vehicles" style={linkStyle('/vehicles')}>
-                        Vehicles
-         </Link>  
                     
-                    <Link to="/settings" style={linkStyle('/settings')}>
-                        Settings
-          </Link>
+                    {/* Customers link: hide only if server confirmed 403 (customersAccess === false) */}
+                    {customersAccess !== false && (
+                        <Link to="/customers" style={linkStyle('/customers')}>
+                            Customers
+                        </Link>
+                    )}
+
+                    {/* Vehicles link: hide only if server confirmed 403 (vehiclesAccess === false) */}
+                    {vehiclesAccess !== false && (
+                        <Link to="/vehicles" style={linkStyle('/vehicles')}>
+                            Vehicles
+                        </Link>
+                    )}
+                    
+                    {/* Settings link: hide only if server confirmed 403 (hasAccess === false) */}
+                    {hasAccess !== false && (
+                        <Link to="/settings" style={linkStyle('/settings')}>
+                            Settings
+                        </Link>
+                    )}
                     
                 </nav>
                 <p

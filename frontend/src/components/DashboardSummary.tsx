@@ -6,6 +6,7 @@ import { fetchSummary, type SummaryResponse } from "../api/summary";
 import { fetchFinancialSummary } from "../api/invoices";
 import { isOutstanding, getOutstandingBalance } from "../utils/outstanding";
 import { formatMoney } from "../utils/money"; // assuming you use this
+import type { HttpError } from "../api/http";
 
 
 
@@ -14,6 +15,7 @@ export function DashboardSummary() {
     const [data, setData] = useState<SummaryResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [errorStatus, setErrorStatus] = useState<number | null>(null);
     const navigate = useNavigate();                   // 👈 NEW
     
     type PaidScope = "today" | "week" | "month" | "ytd";
@@ -81,7 +83,20 @@ useEffect(() => {
     } catch (err) {
       console.error("Failed to load dashboard", err);
       if (!isMounted) return;
-      setError("Unable to load dashboard summary.");
+
+      const httpError = err as HttpError;
+      
+      // Track error status for conditional rendering
+      setErrorStatus(httpError?.status || null);
+      
+      // Friendly permission-aware error messages
+      if (httpError.status === 401) {
+        setError("Not signed in. Add a token in Settings (Dev) to continue.");
+      } else if (httpError.status === 403) {
+        setError(null); // Don't show generic error, we'll render the Access Restricted card
+      } else {
+        setError("Unable to load dashboard summary.");
+      }
     } finally {
         if (isMounted) {           
             setLoading(false);
@@ -105,11 +120,78 @@ useEffect(() => {
         );
     }
 
-if (error || !data || !financial) {
+    // Handle 403 - Access Restricted (same styling as Settings page)
+    if (errorStatus === 403) {
+        return (
+            <div className="dashboard">
+                <header className="dashboard__header">
+                    <div>
+                        <h1 className="dashboard__title">Caruso Service Manager</h1>
+                        <p className="dashboard__subtitle">
+                            Quick snapshot of the shop&apos;s workload and revenue.
+                        </p>
+                    </div>
+                </header>
+                <div
+                    style={{
+                        maxWidth: "500px",
+                        margin: "2rem auto",
+                        padding: "1.5rem",
+                        border: "1px solid #fbbf24",
+                        borderRadius: "0.5rem",
+                        background: "rgba(251, 191, 36, 0.1)",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, color: "#fbbf24", fontSize: "1.2rem" }}>
+                        Access Restricted
+                    </h2>
+                    <p style={{ color: "#e5e7eb", lineHeight: 1.6 }}>
+                        Dashboard summary is available only to owners and managers. If you need access, please contact your administrator.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Handle 401 - Not signed in (similar card styling but different message)
+    if (errorStatus === 401) {
+        return (
+            <div className="dashboard">
+                <header className="dashboard__header">
+                    <div>
+                        <h1 className="dashboard__title">Caruso Service Manager</h1>
+                        <p className="dashboard__subtitle">
+                            Quick snapshot of the shop&apos;s workload and revenue.
+                        </p>
+                    </div>
+                </header>
+                <div
+                    style={{
+                        maxWidth: "500px",
+                        margin: "2rem auto",
+                        padding: "1.5rem",
+                        border: "1px solid #4b5563",
+                        borderRadius: "0.5rem",
+                        background: "rgba(75, 85, 99, 0.1)",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, color: "#e5e7eb", fontSize: "1.2rem" }}>
+                        Not Signed In
+                    </h2>
+                    <p style={{ color: "#e5e7eb", lineHeight: 1.6 }}>
+                        {error || "Not signed in. Add a token in Settings (Dev) to continue."}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Handle other errors (network, 500, etc.)
+    if (error || !data || !financial) {
         return (
             <div className="dashboard">
                 <p className="dashboard__status dashboard__status--error">
-                    Error: {error ?? "No summary data available."}
+                    {error || "No summary data available."}
                 </p>
             </div>
         );

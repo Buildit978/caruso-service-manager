@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fetchCustomer, updateCustomer, type CustomerPayload } from "../api/customers";
+import type { HttpError } from "../api/http";
 
 type CustomerForm = {
   firstName: string;
@@ -86,8 +87,16 @@ export default function CustomerEditPage() {
       navigate(returnTo);
     } catch (err: any) {
       console.error("[Customer Edit] Failed to update customer", err);
-      setError(err.message || "Failed to update customer.");
-      alert("❌ Failed to update customer.");
+      const httpError = err as HttpError;
+      
+      // Friendly 403 message
+      if (httpError?.status === 403) {
+        setError("You don't have permission to edit customer details.");
+        alert("You don't have permission to edit customer details.");
+      } else {
+        setError(err.message || "Failed to update customer.");
+        alert("❌ Failed to update customer.");
+      }
     } finally {
       setSaving(false);
     }

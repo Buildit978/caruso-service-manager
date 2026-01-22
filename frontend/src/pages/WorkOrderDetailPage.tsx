@@ -10,6 +10,7 @@ import {
 } from "../api/workOrders";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
+import { detectRole } from "../utils/roleDetection";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -210,6 +211,10 @@ export default function WorkOrderDetailPage() {
     `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() ||
     "(No name)";
 
+  // Determine if user can see pricing (deny-by-default: only owner/manager)
+  const role = detectRole();
+  const canSeePricing = role === "owner" || role === "manager";
+
   // ✏️ Edit button
   function handleEdit() {
     if (!workOrder) return;
@@ -402,9 +407,16 @@ export default function WorkOrderDetailPage() {
       setHasUnsavedChanges(false);
 
       alert("✅ Line items saved.");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("❌ Failed to save line items.");
+      const httpError = err as any;
+      
+      // Friendly 403 message
+      if (httpError?.status === 403) {
+        alert("You don't have permission to edit work order details.");
+      } else {
+        alert("❌ Failed to save line items.");
+      }
     } finally {
       setSaving(false);
     }
@@ -807,8 +819,12 @@ export default function WorkOrderDetailPage() {
                 <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600 }}>Type</th>
                 <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600 }}>Description</th>
                 <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 600 }}>Qty / Hours</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 600 }}>Unit Price</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 600 }}>Line Total</th>
+                {canSeePricing && (
+                  <>
+                    <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 600 }}>Unit Price</th>
+                    <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 600 }}>Line Total</th>
+                  </>
+                )}
                 <th style={{ padding: "8px 12px", width: "1%" }} />
               </tr>
             </thead>
@@ -816,8 +832,8 @@ export default function WorkOrderDetailPage() {
             <tbody>
               {normalizedLineItems.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: "12px", textAlign: "center", color: "#6b7280" }}>
-                    No line items yet. Click “Add Line” to get started.
+                  <td colSpan={canSeePricing ? 6 : 4} style={{ padding: "12px", textAlign: "center", color: "#6b7280" }}>
+                    No line items yet. Click "Add Line" to get started.
                   </td>
                 </tr>
               )}
@@ -874,24 +890,32 @@ export default function WorkOrderDetailPage() {
                     />
                   </td>
 
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                    <input
-                      type="text"
-                      value={item.rawUnitPrice ?? ""}
-                      onChange={(e) => handleLineItemChange(index, "rawUnitPrice", e.target.value)}
-                      style={{
-                        width: "110px",
-                        border: "1px solid #d1d5db",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        fontSize: "0.85rem",
-                        textAlign: "right",
-                      }}
-                      placeholder="$0.00"
-                    />
-                  </td>
-
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{item.lineTotal.toFixed(2)}</td>
+                  {canSeePricing ? (
+                    <>
+                      <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                        <input
+                          type="text"
+                          value={item.rawUnitPrice ?? ""}
+                          onChange={(e) => handleLineItemChange(index, "rawUnitPrice", e.target.value)}
+                          style={{
+                            width: "110px",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "8px",
+                            padding: "6px 10px",
+                            fontSize: "0.85rem",
+                            textAlign: "right",
+                          }}
+                          placeholder="$0.00"
+                        />
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right" }}>{item.lineTotal.toFixed(2)}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
+                    </>
+                  )}
 
                   <td style={{ padding: "8px 12px", textAlign: "right" }}>
                     <button
@@ -915,44 +939,45 @@ export default function WorkOrderDetailPage() {
         </div>
 
         {/* Totals + Save */}
-        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
-          <div style={{ minWidth: "300px", textAlign: "right" }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <span style={{ fontWeight: 600 }}>Subtotal:</span>
-              <span>${displaySubtotal.toFixed(2)}</span>
-            </div>
+        {canSeePricing && (
+          <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ minWidth: "300px", textAlign: "right" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+                <span style={{ fontWeight: 600 }}>Subtotal:</span>
+                <span>${displaySubtotal.toFixed(2)}</span>
+              </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center", marginTop: "6px" }}>
-              <span style={{ fontWeight: 600 }}>Tax Rate:</span>
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={taxRate}
-                onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
-                style={{
-                  width: "80px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  padding: "6px 10px",
-                  fontSize: "0.85rem",
-                  textAlign: "right",
-                }}
-              />
-              <span>%</span>
-            </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center", marginTop: "6px" }}>
+                <span style={{ fontWeight: 600 }}>Tax Rate:</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+                  style={{
+                    width: "80px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "8px",
+                    padding: "6px 10px",
+                    fontSize: "0.85rem",
+                    textAlign: "right",
+                  }}
+                />
+                <span>%</span>
+              </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "6px" }}>
-              <span style={{ fontWeight: 600 }}>Tax Amount:</span>
-              <span>${displayTaxAmount.toFixed(2)}</span>
-            </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "6px" }}>
+                <span style={{ fontWeight: 600 }}>Tax Amount:</span>
+                <span>${displayTaxAmount.toFixed(2)}</span>
+              </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", fontWeight: 800, fontSize: "1rem", marginTop: "8px" }}>
-              <span>Total:</span>
-              <span>${displayTotal.toFixed(2)}</span>
-            </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", fontWeight: 800, fontSize: "1rem", marginTop: "8px" }}>
+                <span>Total:</span>
+                <span>${displayTotal.toFixed(2)}</span>
+              </div>
 
-            <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px" }}>
+              <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px" }}>
               {hasUnsavedChanges && (
                 <span
                   style={{
@@ -985,9 +1010,10 @@ export default function WorkOrderDetailPage() {
               >
                 {saving ? "Saving..." : "Save Line Items"}
               </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Delete confirm */}

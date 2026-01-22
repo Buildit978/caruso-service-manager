@@ -9,6 +9,7 @@ import {
     type NewVehiclePayload,
     type Vehicle,
 } from "../api/vehicles";
+import type { HttpError } from "../api/http";
 
 interface CustomerVehiclesSectionProps {
     customerId: string;
@@ -120,9 +121,16 @@ export default function CustomerVehiclesSection({
             if (editingVehicleId === vehicleId) {
                 resetForm();
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("[CustomerVehiclesSection] delete error", err);
-            setError("Could not delete vehicle.");
+            const httpError = err as HttpError;
+            
+            // Friendly 403 message
+            if (httpError?.status === 403) {
+                setError("You don't have permission to delete vehicle details.");
+            } else {
+                setError("Could not delete vehicle.");
+            }
         }
     };
     
@@ -152,9 +160,16 @@ export default function CustomerVehiclesSection({
             }
 
             resetForm();
-        } catch (err) {
+        } catch (err: any) {
             console.error("[CustomerVehiclesSection] save error", err);
-            setError("Could not save vehicle.");
+            const httpError = err as HttpError;
+            
+            // Friendly 403 message
+            if (httpError?.status === 403) {
+                setError("You don't have permission to edit vehicle details.");
+            } else {
+                setError("Could not save vehicle.");
+            }
         } finally {
             setSaving(false);
         }

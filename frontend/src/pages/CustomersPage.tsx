@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Customer } from "../types/customer";
 import { fetchCustomers } from "../api/customers";
+import { useAccess } from "../contexts/AccessContext";
+import type { HttpError } from "../api/http";
 
 
 
@@ -14,11 +16,7 @@ export default function CustomersPage() {
   const [sort, setSort] = useState<
     "name-asc" | "name-desc" | "createdAt-desc" | "createdAt-asc"
   >("name-asc");
-
-  // If you already have a search state, keep it.
-  // If not, this is optional but handy:
-
-
+  const { setCustomersAccess, customersAccess } = useAccess();
 
   useEffect(() => {
     const load = async () => {
@@ -56,9 +54,18 @@ export default function CustomersPage() {
         });
 
         setCustomers(customersData);
-      } catch (err) {
+        setCustomersAccess(true); // Server confirmed access
+      } catch (err: any) {
         console.error("[CustomersPage] load error", err);
-        setError("Could not load customers.");
+        const httpError = err as HttpError;
+        
+        // Server denied access (403 Forbidden)
+        if (httpError?.status === 403) {
+          setCustomersAccess(false);
+          setError(null); // Don't show generic error, we'll show Access Restricted card
+        } else {
+          setError("Could not load customers.");
+        }
       } finally {
         setLoading(false);
       }
@@ -66,6 +73,50 @@ export default function CustomersPage() {
 
     load();
   }, [search, sort]);
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <p>Loading customers…</p>
+      </div>
+    );
+  }
+
+  // Server confirmed access denied (403)
+  if (customersAccess === false) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <h1 className="text-2xl font-semibold mb-4">Customers</h1>
+        <div
+          style={{
+            maxWidth: "500px",
+            margin: "2rem auto",
+            padding: "1.5rem",
+            border: "1px solid #fbbf24",
+            borderRadius: "0.5rem",
+            background: "rgba(251, 191, 36, 0.1)",
+          }}
+        >
+          <h2 style={{ marginTop: 0, color: "#fbbf24", fontSize: "1.2rem" }}>
+            Access Restricted
+          </h2>
+          <p style={{ color: "#e5e7eb", lineHeight: 1.6 }}>
+            Customer browsing is available only to owners and managers.
+            If you need access, please contact your administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <h1 className="text-2xl font-semibold mb-4">Customers</h1>
+        <p style={{ color: "#fca5a5" }}>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

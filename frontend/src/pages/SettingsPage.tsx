@@ -7,6 +7,9 @@ import {
     type DiscountType,
 } from "../api/settings";
 import TokenPanel from "../components/auth/TokenPanel";
+import RoleSwitcher from "../components/auth/RoleSwitcher";
+import { useSettingsAccess } from "../contexts/SettingsAccessContext";
+import type { HttpError } from "../api/http";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -18,6 +21,8 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+    const [isForbidden, setIsForbidden] = useState(false);
+    const { setHasAccess } = useSettingsAccess();
 
     useEffect(() => {
         let isMounted = true;
@@ -26,6 +31,10 @@ export default function SettingsPage() {
             try {
                 const data = await fetchSettings();
                 if (!isMounted) return;
+
+                // Server confirmed access
+                setHasAccess(true);
+                setIsForbidden(false);
 
                 setSettings(data);
                 setShopName(data.shopName ?? "");
@@ -46,7 +55,19 @@ export default function SettingsPage() {
             } catch (err) {
                 console.error("Failed to load settings", err);
                 if (!isMounted) return;
-                setError("Unable to load shop settings.");
+
+                const httpError = err as HttpError;
+                
+                // Server denied access (403 Forbidden)
+                if (httpError.status === 403) {
+                    setHasAccess(false);
+                    setIsForbidden(true);
+                    setError(null); // Don't show generic error, we'll show a specific message
+                } else {
+                    // Other errors (network, 500, etc.)
+                    setError("Unable to load shop settings.");
+                    setIsForbidden(false);
+                }
             } finally {
                 if (!isMounted) return;
                 setLoading(false);
@@ -102,10 +123,46 @@ export default function SettingsPage() {
         );
     }
 
+    // Server confirmed access denied (403)
+    if (isForbidden) {
+        return (
+            <div className="page">
+                <h1 className="page-title">Shop Settings</h1>
+                <div
+                    style={{
+                        maxWidth: "500px",
+                        margin: "2rem auto",
+                        padding: "1.5rem",
+                        border: "1px solid #fbbf24",
+                        borderRadius: "0.5rem",
+                        background: "rgba(251, 191, 36, 0.1)",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, color: "#fbbf24", fontSize: "1.2rem" }}>
+                        Access Restricted
+                    </h2>
+                    <p style={{ color: "#e5e7eb", lineHeight: 1.6 }}>
+                        Shop settings are available only to owners and managers.
+                        If you need access to settings, please contact your administrator.
+                    </p>
+                </div>
+
+                {/* TokenPanel always available for dev tools */}
+                <TokenPanel />
+                <RoleSwitcher />
+            </div>
+        );
+    }
+
     if (error && !settings) {
         return (
             <div className="page">
+                <h1 className="page-title">Shop Settings</h1>
                 <p style={{ color: "#fca5a5" }}>{error}</p>
+                
+                {/* TokenPanel always available even on error */}
+                <TokenPanel />
+                <RoleSwitcher />
             </div>
         );
     }
@@ -302,6 +359,7 @@ export default function SettingsPage() {
             </form>
 
             <TokenPanel />
+            <RoleSwitcher />
         </div>
     );
 }

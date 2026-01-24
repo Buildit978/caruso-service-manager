@@ -105,3 +105,50 @@ export async function http<T>(
 
   return response.json() as Promise<T>;
 }
+
+/**
+ * Fetch a binary response (e.g., PDF) with authentication headers
+ * Returns a Blob that can be used to create a Blob URL
+ */
+export async function httpBlob(path: string): Promise<Blob> {
+  const token = getToken();
+
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers["x-auth-token"] = token;
+  }
+
+  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+
+  const response = await fetch(url, {
+    headers,
+  });
+
+  // Handle auth errors
+  if (response.status === 401) {
+    clearToken();
+    const error: HttpError = new Error("Unauthorized") as HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  // Handle other non-2xx errors
+  if (!response.ok) {
+    const error: HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  return response.blob();
+}

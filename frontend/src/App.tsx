@@ -17,32 +17,45 @@ import InvoiceDetailPage from "./pages/InvoiceDetailPage";
 import VehicleDetailPage from "./pages/VehicleDetailPage";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
 import RevenueReportPage from "./pages/RevenueReportPage";
+import LoginPage from "./pages/LoginPage";
+import StartPage from "./pages/StartPage";
+import TeamPage from "./pages/TeamPage";
 
 
 
 
 function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/work-orders" element={<WorkOrdersPage />} />
-        <Route path="/work-orders/new" element={<WorkOrderCreatePage />} />
-        <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
-        <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
-        <Route path="/customers" element={<CustomersPage />} />
-        <Route path="/customers/:id/edit" element={<CustomerEditPage />} />
-        <Route path="/customers/:id" element={<CustomerDetailPage />} />
-        <Route path="/settings" element={<SettingsPage />} />   {/* 👈 new */}
-        <Route path="/customers/new" element={<CustomerCreatePage />} />
-        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-        <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
-        <Route path="/vehicles" element={<VehiclesPage />} />
-        <Route path="/invoices" element={<Navigate to="/work-orders?view=financial" replace />} />
-        <Route path="/reports/revenue" element={<RevenueReportPage />} />
-      </Routes>
-    </Layout>
-  )
+    <Routes>
+      <Route path="/start" element={<StartPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/*"
+        element={
+          <Layout>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/work-orders" element={<WorkOrdersPage />} />
+              <Route path="/work-orders/new" element={<WorkOrderCreatePage />} />
+              <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
+              <Route path="/work-orders/:id/edit" element={<WorkOrderEditPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/customers/:id/edit" element={<CustomerEditPage />} />
+              <Route path="/customers/:id" element={<CustomerDetailPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/team" element={<TeamPage />} />
+              <Route path="/customers/new" element={<CustomerCreatePage />} />
+              <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+              <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
+              <Route path="/vehicles" element={<VehiclesPage />} />
+              <Route path="/invoices" element={<Navigate to="/work-orders?view=financial" replace />} />
+              <Route path="/reports/revenue" element={<RevenueReportPage />} />
+            </Routes>
+          </Layout>
+        }
+      />
+    </Routes>
+  );
 }
 
 export default App

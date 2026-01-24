@@ -309,8 +309,8 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                   type="radio"
                   checked={activeTab === "customer"}
                   onChange={() => setActiveTab("customer")}
-                  disabled={canPostCustomer === false}
-                  style={{ cursor: canPostCustomer === false ? "not-allowed" : "pointer" }}
+                  disabled={!(canPostCustomer === true)}
+                  style={{ cursor: !(canPostCustomer === true) ? "not-allowed" : "pointer" }}
                 />
                 Customer
               </label>
@@ -318,46 +318,54 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
           </div>
         )}
 
-        <textarea
-          value={newMessageBody}
-          onChange={(e) => setNewMessageBody(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message... (Cmd/Ctrl + Enter to send)"
-          disabled={posting}
-          style={{
-            width: "100%",
-            minHeight: "80px",
-            padding: "0.5rem 0.6rem",
-            borderRadius: "0.375rem",
-            border: "1px solid #1f2937",
-            background: "#111827",
-            color: "#e5e7eb",
-            fontSize: "0.9rem",
-            resize: "vertical",
-            fontFamily: "inherit",
-          }}
-          className="message-compose-textarea"
-        />
+        {(() => {
+          const canPost = canPostCustomer === true;
+          return (
+            <>
+              <textarea
+                value={newMessageBody}
+                onChange={(e) => setNewMessageBody(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message... (Cmd/Ctrl + Enter to send)"
+                disabled={posting || (activeTab === "customer" && !canPost)}
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #1f2937",
+                  background: "#111827",
+                  color: "#e5e7eb",
+                  fontSize: "0.9rem",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                  cursor: posting || (activeTab === "customer" && !canPost) ? "not-allowed" : "text",
+                }}
+                className="message-compose-textarea"
+              />
 
-        <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            onClick={handlePostMessage}
-            disabled={posting || !newMessageBody.trim()}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "0.375rem",
-              border: "1px solid #1d4ed8",
-              background: posting || !newMessageBody.trim() ? "#9ca3af" : "#1d4ed8",
-              color: "#ffffff",
-              fontSize: "0.9rem",
-              fontWeight: 600,
-              cursor: posting || !newMessageBody.trim() ? "default" : "pointer",
-            }}
-          >
-            {posting ? "Posting..." : "Post Message"}
-          </button>
-        </div>
+              <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={handlePostMessage}
+                  disabled={posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #1d4ed8",
+                    background: posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "#9ca3af" : "#1d4ed8",
+                    color: "#ffffff",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    cursor: posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "default" : "pointer",
+                  }}
+                >
+                  {posting ? "Posting..." : "Post Message"}
+                </button>
+              </div>
+            </>
+          );
+        })()}
 
         <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
           Tip: Press Cmd/Ctrl + Enter to send

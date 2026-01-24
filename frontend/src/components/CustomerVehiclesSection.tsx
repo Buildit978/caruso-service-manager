@@ -26,6 +26,7 @@ export default function CustomerVehiclesSection({
     const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
 
     const [form, setForm] = useState<NewVehiclePayload>({
+        customerId,
         year: undefined,
         make: "",
         model: "",
@@ -66,6 +67,7 @@ export default function CustomerVehiclesSection({
 
     const resetForm = () => {
         setForm({
+            customerId,
             year: undefined,
             make: "",
             model: "",
@@ -98,6 +100,7 @@ export default function CustomerVehiclesSection({
     const handleEditClick = (vehicle: Vehicle) => {
         setEditingVehicleId(vehicle._id);
         setForm({
+            customerId,
             year: vehicle.year,
             make: vehicle.make || "",
             model: vehicle.model || "",

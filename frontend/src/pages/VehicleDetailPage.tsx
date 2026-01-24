@@ -36,7 +36,7 @@ export default function VehicleDetailPage() {
         setError(null);
 
         const data = await fetchVehicleById(id);
-        setVehicle((data?.vehicle ?? data) as Vehicle);
+        setVehicle(data as Vehicle);
       } catch (e: any) {
         setError(e?.message ?? "Failed to load vehicle");
       } finally {

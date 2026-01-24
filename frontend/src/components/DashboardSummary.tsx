@@ -1,11 +1,12 @@
 // frontend/src/components/DashboardSummary.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";      // 👈 NEW
 import "./Dashboard.css";
 import { fetchSummary, type SummaryResponse } from "../api/summary";
 import { fetchFinancialSummary } from "../api/invoices";
-import { isOutstanding, getOutstandingBalance } from "../utils/outstanding";
 import { formatMoney } from "../utils/money"; // assuming you use this
+import { useSettings } from "../hooks/useSettings";
+import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
 
 
@@ -17,6 +18,21 @@ export function DashboardSummary() {
     const [error, setError] = useState<string | null>(null);
     const [errorStatus, setErrorStatus] = useState<number | null>(null);
     const navigate = useNavigate();                   // 👈 NEW
+    const { me } = useMe();
+    
+    // Get shop name from settings (with fallback)
+    const { shopName } = useSettings();
+    const displayName = shopName || "Caruso Service Manager";
+
+    // Check if tenant is empty (no work orders)
+    const isEmptyTenant = useMemo(() => {
+        if (!data) return null;
+        // If all counts are 0, consider it empty (but allow for some overlap, so check if any exist)
+        return data.openWorkOrders === 0 && data.completedWorkOrders === 0;
+    }, [data]);
+
+    // Check if user can create work orders
+    const canCreateWorkOrders = me?.role === "owner" || me?.role === "manager";
     
     type PaidScope = "today" | "week" | "month" | "ytd";
     const [paidScope, setPaidScope] = useState<PaidScope>("month");
@@ -126,7 +142,7 @@ useEffect(() => {
             <div className="dashboard">
                 <header className="dashboard__header">
                     <div>
-                        <h1 className="dashboard__title">Caruso Service Manager</h1>
+                        <h1 className="dashboard__title">{displayName}</h1>
                         <p className="dashboard__subtitle">
                             Quick snapshot of the shop&apos;s workload and revenue.
                         </p>
@@ -159,7 +175,7 @@ useEffect(() => {
             <div className="dashboard">
                 <header className="dashboard__header">
                     <div>
-                        <h1 className="dashboard__title">Caruso Service Manager</h1>
+                        <h1 className="dashboard__title">{displayName}</h1>
                         <p className="dashboard__subtitle">
                             Quick snapshot of the shop&apos;s workload and revenue.
                         </p>
@@ -178,9 +194,43 @@ useEffect(() => {
                     <h2 style={{ marginTop: 0, color: "#e5e7eb", fontSize: "1.2rem" }}>
                         Not Signed In
                     </h2>
-                    <p style={{ color: "#e5e7eb", lineHeight: 1.6 }}>
-                        {error || "Not signed in. Add a token in Settings (Dev) to continue."}
+                    <p style={{ color: "#e5e7eb", lineHeight: 1.6, marginBottom: "1rem" }}>
+                        {error || "Please sign in to access the dashboard."}
                     </p>
+                    <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+                        <button
+                            type="button"
+                            onClick={() => navigate("/start")}
+                            style={{
+                                padding: "0.5rem 1rem",
+                                fontSize: "0.9rem",
+                                fontWeight: 600,
+                                borderRadius: "0.375rem",
+                                border: "none",
+                                background: "#2563eb",
+                                color: "#ffffff",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Create your shop
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate("/login")}
+                            style={{
+                                padding: "0.5rem 1rem",
+                                fontSize: "0.9rem",
+                                fontWeight: 400,
+                                borderRadius: "0.375rem",
+                                border: "1px solid #374151",
+                                background: "transparent",
+                                color: "#e5e7eb",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Sign in
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -228,13 +278,96 @@ useEffect(() => {
     }).format(financial.outstandingSent.amount ?? 0);
 
     const formattedAOV = formatMoney(avgOrderValueYtd ?? 0);
-    
-    const paidScopeLabel =
-  paidScope === "today"
-    ? "Today"
-    : paidScope === "week"
-    ? "This Week"
-    : "This Month";
+
+    // Show empty state if tenant has no work orders
+    if (isEmptyTenant === true) {
+        return (
+            <div className="dashboard">
+                <header className="dashboard__header">
+                    <div>
+                        <h1 className="dashboard__title">{displayName}</h1>
+                        <p className="dashboard__subtitle">
+                            Quick snapshot of the shop&apos;s workload and revenue.
+                        </p>
+                    </div>
+                </header>
+
+                <div
+                    style={{
+                        maxWidth: "600px",
+                        margin: "3rem auto",
+                        padding: "2rem",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        background: "#020617",
+                        textAlign: "center",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, marginBottom: "0.75rem", color: "#e5e7eb", fontSize: "1.5rem", fontWeight: 600 }}>
+                        Welcome to Caruso
+                    </h2>
+                    <p style={{ marginBottom: "1.5rem", color: "#9ca3af", lineHeight: 1.6, fontSize: "1rem" }}>
+                        Let&apos;s create your first work order to get your shop moving.
+                    </p>
+                    <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+                        {canCreateWorkOrders ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate("/work-orders/new")}
+                                style={{
+                                    padding: "0.75rem 1.5rem",
+                                    fontSize: "1rem",
+                                    fontWeight: 600,
+                                    borderRadius: "0.5rem",
+                                    border: "none",
+                                    background: "#2563eb",
+                                    color: "#ffffff",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Create your first work order
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => navigate("/work-orders")}
+                                style={{
+                                    padding: "0.75rem 1.5rem",
+                                    fontSize: "1rem",
+                                    fontWeight: 600,
+                                    borderRadius: "0.5rem",
+                                    border: "none",
+                                    background: "#2563eb",
+                                    color: "#ffffff",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                View work orders
+                            </button>
+                        )}
+                        {me?.role === "owner" && (
+                            <button
+                                type="button"
+                                onClick={() => navigate("/team")}
+                                style={{
+                                    padding: "0.75rem 1.5rem",
+                                    fontSize: "1rem",
+                                    fontWeight: 400,
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #374151",
+                                    background: "transparent",
+                                    color: "#e5e7eb",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Add your team
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
 
 
@@ -247,7 +380,7 @@ useEffect(() => {
         <div className="dashboard">
         <header className="dashboard__header">
                 <div>
-                    <h1 className="dashboard__title">Caruso Service Manager</h1>
+                    <h1 className="dashboard__title">{displayName}</h1>
                     <p className="dashboard__subtitle">
                         Quick snapshot of the shop&apos;s workload and revenue.
           </p>

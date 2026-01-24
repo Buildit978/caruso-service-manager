@@ -6,21 +6,25 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "seed:account": "ts-node src/scripts/seedDefaultAccount.ts",
+    "seed:shop": "ts-node src/scripts/seedFirstShop.ts",
     "backfill:account": "ts-node src/scripts/backfillAccountId.ts"
   },
   "keywords": [],
   "author": "Keith Evanson",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.4.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.19.3",
     "nodemailer": "^7.0.12",
     "pdfkit": "^0.17.2"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",

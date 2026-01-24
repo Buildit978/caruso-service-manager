@@ -5,6 +5,10 @@ import { useState, useEffect } from "react";
 import { setToken, getToken, clearToken } from "../../api/http";
 
 export default function TokenPanel() {
+  // Only render in dev mode
+  if (!import.meta.env.DEV) {
+    return null;
+  }
   const [token, setTokenValue] = useState("");
   const [saved, setSaved] = useState(false);
 

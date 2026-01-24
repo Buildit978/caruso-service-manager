@@ -88,8 +88,6 @@ export default function WorkOrdersPage() {
   }, [pathname, locationSearch, view, customerId]);
 
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [sort, setSort] = useState<
     | "createdAt-desc"
@@ -194,8 +192,6 @@ export default function WorkOrdersPage() {
   useEffect(() => {
     const loadWorkOrders = async () => {
       try {
-        setLoading(true);
-        setError(null);
 
         const isCustomerSort = sort === "customer-asc" || sort === "customer-desc";
 
@@ -267,9 +263,6 @@ export default function WorkOrdersPage() {
         setWorkOrders(normalized);
       } catch (err: any) {
         console.error("Error fetching work orders:", err);
-        setError(err.message || "Failed to load work orders");
-      } finally {
-        setLoading(false);
       }
     };
 

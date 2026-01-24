@@ -3,12 +3,15 @@ import { useEffect, useState } from "react";
 import {
     fetchSettings,
     updateSettings,
+    updateRoleAccess,
     type SettingsResponse,
     type DiscountType,
+    type RoleAccess,
 } from "../api/settings";
 import TokenPanel from "../components/auth/TokenPanel";
 import RoleSwitcher from "../components/auth/RoleSwitcher";
 import { useSettingsAccess } from "../contexts/SettingsAccessContext";
+import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
 
 export default function SettingsPage() {
@@ -17,12 +20,16 @@ export default function SettingsPage() {
     const [taxRatePercent, setTaxRatePercent] = useState<number | "">("");
     const [discountType, setDiscountType] = useState<DiscountType>("none");
     const [discountValue, setDiscountValue] = useState<number | "">("");
+    const [roleAccess, setRoleAccess] = useState<RoleAccess | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingRoleAccess, setSavingRoleAccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
     const [isForbidden, setIsForbidden] = useState(false);
     const { setHasAccess } = useSettingsAccess();
+    const { me } = useMe();
+    const isOwner = me?.role === "owner";
 
     useEffect(() => {
         let isMounted = true;
@@ -38,6 +45,7 @@ export default function SettingsPage() {
 
                 setSettings(data);
                 setShopName(data.shopName ?? "");
+                setRoleAccess(data.roleAccess || { managersEnabled: true, techniciansEnabled: true });
 
                 // taxRate is stored as decimal (0.13) → show as percent (13)
                 setTaxRatePercent(
@@ -112,6 +120,32 @@ export default function SettingsPage() {
             setError("Unable to save settings. Please try again.");
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function handleSaveRoleAccess(e: React.FormEvent) {
+        e.preventDefault();
+        setSavingRoleAccess(true);
+        setError(null);
+
+        try {
+            if (!roleAccess) {
+                setError("No role access settings to save");
+                return;
+            }
+
+            const updated = await updateRoleAccess({
+                managersEnabled: roleAccess.managersEnabled,
+                techniciansEnabled: roleAccess.techniciansEnabled,
+            });
+            setRoleAccess(updated.roleAccess);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            console.error("Failed to save role access", err);
+            setError("Unable to save role access. Please try again.");
+        } finally {
+            setSavingRoleAccess(false);
         }
     }
 
@@ -357,6 +391,149 @@ export default function SettingsPage() {
                     {saving ? "Saving…" : "Save Settings"}
                 </button>
             </form>
+
+            {/* Role Access Section (Owner Only) */}
+            {isOwner && roleAccess && (
+                <div
+                    style={{
+                        maxWidth: "420px",
+                        margin: "3rem auto 0",
+                        padding: "1.5rem",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        background: "#020617",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        Role Access
+                    </h2>
+                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                        Control access for all managers and technicians in your account. When disabled, users cannot login and existing sessions are blocked.
+                    </p>
+
+                    <form onSubmit={handleSaveRoleAccess}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={roleAccess.managersEnabled}
+                                    onChange={(e) =>
+                                        setRoleAccess({
+                                            ...roleAccess,
+                                            managersEnabled: e.target.checked,
+                                        })
+                                    }
+                                    style={{ cursor: "pointer", width: "18px", height: "18px" }}
+                                />
+                                <div>
+                                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Managers</div>
+                                    <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                        Allow all managers to login and access the system
+                                    </div>
+                                </div>
+                            </label>
+
+                            <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={roleAccess.techniciansEnabled}
+                                    onChange={(e) =>
+                                        setRoleAccess({
+                                            ...roleAccess,
+                                            techniciansEnabled: e.target.checked,
+                                        })
+                                    }
+                                    style={{ cursor: "pointer", width: "18px", height: "18px" }}
+                                />
+                                <div>
+                                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Technicians</div>
+                                    <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                        Allow all technicians to login and access the system
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        {error && (
+                            <p style={{ color: "#fca5a5", fontSize: "0.9rem", marginBottom: "1rem" }}>{error}</p>
+                        )}
+
+                        {saved && !error && (
+                            <p style={{ color: "#22c55e", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                                Role access updated successfully.
+                            </p>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={savingRoleAccess}
+                            style={{
+                                marginTop: "0.5rem",
+                                padding: "0.55rem 0.9rem",
+                                borderRadius: "0.5rem",
+                                border: "none",
+                                background: savingRoleAccess ? "#4b5563" : "#1d4ed8",
+                                color: "#e5e7eb",
+                                fontWeight: 600,
+                                cursor: savingRoleAccess ? "default" : "pointer",
+                            }}
+                        >
+                            {savingRoleAccess ? "Saving…" : "Save Role Access"}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* Role Access View-Only for Managers */}
+            {me?.role === "manager" && roleAccess && (
+                <div
+                    style={{
+                        maxWidth: "420px",
+                        margin: "3rem auto 0",
+                        padding: "1.5rem",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        background: "#020617",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        Role Access
+                    </h2>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                            <input
+                                type="checkbox"
+                                checked={roleAccess.managersEnabled}
+                                disabled
+                                aria-label="Enable Managers"
+                                style={{ width: "18px", height: "18px", cursor: "not-allowed" }}
+                            />
+                            <div>
+                                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Managers</div>
+                                <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                    {roleAccess.managersEnabled ? "Enabled" : "Disabled"}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                            <input
+                                type="checkbox"
+                                checked={roleAccess.techniciansEnabled}
+                                disabled
+                                aria-label="Enable Technicians"
+                                style={{ width: "18px", height: "18px", cursor: "not-allowed" }}
+                            />
+                            <div>
+                                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Technicians</div>
+                                <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                    {roleAccess.techniciansEnabled ? "Enabled" : "Disabled"}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <TokenPanel />
             <RoleSwitcher />

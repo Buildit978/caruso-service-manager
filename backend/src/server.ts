@@ -13,6 +13,8 @@ import { getMailer } from "./utils/mailer";
 import reportsRouter from "./routes/reports.routes";
 import { requireAuth } from "./middleware/requireAuth";
 import vehicleRoutes from "./routes/vehicles.route";
+import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter } from "./routes/auth.routes";
+import usersRoutes from "./routes/users.routes";
 
 const app = express();
 
@@ -25,8 +27,15 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// 🔓 Public auth routes
+app.post("/api/auth/register", registerLimiter, handleRegister);
+app.post("/api/auth/login", loginLimiter, handleLogin);
+
 // 🔒 All other /api routes require auth
 app.use("/api", requireAuth);
+
+// 🔐 Protected auth routes (after requireAuth)
+app.get("/api/auth/me", handleMe);
 
 app.use("/api/customers", customerRoutes);
 app.use("/api/work-orders", workOrderRoutes);
@@ -35,9 +44,11 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/reports", reportsRouter);
+app.use("/api/users", usersRoutes);
 
 console.log("✅ Mounted /api/invoices routes");
 console.log("✅ Mounted /api/reports routes");
+console.log("✅ Mounted /api/users routes");
 
 console.log("CWD:", process.cwd());
 console.log("SMTP_USER:", process.env.SMTP_USER);

@@ -10,7 +10,7 @@ import {
 } from "../api/workOrders";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
-import { detectRole } from "../utils/roleDetection";
+import { useMe } from "../auth/useMe";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -212,8 +212,8 @@ export default function WorkOrderDetailPage() {
     "(No name)";
 
   // Determine if user can see pricing (deny-by-default: only owner/manager)
-  const role = detectRole();
-  const canSeePricing = role === "owner" || role === "manager";
+  const { me } = useMe();
+  const canSeePricing = me?.role === "owner" || me?.role === "manager";
 
   // ✏️ Edit button
   function handleEdit() {

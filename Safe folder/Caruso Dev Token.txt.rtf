@@ -1,8 +1,9 @@
 {\rtf1\ansi\ansicpg1252\cocoartf2867
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\margl1440\margr1440\vieww11160\viewh12700\viewkind0
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;\f2\fnil\fcharset0 HelveticaNeue-Bold;
+\f3\fnil\fcharset0 HelveticaNeue;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\csgray\c0;}
+\margl1440\margr1440\vieww21720\viewh12700\viewkind0
 \pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
 
 \f0\fs24 \cf0 \
@@ -31,4 +32,45 @@ technician\
 Minted token:\
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLCJhY2NvdW50SWQiOiI2NGYxYjJhMTIzNGFiY2RlNTY3ODkwMTIiLCJyb2xlIjoidGVjaG5pY2lhbiIsImlhdCI6MTc2ODk0NTAzMywiZXhwIjoxNzY5NTQ5ODMzfQ.pRolXl0HSXgoasdAFPiYLJOFNvpiT0SswIufkzz-k9A\
 keith@KEvansons-MacBook-Pro backend % \
-}
+\
+\
+
+\f1\b \
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f2\fs32 \cf2 Login for Owner\
+
+\f3\b0 \
+Seed complete!\
+Account ID: 69726093f1334f332b183c93\
+Owner Email: owner@caruso.local\
+Owner Password: password123\
+\
+
+\f2\b Manager
+\f3\b0 \
+\
+'\{"email":"manager@caruso.local","name":"Manager","role":"manager"\}' | jq\
+\{\
+  "user": \{\
+    "id": "697282d518822bf68e7dbc50",\
+    "email": "manager@caruso.local",\
+    "name": "Manager",\
+    "role": "manager"\
+  \},\
+  "tempPassword": "6reg5EHaOABggMp8"\
+\
+
+\f2\b Technician\
+\
+
+\f3\b0  -d '\{"email":"tech@caruso.local","name":"Tech","role":"technician"\}' | jq\
+\{\
+  "user": \{\
+    "id": "6972852618822bf68e7dbc53",\
+    "email": "tech@caruso.local",\
+    "name": "Tech",\
+    "role": "technician"\
+  \},\
+  "tempPassword": "I0OBGMr#8O*p$oMc"}

@@ -13,6 +13,11 @@ const TOKEN_KEYS = {
 type Role = keyof typeof TOKEN_KEYS;
 
 export default function RoleSwitcher() {
+  // Production guard: return null immediately if not in dev mode
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
   const [ownerToken, setOwnerToken] = useState("");
   const [managerToken, setManagerToken] = useState("");
   const [technicianToken, setTechnicianToken] = useState("");
@@ -77,11 +82,6 @@ export default function RoleSwitcher() {
     } else {
       setTechnicianToken("");
     }
-  }
-
-  // Only render in dev mode
-  if (!import.meta.env.DEV) {
-    return null;
   }
 
   return (

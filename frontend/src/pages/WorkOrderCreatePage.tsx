@@ -115,7 +115,7 @@ export default function WorkOrderCreatePage() {
       (async () => {
         try {
           const data = await fetchVehicleById(urlVehicleId);
-          const v = (data?.vehicle ?? data) as { _id: string; customerId?: string; currentOdometer?: number };
+          const v = data as { _id: string; customerId?: string; currentOdometer?: number };
 
           if (!v?.customerId) return;
 

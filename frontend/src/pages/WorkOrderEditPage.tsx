@@ -7,7 +7,7 @@ import { fetchWorkOrder, updateWorkOrder } from "../api/workOrders";
 import ConfirmLeaveModal from "../components/ConfirmLeaveModal";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import type { HttpError } from "../api/http";
-import { detectRole } from "../utils/roleDetection";
+import { useMe } from "../auth/useMe";
 
 
 // Helper: parse "Qty / Hours" input.
@@ -64,7 +64,10 @@ function requestNavigation(action: () => void) {
   const [lineItems, setLineItems] = useState<WorkOrderLineItem[]>([]);
   const [quantityInputs, setQuantityInputs] = useState<string[]>([]);
   const [taxRate, setTaxRate] = useState<number>(13);
-  const [canSeePricing, setCanSeePricing] = useState<boolean>(false); // deny-by-default
+
+  // Determine if user can see pricing (deny-by-default: only owner/manager)
+  const { me } = useMe();
+  const canSeePricing = me?.role === "owner" || me?.role === "manager";
 
   // Load work order
   useEffect(() => {
@@ -85,10 +88,6 @@ function requestNavigation(action: () => void) {
           )
         );
         setTaxRate(data.taxRate ?? 13);
-
-        // Determine if user can see pricing (deny-by-default: only owner/manager)
-        const role = detectRole();
-        setCanSeePricing(role === "owner" || role === "manager");
 
         setForm({
           complaint: data.complaint || "",

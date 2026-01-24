@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
-import { fetchInvoiceById, getInvoicePdfUrl, emailInvoice, updateInvoiceStatus, type InvoiceStatus } from "../api/invoices";
+import { fetchInvoiceById, emailInvoice, updateInvoiceStatus } from "../api/invoices";
+import { httpBlob } from "../api/http";
 import { fetchCustomerById } from "../api/customers";
 import { recordInvoicePayment } from "../api/invoices";
 
@@ -60,36 +61,6 @@ function resolveCustomerId(inv: any): string | null {
     return dates[0] ?? null;
   }
 
-type LocationState = { from?: string };
-
-function isSameOriginUrl(url: string) {
-  try {
-    const u = new URL(url, window.location.origin);
-    return u.origin === window.location.origin;
-  } catch {
-    return false;
-  }
-}
-
-    function getReturnTo(location: { state?: unknown; search: string }): string {
-      // 1) Best: location.state.from
-      const state = (location.state || {}) as LocationState;
-      if (state.from) return state.from;
-
-      // 2) Next: ?from=...
-      const params = new URLSearchParams(location.search);
-      const fromQ = params.get("from");
-      if (fromQ) return fromQ;
-
-      // 3) Next: same-origin referrer
-      if (document.referrer && isSameOriginUrl(document.referrer)) {
-        const u = new URL(document.referrer);
-        return u.pathname + u.search;
-      }
-
-      // 4) Final fallback
-      return "/work-orders?view=financial";
-    }
 
 
 
@@ -120,6 +91,8 @@ const returnTo = useMemo(() => getReturnTo(location), [location.state, location.
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
   const resolvedWorkOrderId = useMemo(() => resolveWorkOrderId(invoice), [invoice]);
 
@@ -273,23 +246,6 @@ async function handleRecordPayment() {
     }
   }
 
-  // --- Status update helper ---
-  async function handleSetStatus(next: InvoiceStatus) {
-    if (!invoice?._id) return;
-
-    try {
-      setIsSaving(true);
-      setError(null);
-
-      const updated = await updateInvoiceStatus(invoice._id, next);
-      setInvoice(updated);
-    } catch (err: any) {
-      console.error("[InvoiceDetail] status update failed:", err);
-      setError(err.message || "Failed to update invoice status");
-    } finally {
-      setIsSaving(false);
-    }
-  }
 
   async function handleVoidInvoice() {
     if (!invoice?._id) return;
@@ -347,7 +303,6 @@ const isReadOnly = !isDraft;
 const financialRaw = String((invoice as any).financialStatus ?? "").toLowerCase();
 const isPaid = financialRaw === "paid";
 const isPartial = financialRaw === "partial";
-const isDue = financialRaw === "due" || !financialRaw; // tolerate older invoices missing financialStatus
 
 
   // money values: display-only (never used to infer status)
@@ -526,6 +481,7 @@ const base: CSSProperties = {
         </div>
 
         {emailError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{emailError}</div> : null}
+        {pdfError ? <div style={{ marginTop: "0.5rem", color: "#b91c1c" }}>{pdfError}</div> : null}
       </div>
 
       {/* Actions */}
@@ -559,12 +515,30 @@ const base: CSSProperties = {
 
         <button
           type="button"
-          onClick={() => {
-            const url = getInvoicePdfUrl(invoice._id);
-            window.open(url, "_blank");
+          disabled={isLoadingPdf}
+          onClick={async () => {
+            if (!invoice?._id) return;
+
+            try {
+              setIsLoadingPdf(true);
+              setPdfError(null);
+
+              const blob = await httpBlob(`/invoices/${invoice._id}/pdf`);
+              const blobUrl = URL.createObjectURL(blob);
+              window.open(blobUrl, "_blank", "noopener,noreferrer");
+              
+              // Clean up blob URL after 60 seconds
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+            } catch (err: any) {
+              const msg = err?.message || "Failed to load PDF. Please try again.";
+              setPdfError(msg);
+              console.error("[InvoiceDetail] PDF fetch failed:", err);
+            } finally {
+              setIsLoadingPdf(false);
+            }
           }}
         >
-          View PDF
+          {isLoadingPdf ? "Loading PDF..." : "View PDF"}
         </button>
         
       </div>

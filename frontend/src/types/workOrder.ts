@@ -2,7 +2,7 @@
 import type { Customer } from "./customer";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
 
-export type WorkOrderStatus = "open" | "in_progress" | "completed" | "invoiced";
+export type WorkOrderStatus = "open" | "in_progress" | "completed" | "invoiced" | "on_hold";
 export type WorkOrderView = "active" | "financial" | "archive" | "all";
 
 export interface WorkOrderVehicle {

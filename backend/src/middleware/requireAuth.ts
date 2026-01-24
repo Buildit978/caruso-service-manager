@@ -93,12 +93,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
       // Fail-closed: if settings missing, deny access
       if (!settings || !settings.roleAccess) {
-        if (dbRole === "manager") {
-          return res.status(403).json({ message: "Access disabled by owner" });
-        }
-        if (dbRole === "technician") {
-          return res.status(403).json({ message: "Access disabled by owner" });
-        }
+        return res.status(403).json({ message: "Access disabled by owner" });
       }
 
       // Check role-specific toggle

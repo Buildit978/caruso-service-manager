@@ -49,6 +49,8 @@ export interface IWorkOrder extends Document {
 
     // Lifecycle timestamps
   openedAt?: Date;
+  startedAt?: Date;
+  onHoldAt?: Date;
   completedAt?: Date;
   invoicedAt?: Date;
   cancelledAt?: Date;

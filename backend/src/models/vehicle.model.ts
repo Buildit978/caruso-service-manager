@@ -1,20 +1,7 @@
 // backend/src/models/vehicle.model.ts
-import { Schema, model, type Document, Types } from "mongoose";
+import { Schema, model, Types, type InferSchemaType } from "mongoose";
 
-export interface IVehicle extends Document {
-  accountId: Types.ObjectId;
-  customerId: Types.ObjectId;
-  vin?: string;
-  year?: number;
-  make?: string;
-  model?: string;
-  licensePlate?: string;
-  color?: string;
-  notes?: string;
-  currentOdometer?: number | null;
-}
-
-const vehicleSchema = new Schema<IVehicle>(
+const vehicleSchema = new Schema(
   {
     accountId: {
       type: Schema.Types.ObjectId,
@@ -49,4 +36,5 @@ const vehicleSchema = new Schema<IVehicle>(
 // helpful compound index for queries by account + customer
 vehicleSchema.index({ accountId: 1, customerId: 1 });
 
+export type IVehicle = InferSchemaType<typeof vehicleSchema>;
 export const Vehicle = model<IVehicle>("Vehicle", vehicleSchema);

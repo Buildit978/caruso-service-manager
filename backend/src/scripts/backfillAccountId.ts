@@ -4,7 +4,7 @@ import mongoose, { Types } from "mongoose";
 import { Customer } from "../models/customer.model";
 import { WorkOrder } from "../models/workOrder.model";
 import { Settings } from "../models/settings.model";
-import { Invoice } from "../models/invoice.model";
+import InvoiceModel from "../models/invoice.model";
 // import { Vehicle } from "../models/vehicle.model";   // uncomment if/when needed
 
 const MONGODB_URI =
@@ -40,7 +40,7 @@ async function main() {
     Customer.updateMany(missingAccountFilter, { $set: { accountId } }),
     WorkOrder.updateMany(missingAccountFilter, { $set: { accountId } }),
     Settings.updateMany(missingAccountFilter, { $set: { accountId } }),
-    Invoice.updateMany(missingAccountFilter, { $set: { accountId } }),
+    InvoiceModel.updateMany(missingAccountFilter, { $set: { accountId } }),
     // Vehicle.updateMany(missingAccountFilter, { $set: { accountId } }),
   ]);
 

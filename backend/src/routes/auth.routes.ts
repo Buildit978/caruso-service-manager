@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { User } from "../models/user.model";
 import { Settings } from "../models/settings.model";
@@ -46,7 +46,12 @@ function isValidEmail(email: string): boolean {
  */
 export async function handleRegister(req: Request, res: Response, next: NextFunction) {
   try {
-    const { shopName, ownerName, email, password } = req.body;
+    const { shopName, ownerName, email, password }: {
+      shopName?: string;
+      ownerName?: string;
+      email?: string;
+      password?: string;
+    } = req.body;
 
     // Validate required fields
     if (!shopName || !ownerName || !email || !password) {
@@ -120,7 +125,10 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
       accountId: account._id.toString(),
       role: user.role,
     };
-    const token = jwt.sign(payload, secret, { expiresIn: tokenExpiry } as jwt.SignOptions);
+    const signOptions = {
+      expiresIn: tokenExpiry,
+    } as SignOptions;
+    const token = jwt.sign(payload, secret, signOptions);
 
     return res.status(201).json({
       token,
@@ -146,7 +154,10 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
  */
 export async function handleLogin(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password } = req.body;
+    const { email, password }: {
+      email?: string;
+      password?: string;
+    } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
@@ -208,7 +219,10 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       accountId: user.accountId.toString(),
       role: user.role,
     };
-    const token = jwt.sign(payload, secret, { expiresIn: tokenExpiry } as jwt.SignOptions);
+    const signOptions = {
+      expiresIn: tokenExpiry,
+    } as SignOptions;
+    const token = jwt.sign(payload, secret, signOptions);
 
     return res.json({
       token,

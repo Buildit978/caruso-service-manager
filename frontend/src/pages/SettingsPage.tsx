@@ -1,5 +1,5 @@
 // src/pages/SettingsPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
     fetchSettings,
     updateSettings,
@@ -13,6 +13,7 @@ import RoleSwitcher from "../components/auth/RoleSwitcher";
 import { useSettingsAccess } from "../contexts/SettingsAccessContext";
 import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
+import { exportCustomers, importCustomers, type ImportSummary } from "../api/customers";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -30,6 +31,15 @@ export default function SettingsPage() {
     const { setHasAccess } = useSettingsAccess();
     const { me } = useMe();
     const isOwner = me?.role === "owner";
+
+    // Data Tools state
+    const [exporting, setExporting] = useState(false);
+    const [exportError, setExportError] = useState<string | null>(null);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<ImportSummary | null>(null);
+    const [importError, setImportError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -531,6 +541,206 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Data Tools Section (Owner Only) */}
+            {isOwner && (
+                <div
+                    style={{
+                        maxWidth: "420px",
+                        margin: "3rem auto 0",
+                        padding: "1.5rem",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        background: "#020617",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        Data Tools
+                    </h2>
+                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                        Export and import customer data in CSV format.
+                    </p>
+
+                    {/* Export Section */}
+                    <div style={{ marginBottom: "2rem" }}>
+                        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.75rem" }}>
+                            Export Customers
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                setExporting(true);
+                                setExportError(null);
+                                try {
+                                    const { blob, filename } = await exportCustomers();
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    const link = document.createElement("a");
+                                    link.href = blobUrl;
+                                    link.download = filename || `customers-${new Date().toISOString().split("T")[0]}.csv`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                } catch (err: any) {
+                                    console.error("Failed to export customers", err);
+                                    setExportError(err.message || "Failed to export customers");
+                                } finally {
+                                    setExporting(false);
+                                }
+                            }}
+                            disabled={exporting}
+                            style={{
+                                padding: "0.55rem 0.9rem",
+                                borderRadius: "0.5rem",
+                                border: "none",
+                                background: exporting ? "#4b5563" : "#1d4ed8",
+                                color: "#e5e7eb",
+                                fontWeight: 600,
+                                cursor: exporting ? "default" : "pointer",
+                            }}
+                        >
+                            {exporting ? "Exporting…" : "Export Customers (CSV)"}
+                        </button>
+                        {exportError && (
+                            <p style={{ color: "#fca5a5", fontSize: "0.9rem", marginTop: "0.5rem" }}>{exportError}</p>
+                        )}
+                    </div>
+
+                    {/* Import Section */}
+                    <div>
+                        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.75rem" }}>
+                            Import Customers
+                        </h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const headers = ["firstName", "lastName", "phone", "email", "address", "notes"];
+                                    const sampleRow = ["Jane", "Doe", "8685551234", "jane@example.com", "Scarborough", "VIP customer"];
+                                    const csvContent = headers.join(",") + "\n" + sampleRow.join(",") + "\n";
+                                    const blob = new Blob([csvContent], { type: "text/csv" });
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    const link = document.createElement("a");
+                                    link.href = blobUrl;
+                                    link.download = "customers-template.csv";
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                }}
+                                style={{
+                                    padding: "0.55rem 0.9rem",
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #4b5563",
+                                    background: "transparent",
+                                    color: "#e5e7eb",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Download CSV Template
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0] || null;
+                                    setImportFile(file);
+                                    setImportResult(null);
+                                    setImportError(null);
+                                }}
+                                style={{
+                                    padding: "0.5rem",
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #4b5563",
+                                    background: "#020617",
+                                    color: "#e5e7eb",
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!importFile) {
+                                        setImportError("Please select a CSV file");
+                                        return;
+                                    }
+                                    setImporting(true);
+                                    setImportError(null);
+                                    setImportResult(null);
+                                    try {
+                                        const result = await importCustomers(importFile);
+                                        setImportResult(result);
+                                        setImportFile(null);
+                                        // Reset file input
+                                        if (fileInputRef.current) {
+                                            fileInputRef.current.value = "";
+                                        }
+                                    } catch (err: any) {
+                                        console.error("Failed to import customers", err);
+                                        setImportError(err.message || "Failed to import customers");
+                                    } finally {
+                                        setImporting(false);
+                                    }
+                                }}
+                                disabled={importing || !importFile}
+                                style={{
+                                    padding: "0.55rem 0.9rem",
+                                    borderRadius: "0.5rem",
+                                    border: "none",
+                                    background: importing || !importFile ? "#4b5563" : "#1d4ed8",
+                                    color: "#e5e7eb",
+                                    fontWeight: 600,
+                                    cursor: importing || !importFile ? "default" : "pointer",
+                                }}
+                            >
+                                {importing ? "Importing…" : "Import CSV"}
+                            </button>
+                        </div>
+
+                        {/* Import Results */}
+                        {importError && (
+                            <p style={{ color: "#fca5a5", fontSize: "0.9rem", marginBottom: "1rem" }}>{importError}</p>
+                        )}
+
+                        {importResult && (
+                            <div
+                                style={{
+                                    padding: "1rem",
+                                    borderRadius: "0.5rem",
+                                    border: "1px solid #374151",
+                                    background: "#111827",
+                                    marginBottom: "1rem",
+                                }}
+                            >
+                                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.75rem" }}>
+                                    Import Summary
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.9rem" }}>
+                                    <div style={{ color: "#22c55e" }}>Created: {importResult.created}</div>
+                                    <div style={{ color: "#3b82f6" }}>Updated: {importResult.updated}</div>
+                                    <div style={{ color: "#fbbf24" }}>Skipped: {importResult.skipped}</div>
+                                    <div style={{ color: "#fca5a5" }}>Failed: {importResult.failed}</div>
+                                </div>
+                                {importResult.errors.length > 0 && (
+                                    <div style={{ marginTop: "1rem" }}>
+                                        <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.5rem" }}>
+                                            Errors (showing first 5):
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.85rem", color: "#fca5a5" }}>
+                                            {importResult.errors.slice(0, 5).map((error, idx) => (
+                                                <div key={idx}>
+                                                    Row {error.row}: {error.message}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

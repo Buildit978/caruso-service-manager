@@ -72,3 +72,142 @@ export async function deleteCustomer(id: string): Promise<void> {
 export async function fetchCustomerById(customerId: string) {
   return await http<any>(`/customers/${customerId}`);
 }
+
+export type ImportSummary = {
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ row: number; message: string }>;
+};
+
+/**
+ * Export customers as CSV
+ * Returns a Blob and optional filename from Content-Disposition header
+ */
+export async function exportCustomers(): Promise<{ blob: Blob; filename?: string }> {
+  const { getToken } = await import("./http");
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+  const token = getToken();
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["x-auth-token"] = token;
+  }
+
+  const url = `${API_BASE_URL}/customers/export`;
+  const response = await fetch(url, {
+    headers,
+  });
+
+  // Handle auth errors
+  if (response.status === 401) {
+    (await import("./http")).clearToken();
+    const error: import("./http").HttpError = new Error("Unauthorized") as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  if (response.status === 403) {
+    const error: import("./http").HttpError = new Error("Forbidden") as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  // Handle other non-2xx errors
+  if (!response.ok) {
+    const error: import("./http").HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  const blob = await response.blob();
+  
+  // Parse filename from Content-Disposition header
+  const contentDisposition = response.headers.get("Content-Disposition");
+  let filename: string | undefined;
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, "");
+    }
+  }
+
+  return { blob, filename };
+}
+
+/**
+ * Import customers from CSV file
+ */
+export async function importCustomers(file: File): Promise<ImportSummary> {
+  const token = (await import("./http")).getToken();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["x-auth-token"] = token;
+  }
+
+  const url = `${API_BASE_URL}/customers/import`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  // Handle auth errors
+  if (response.status === 401) {
+    (await import("./http")).clearToken();
+    const error: import("./http").HttpError = new Error("Unauthorized") as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  if (response.status === 403) {
+    const error: import("./http").HttpError = new Error("Forbidden") as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  // Handle other non-2xx errors
+  if (!response.ok) {
+    const error: import("./http").HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as import("./http").HttpError;
+    error.status = response.status;
+    try {
+      error.data = await response.json();
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw error;
+  }
+
+  return response.json() as Promise<ImportSummary>;
+}

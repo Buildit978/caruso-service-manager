@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model";
+import { Account } from "../models/account.model";
 import { Settings } from "../models/settings.model";
 
 type ActorRole = "owner" | "manager" | "technician";
@@ -83,6 +84,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const dbRole = user.role;
     if (dbRole !== "owner" && dbRole !== "manager" && dbRole !== "technician") {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // ✅ Check Account.isActive
+    const account = await Account.findById(accountId).lean();
+    if (!account) {
+      return res.status(403).json({ message: "Account inactive" });
+    }
+    if (account.isActive === false) {
+      return res.status(403).json({ message: "Account inactive" });
     }
 
     // ✅ Check role kill-switch (V1) - applies to all authenticated requests

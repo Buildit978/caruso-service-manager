@@ -1,7 +1,10 @@
 // backend/src/routes/settings.route.ts
 import express from "express";
 import { Settings } from "../models/settings.model";
+import { Account } from "../models/account.model";
+import { User } from "../models/user.model";
 import { requireRole } from "../middleware/requireRole";
+import { Types } from "mongoose";
 
 const router = express.Router();
 
@@ -161,6 +164,40 @@ router.patch("/role-access", requireRole(["owner"]), async (req, res) => {
     } catch (error) {
         console.error("Error in PATCH /api/settings/role-access:", error);
         return res.status(500).json({ message: "Failed to update role access" });
+    }
+});
+
+// POST /api/settings/account/deactivate (owner only)
+router.post("/account/deactivate", requireRole(["owner"]), async (req, res) => {
+    try {
+        const accountId = (req as any).accountId;
+        if (!accountId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        // Set Account.isActive = false
+        await Account.updateOne(
+            { _id: accountId },
+            { isActive: false }
+        );
+
+        // Set tokenInvalidBefore = now for all users in this accountId
+        const now = new Date();
+        await User.updateMany(
+            { accountId },
+            { tokenInvalidBefore: now }
+        );
+
+        // Optionally set User.isActive = false for all users in accountId
+        await User.updateMany(
+            { accountId },
+            { isActive: false }
+        );
+
+        return res.json({ ok: true });
+    } catch (error) {
+        console.error("Error in POST /api/settings/account/deactivate:", error);
+        return res.status(500).json({ message: "Failed to deactivate account" });
     }
 });
 

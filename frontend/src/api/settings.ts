@@ -82,3 +82,9 @@ export async function updateRoleAccess(
         body: JSON.stringify(payload),
     });
 }
+
+export async function deactivateAccount(): Promise<{ ok: boolean }> {
+    return await http<{ ok: boolean }>("/settings/account/deactivate", {
+        method: "POST",
+    });
+}

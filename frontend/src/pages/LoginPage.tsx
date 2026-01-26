@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../api/auth";
+import { login, reactivate } from "../api/auth";
 import { setToken } from "../api/http";
 import type { HttpError } from "../api/http";
 
@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReactivate, setShowReactivate] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
@@ -32,8 +34,39 @@ export default function LoginPage() {
         const httpError = err as HttpError;
         if (httpError.status === 401) {
           setError("Invalid email or password");
+        } else if (httpError.status === 403 && (httpError.data as any)?.message === "Account inactive") {
+          setError(null);
+          setShowReactivate(true);
         } else {
-          setError(httpError.message || "Login failed");
+          setError((httpError.data as any)?.message || httpError.message || "Login failed");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    }
+  }
+
+  async function handleReactivate(e: FormEvent) {
+    e.preventDefault();
+    setReactivating(true);
+    setError(null);
+
+    try {
+      const response = await reactivate({ email, password });
+      
+      // Store token in localStorage
+      setToken(response.token);
+      
+      // Redirect to dashboard
+      navigate("/", { replace: true });
+    } catch (err) {
+      setReactivating(false);
+      if (err instanceof Error && "status" in err) {
+        const httpError = err as HttpError;
+        if (httpError.status === 401) {
+          setError("Invalid email or password");
+        } else {
+          setError(httpError.message || "Reactivation failed");
         }
       } else {
         setError("An unexpected error occurred");
@@ -75,22 +108,165 @@ export default function LoginPage() {
           Caruso Service Manager
         </h1>
 
-        <form onSubmit={handleSubmit}>
-          {error && (
+        {showReactivate ? (
+          <div>
             <div
               style={{
-                marginBottom: "1rem",
+                marginBottom: "1.5rem",
                 padding: "0.75rem",
-                background: "#7f1d1d",
-                border: "1px solid #991b1b",
+                background: "#1e3a1e",
+                border: "1px solid #22c55e",
                 borderRadius: "0.375rem",
-                color: "#fca5a5",
+                color: "#86efac",
                 fontSize: "0.9rem",
               }}
             >
-              {error}
+              Your account has been deactivated. Please reactivate it to continue.
             </div>
-          )}
+
+            <form onSubmit={handleReactivate}>
+              {error && (
+                <div
+                  style={{
+                    marginBottom: "1rem",
+                    padding: "0.75rem",
+                    background: "#7f1d1d",
+                    border: "1px solid #991b1b",
+                    borderRadius: "0.375rem",
+                    color: "#fca5a5",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  htmlFor="reactivate-email"
+                  style={{
+                    display: "block",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 500,
+                    color: "#e5e7eb",
+                  }}
+                >
+                  Email
+                </label>
+                <input
+                  id="reactivate-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  disabled={reactivating}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.6rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #4b5563",
+                    background: "#020617",
+                    color: "#e5e7eb",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "1.5rem" }}>
+                <label
+                  htmlFor="reactivate-password"
+                  style={{
+                    display: "block",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 500,
+                    color: "#e5e7eb",
+                  }}
+                >
+                  Password
+                </label>
+                <input
+                  id="reactivate-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  disabled={reactivating}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.6rem",
+                    borderRadius: "0.375rem",
+                    border: "1px solid #4b5563",
+                    background: "#020617",
+                    color: "#e5e7eb",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={reactivating}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  borderRadius: "0.375rem",
+                  border: "none",
+                  background: reactivating ? "#4b5563" : "#22c55e",
+                  color: "#ffffff",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  cursor: reactivating ? "not-allowed" : "pointer",
+                  opacity: reactivating ? 0.6 : 1,
+                }}
+              >
+                {reactivating ? "Reactivating..." : "Reactivate Account"}
+              </button>
+            </form>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowReactivate(false);
+                setError(null);
+                setEmail("");
+                setPassword("");
+              }}
+              style={{
+                width: "100%",
+                marginTop: "1rem",
+                padding: "0.5rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #4b5563",
+                background: "transparent",
+                color: "#9ca3af",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              Back to Login
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div
+                style={{
+                  marginBottom: "1rem",
+                  padding: "0.75rem",
+                  background: "#7f1d1d",
+                  border: "1px solid #991b1b",
+                  borderRadius: "0.375rem",
+                  color: "#fca5a5",
+                  fontSize: "0.9rem",
+                }}
+              >
+                {error}
+              </div>
+            )}
 
           <div style={{ marginBottom: "1rem" }}>
             <label
@@ -177,6 +353,7 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+        )}
       </div>
     </div>
   );

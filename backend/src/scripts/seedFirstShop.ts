@@ -27,6 +27,7 @@ async function main() {
       account = await Account.create({
         name: accountName,
         slug: accountSlug,
+        isActive: true,
       });
       console.log("✅ Created account:", account.name);
     } else {

@@ -13,7 +13,7 @@ import { getMailer } from "./utils/mailer";
 import reportsRouter from "./routes/reports.routes";
 import { requireAuth } from "./middleware/requireAuth";
 import vehicleRoutes from "./routes/vehicles.route";
-import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter } from "./routes/auth.routes";
+import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter } from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
 
 const app = express();
@@ -30,6 +30,7 @@ app.get("/api/health", (_req, res) => {
 // 🔓 Public auth routes
 app.post("/api/auth/register", registerLimiter, handleRegister);
 app.post("/api/auth/login", loginLimiter, handleLogin);
+app.post("/api/auth/reactivate", reactivateLimiter, handleReactivate);
 
 // 🔒 All other /api routes require auth
 app.use("/api", requireAuth);

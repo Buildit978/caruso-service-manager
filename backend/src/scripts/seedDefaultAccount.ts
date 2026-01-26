@@ -20,6 +20,7 @@ async function main() {
       account = await Account.create({
         name,
         slug,
+        isActive: true,
         // add any other required fields here, e.g. contactEmail, phone, etc.
       });
       console.log("✅ Created default account:", account.name);

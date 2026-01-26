@@ -4,6 +4,7 @@ import {
     fetchSettings,
     updateSettings,
     updateRoleAccess,
+    deactivateAccount,
     type SettingsResponse,
     type DiscountType,
     type RoleAccess,
@@ -14,6 +15,8 @@ import { useSettingsAccess } from "../contexts/SettingsAccessContext";
 import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
 import { exportCustomers, importCustomers, type ImportSummary } from "../api/customers";
+import { clearToken } from "../api/http";
+import { useNavigate } from "react-router-dom";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -40,6 +43,12 @@ export default function SettingsPage() {
     const [importResult, setImportResult] = useState<ImportSummary | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    
+    // Deactivate shop state
+    const [deactivateConfirm, setDeactivateConfirm] = useState("");
+    const [deactivating, setDeactivating] = useState(false);
+    const [deactivateError, setDeactivateError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         let isMounted = true;
@@ -241,20 +250,35 @@ export default function SettingsPage() {
                     >
                         Shop Name
           </label>
-                    <input
-                        id="shopName"
-                        type="text"
-                        value={shopName}
-                        onChange={(e) => setShopName(e.target.value)}
-                        style={{
-                            width: "100%",
-                            padding: "0.5rem 0.6rem",
-                            borderRadius: "0.375rem",
-                            border: "1px solid #4b5563",
-                            background: "#020617",
-                            color: "#e5e7eb",
-                        }}
-                    />
+                    {isOwner ? (
+                        <input
+                            id="shopName"
+                            type="text"
+                            value={shopName}
+                            onChange={(e) => setShopName(e.target.value)}
+                            style={{
+                                width: "100%",
+                                padding: "0.5rem 0.6rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #4b5563",
+                                background: "#020617",
+                                color: "#e5e7eb",
+                            }}
+                        />
+                    ) : (
+                        <div
+                            style={{
+                                width: "100%",
+                                padding: "0.5rem 0.6rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #4b5563",
+                                background: "#111827",
+                                color: "#9ca3af",
+                            }}
+                        >
+                            {shopName || "—"}
+                        </div>
+                    )}
                 </div>
 
                 {/* Tax Rate */}
@@ -741,6 +765,99 @@ export default function SettingsPage() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Danger Zone Section (Owner Only) */}
+            {isOwner && (
+                <div
+                    style={{
+                        maxWidth: "420px",
+                        margin: "3rem auto 0",
+                        padding: "1.5rem",
+                        border: "1px solid #dc2626",
+                        borderRadius: "0.75rem",
+                        background: "#1f1f1f",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#dc2626" }}>
+                        Danger Zone
+                    </h2>
+                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                        Deactivating your shop will immediately log out all users and prevent any login attempts. You can reactivate your shop at any time by logging in with your owner credentials.
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                        <div>
+                            <label
+                                htmlFor="deactivateConfirm"
+                                style={{
+                                    display: "block",
+                                    fontSize: "0.9rem",
+                                    marginBottom: "0.5rem",
+                                    color: "#e5e7eb",
+                                }}
+                            >
+                                Type <strong style={{ color: "#dc2626" }}>DEACTIVATE</strong> to confirm:
+                            </label>
+                            <input
+                                id="deactivateConfirm"
+                                type="text"
+                                value={deactivateConfirm}
+                                onChange={(e) => setDeactivateConfirm(e.target.value)}
+                                disabled={deactivating}
+                                style={{
+                                    width: "100%",
+                                    padding: "0.5rem 0.6rem",
+                                    borderRadius: "0.375rem",
+                                    border: "1px solid #dc2626",
+                                    background: "#020617",
+                                    color: "#e5e7eb",
+                                }}
+                            />
+                        </div>
+
+                        {deactivateError && (
+                            <p style={{ color: "#fca5a5", fontSize: "0.9rem" }}>{deactivateError}</p>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (deactivateConfirm !== "DEACTIVATE") {
+                                    setDeactivateError("Please type DEACTIVATE to confirm");
+                                    return;
+                                }
+
+                                setDeactivating(true);
+                                setDeactivateError(null);
+
+                                try {
+                                    await deactivateAccount();
+                                    // Clear token and redirect to login
+                                    clearToken();
+                                    navigate("/login", { replace: true });
+                                    // Show message (could use a toast/notification system if available)
+                                } catch (err: any) {
+                                    console.error("Failed to deactivate account", err);
+                                    setDeactivateError(err.message || "Failed to deactivate account");
+                                    setDeactivating(false);
+                                }
+                            }}
+                            disabled={deactivating || deactivateConfirm !== "DEACTIVATE"}
+                            style={{
+                                padding: "0.55rem 0.9rem",
+                                borderRadius: "0.5rem",
+                                border: "none",
+                                background: deactivating || deactivateConfirm !== "DEACTIVATE" ? "#4b5563" : "#dc2626",
+                                color: "#ffffff",
+                                fontWeight: 600,
+                                cursor: deactivating || deactivateConfirm !== "DEACTIVATE" ? "not-allowed" : "pointer",
+                            }}
+                        >
+                            {deactivating ? "Deactivating…" : "Deactivate Shop"}
+                        </button>
                     </div>
                 </div>
             )}

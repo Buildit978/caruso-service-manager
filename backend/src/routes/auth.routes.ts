@@ -34,6 +34,15 @@ export const registerLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiting for reactivate endpoint
+export const reactivateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === "production" ? 3 : 10,
+  message: { message: "Too many reactivation attempts, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Helper: Validate email format
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -80,6 +89,7 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
     // Create Account
     const account = await Account.create({
       name: String(shopName).trim(),
+      isActive: true,
     });
 
     // Hash password
@@ -174,11 +184,34 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    // Temporary debug: log user info after user is found
+    console.log("🔍 [handleLogin] User found:", {
+      email: user.email,
+      accountId: user.accountId?.toString(),
+    });
+
     // Compare password with hash
     const passwordMatch = await bcrypt.compare(String(password), user.passwordHash);
 
     if (!passwordMatch) {
       return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // ✅ Check Account.isActive
+    const account = await Account.findById(user.accountId).lean();
+    
+    // Temporary debug: log account info after Account.findById
+    console.log("🔍 [handleLogin] Account found:", {
+      accountId: account?._id?.toString(),
+      isActive: account?.isActive,
+      isActiveType: typeof account?.isActive,
+    });
+    
+    if (!account) {
+      return res.status(403).json({ message: "Account inactive" });
+    }
+    if (account.isActive === false) {
+      return res.status(403).json({ message: "Account inactive" });
     }
 
     // ✅ Check role kill-switch (V1)
@@ -208,6 +241,102 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
     }
 
     // Sign JWT token
+    const secret = process.env.AUTH_TOKEN_SECRET;
+    if (!secret || typeof secret !== "string") {
+      return res.status(500).json({ message: "Server auth misconfigured" });
+    }
+
+    const tokenExpiry = process.env.AUTH_TOKEN_EXPIRY || "7d";
+    const payload: JwtPayload = {
+      userId: user._id.toString(),
+      accountId: user.accountId.toString(),
+      role: user.role,
+    };
+    const signOptions = {
+      expiresIn: tokenExpiry,
+    } as SignOptions;
+    const token = jwt.sign(payload, secret, signOptions);
+
+    return res.json({
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        role: user.role,
+        accountId: user.accountId.toString(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/reactivate
+ * Public endpoint - reactivates an inactive account (owner-only)
+ */
+export async function handleReactivate(req: Request, res: Response, next: NextFunction) {
+  // Temporary debug: verify route is being hit (route order issue check)
+  console.log("🔍 handleReactivate called - route is registered and being hit");
+  try {
+    const { email, password }: {
+      email?: string;
+      password?: string;
+    } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    // Find user by email (case-insensitive via lowercase storage)
+    const user = await User.findOne({
+      email: String(email).toLowerCase().trim(),
+    }).lean();
+
+    if (!user) {
+      // Don't reveal if user exists or not (security best practice)
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Compare password with hash
+    const passwordMatch = await bcrypt.compare(String(password), user.passwordHash);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Require user.role === "owner"
+    if (user.role !== "owner") {
+      return res.status(403).json({ message: "Only owners can reactivate accounts" });
+    }
+
+    // Load user.accountId and the Account
+    const account = await Account.findById(user.accountId).lean();
+
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    // Set Account.isActive = true
+    await Account.updateOne(
+      { _id: user.accountId },
+      { isActive: true }
+    );
+
+    // If users were disabled, set User.isActive = true for users in accountId
+    await User.updateMany(
+      { accountId: user.accountId },
+      { isActive: true }
+    );
+
+    // Set tokenInvalidBefore = now for all users in accountId (fresh boundary)
+    const now = new Date();
+    await User.updateMany(
+      { accountId: user.accountId },
+      { tokenInvalidBefore: now }
+    );
+
+    // Issue JWT and return same shape as /api/auth/login
     const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret || typeof secret !== "string") {
       return res.status(500).json({ message: "Server auth misconfigured" });

@@ -6,6 +6,7 @@ export interface IAccount extends Document {
   contactName?: string;
   email?: string;
   phone?: string;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const accountSchema = new Schema<IAccount>(
     contactName: String,
     email: String,
     phone: String,
+    isActive: { type: Boolean, default: true, required: true },
   },
   {
     timestamps: true,

@@ -33,6 +33,11 @@ export interface MeResponse {
   };
 }
 
+export interface ReactivateRequest {
+  email: string;
+  password: string;
+}
+
 /**
  * Register a new shop and owner account
  */
@@ -58,4 +63,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
  */
 export async function getMe(): Promise<MeResponse> {
   return http<MeResponse>("/auth/me");
+}
+
+/**
+ * Reactivate an inactive account (public, owner-only)
+ */
+export async function reactivate(credentials: ReactivateRequest): Promise<LoginResponse> {
+  return http<LoginResponse>("/auth/reactivate", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  });
 }

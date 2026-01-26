@@ -8,3 +8,23 @@ dist/
 
 # VS Code
 .vscode/
+# -----------------------------------
+# Local notes, credentials, planning
+# -----------------------------------
+Safe folder/
+*.rtf
+*production env*.txt
+*Dev Token*
+*Environment Variables*
+
+# -----------------------------------
+# CSV exports / imports (local only)
+# -----------------------------------
+*.csv
+backend/*export*.csv
+
+# -----------------------------------
+# OS noise
+# -----------------------------------
+.DS_Store
+

@@ -105,7 +105,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}
         >
-          Caruso Service Manager
+          Auto Service Manager
         </h1>
 
         {showReactivate ? (

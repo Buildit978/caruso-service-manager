@@ -49,7 +49,7 @@ function Layout({ children }: LayoutProps) {
   }
 
   // Use shop name from settings, fallback to default
-  const displayTitle = shopName || "Caruso Service Manager"
+  const displayTitle = shopName || "Auto Service Manager"
 
   const linkStyle = (path: string) => ({
     display: 'block',

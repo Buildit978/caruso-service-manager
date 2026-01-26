@@ -22,7 +22,7 @@ export function DashboardSummary() {
     
     // Get shop name from settings (with fallback)
     const { shopName } = useSettings();
-    const displayName = shopName || "Caruso Service Manager";
+    const displayName = shopName || "Auto Service Manager";
 
     // Check if tenant is empty (no work orders)
     const isEmptyTenant = useMemo(() => {
@@ -304,7 +304,7 @@ useEffect(() => {
                     }}
                 >
                     <h2 style={{ marginTop: 0, marginBottom: "0.75rem", color: "#e5e7eb", fontSize: "1.5rem", fontWeight: 600 }}>
-                        Welcome to Caruso
+                        Welcome to Auto Service Manager
                     </h2>
                     <p style={{ marginBottom: "1.5rem", color: "#9ca3af", lineHeight: 1.6, fontSize: "1rem" }}>
                         Let&apos;s create your first work order to get your shop moving.

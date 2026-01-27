@@ -26,6 +26,27 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+// Render expects this exact path
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+// Optional internal/API health (safe to keep)
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+// Build/debug endpoint (temporary, for verification)
+app.get("/__build", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    env: process.env.NODE_ENV,
+    commit: process.env.RENDER_GIT_COMMIT || null,
+    time: new Date().toISOString(),
+  });
+});
+
+
 
 // 🔓 Public auth routes
 app.post("/api/auth/register", registerLimiter, handleRegister);
@@ -68,13 +89,18 @@ connectDB()
       console.log(`✅ MongoDB connected`);
       console.log(`🚗 Server running at http://localhost:${PORT}`);
 
-      try {
-        const transporter = getMailer();
-        await transporter.verify();
-        console.log("✅ SMTP ready");
-      } catch (err) {
-        console.error("❌ SMTP verify failed", err);
-      }
+      const transporter = getMailer();
+
+if (process.env.NODE_ENV !== "production") {
+  transporter.verify()
+    .then(() => console.log("✅ SMTP verified (dev)"))
+    .catch(err =>
+      console.warn("⚠️ SMTP verify failed (non-blocking):", err?.message || err)
+    );
+} else {
+  console.log("ℹ️ SMTP verify skipped in production");
+}
+
     });
   })
   .catch((err) => {

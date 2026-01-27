@@ -73,11 +73,11 @@ console.log("✅ Mounted /api/reports routes");
 console.log("✅ Mounted /api/users routes");
 
 console.log("CWD:", process.cwd());
-console.log("SMTP_USER:", process.env.SMTP_USER);
+
 
 const pass = process.env.SMTP_PASS ?? "";
-console.log("SMTP_PASS length:", pass.length);
-console.log("SMTP_PASS JSON:", JSON.stringify(pass));
+console.log("ℹ️ SMTP configured (details hidden)");
+
 
 const PORT = process.env.PORT || 4000;
 

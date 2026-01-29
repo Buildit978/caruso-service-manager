@@ -18,6 +18,9 @@ import usersRoutes from "./routes/users.routes";
 
 const app = express();
 
+app.set("trust proxy", 1); // ✅ required on Render/Cloudflare for correct IP + rate-limit
+
+
 // 🔹 Global middleware
 app.use(cors());
 app.use(express.json());

@@ -1,8 +1,10 @@
 // backend/src/routes/users.routes.ts
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
+import type { SentMessageInfo } from "nodemailer";
 import { User } from "../models/user.model";
 import { requireRole } from "../middleware/requireRole";
+import { buildFrom, getMailer } from "../utils/mailer";
 
 const router = Router();
 
@@ -235,7 +237,7 @@ router.patch(
 
 /**
  * POST /api/users/:id/reset-password
- * Owner-only: reset password + revoke tokens immediately
+ * Owner-only: reset password, revoke tokens, send temp password by email.
  */
 router.post(
   "/:id/reset-password",
@@ -250,14 +252,20 @@ router.post(
         return res.status(401).json({ message: "Unauthorized" });
       }
 
+      console.log("[ResetPw] start", { accountId: String(accountId), userId: id });
+
       const user = await User.findOne({ _id: id, accountId });
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Prevent resetting owner via this endpoint (safety)
       if (user.role === "owner") {
         return res.status(403).json({ message: "Cannot reset owner password via this endpoint" });
+      }
+
+      const toEmail = (user.email || "").trim();
+      if (!toEmail || !toEmail.includes("@")) {
+        return res.status(400).json({ message: "User has no valid email address" });
       }
 
       const tempPassword = generateTempPassword();
@@ -265,10 +273,47 @@ router.post(
       const passwordHash = await bcrypt.hash(tempPassword, saltRounds);
 
       user.passwordHash = passwordHash;
-      user.tokenInvalidBefore = new Date(); // force logout
+      user.tokenInvalidBefore = new Date();
       await user.save();
 
-      return res.json({ tempPassword });
+      const transporter = getMailer();
+      const from = buildFrom();
+      const subject = "Your password has been reset";
+      const text = `Your temporary password has been set. Use it to sign in and change your password.\n\nTemporary password: ${tempPassword}`;
+
+      console.log("[ResetPw] sending email");
+
+      let info: SentMessageInfo | undefined;
+      try {
+        info = await transporter.sendMail({
+          from,
+          to: toEmail,
+          subject,
+          text,
+        });
+      } catch (err: any) {
+        console.error("[ResetPw] sendMail failed", {
+          message: err?.message,
+          code: err?.code,
+          response: err?.response,
+          responseCode: err?.responseCode,
+          command: err?.command,
+          stack: err?.stack,
+        });
+        return res.status(502).json({ ok: false, message: "Email not sent" });
+      }
+
+      console.log("[ResetPw] sent", {
+        messageId: info?.messageId,
+        acceptedCount: info?.accepted?.length ?? 0,
+        rejectedCount: info?.rejected?.length ?? 0,
+      });
+
+      const body: { ok: true; tempPassword?: string } = { ok: true };
+      if (process.env.ALLOW_TEMP_PASSWORD_RESPONSE === "true") {
+        body.tempPassword = tempPassword;
+      }
+      return res.status(200).json(body);
     } catch (err) {
       next(err);
     }

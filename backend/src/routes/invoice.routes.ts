@@ -1,12 +1,13 @@
 // backend/src/routes/invoices.routes.ts
 import { Types } from "mongoose";
+import type { SentMessageInfo } from "nodemailer";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { WorkOrder } from "../models/workOrder.model";
 import Invoice from "../models/invoice.model"; // ✅ default export = runtime model
 import { Vehicle } from "../models/vehicle.model";
 import { Customer } from "../models/customer.model";
 import { buildInvoicePdfBuffer } from "../utils/invoicePdf";
-import { getMailer } from "../utils/mailer";
+import { buildFrom, getMailer } from "../utils/mailer";
 import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/invoices/invoiceLifecycle";
 import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
@@ -743,12 +744,16 @@ router.post("/:id/void", requireInvoiceNotPaid, async (req, res, next) => {
 
 // POST /api/invoices/:id/email
 router.post("/:id/email", async (req, res) => {
+  let stage = "start";
   try {
     const accountId = req.accountId;
     if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid invoice id" });
+
+    console.log("[InvoiceEmail] start", { accountId: String(accountId), invoiceId: id });
+    stage = "invoice loaded";
 
     const invoice = await Invoice.findOne({ _id: id, accountId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
@@ -767,12 +772,17 @@ router.post("/:id/email", async (req, res) => {
       return res.status(400).json({ message: "No valid customer email found for this invoice." });
     }
 
+    console.log("[InvoiceEmail] pdf generating");
+    stage = "pdf generating";
     const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
+    console.log("[InvoiceEmail] pdf ready bytes", { bytes: pdfBuffer?.length ?? 0 });
+    stage = "pdf ready";
+
     const invoiceNumber = (invoice as any).invoiceNumber ?? String((invoice as any)._id).slice(-6);
     const filename = `invoice-${invoiceNumber}.pdf`;
 
     const transporter = getMailer();
-    const from = process.env.SMTP_USER!;
+    const from = buildFrom();
     const subject = `Invoice #${invoiceNumber}`;
     const text = `Attached is your invoice #${invoiceNumber}.`;
 
@@ -785,54 +795,28 @@ router.post("/:id/email", async (req, res) => {
     };
     await invoice.save();
 
+    console.log("[InvoiceEmail] sending email");
+    stage = "sending email";
+
+    let info: SentMessageInfo | undefined;
     try {
-      const info = await transporter.sendMail({
+      info = await transporter.sendMail({
         from,
         to: toEmail,
         subject,
         text,
         attachments: [{ filename, content: pdfBuffer, contentType: "application/pdf" }],
       });
-
-      (invoice as any).email = {
-        ...((invoice as any).email ?? {}),
-        status: "sent",
-        lastTo: toEmail,
-        lastSentAt: new Date(),
-        lastMessageId: info?.messageId ?? "",
-        lastError: "",
-      };
-
-      // ✅ email implies "sent" (truth stamp)
-            const now = new Date();
-
-            // ALWAYS stamp sentAt after a successful email
-            (invoice as any).sentAt = (invoice as any).sentAt ?? now;
-
-            // Only upgrade lifecycle status if still draft
-            const curStatus = String((invoice as any).status || "draft").toLowerCase();
-            if (curStatus === "draft") {
-              (invoice as any).status = "sent";
-            }
-
-
-      // ✅ re-apply financials in case total/payments changed elsewhere before save
-      applyInvoiceFinancials(invoice as any);
-
-      await invoice.save();
-
-      const fin = computeInvoiceFinancials(invoice as any);
-
-      return res.json({
-        ok: true,
-        message: "Invoice emailed.",
-        email: (invoice as any).email,
-        status: (invoice as any).status,
-        financialStatus: fin.financialStatus,
-        paidAmount: fin.paidAmount,
-        balanceDue: fin.balanceDue,
-      });
     } catch (err: any) {
+      console.error("[InvoiceEmail] sendMail failed", {
+        stage,
+        message: err?.message,
+        code: err?.code,
+        response: err?.response,
+        responseCode: err?.responseCode,
+        command: err?.command,
+        stack: err?.stack,
+      });
       (invoice as any).email = {
         ...((invoice as any).email ?? {}),
         status: "failed",
@@ -840,17 +824,38 @@ router.post("/:id/email", async (req, res) => {
         lastError: err?.message ?? "Unknown email error",
       };
       await invoice.save();
-
-      return res.status(500).json({
-        ok: false,
-        message: "Failed to email invoice.",
-        error: (invoice as any).email?.lastError,
-        email: (invoice as any).email,
-      });
+      return res.status(502).json({ ok: false, message: "Email not sent" });
     }
+
+    console.log("[InvoiceEmail] sent", {
+      messageId: info?.messageId,
+      acceptedCount: info?.accepted?.length ?? 0,
+      rejectedCount: info?.rejected?.length ?? 0,
+    });
+
+    (invoice as any).email = {
+      ...((invoice as any).email ?? {}),
+      status: "sent",
+      lastTo: toEmail,
+      lastSentAt: new Date(),
+      lastMessageId: info?.messageId ?? "",
+      lastError: "",
+    };
+
+    const now = new Date();
+    (invoice as any).sentAt = (invoice as any).sentAt ?? now;
+    const curStatus = String((invoice as any).status || "draft").toLowerCase();
+    if (curStatus === "draft") {
+      (invoice as any).status = "sent";
+    }
+
+    applyInvoiceFinancials(invoice as any);
+    await invoice.save();
+
+    return res.status(200).json({ ok: true, messageId: info?.messageId ?? "" });
   } catch (err: any) {
-    console.error("[InvoiceEmail] ERROR", err);
-    return res.status(500).json({ message: "Email failed", error: String(err) });
+    console.error("[InvoiceEmail] error", { stage, message: err?.message, code: err?.code, response: err?.response, responseCode: err?.responseCode, command: err?.command, stack: err?.stack });
+    return res.status(502).json({ ok: false, message: "Email not sent" });
   }
 });
 

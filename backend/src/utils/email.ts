@@ -45,7 +45,10 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
     });
 
     if (error) {
-      throw new Error(error.message ?? "Resend send failed");
+      const details = JSON.stringify(error);
+      throw new Error(
+        error.message ? `${error.message} | ${details}` : details
+      );
     }
     return { messageId: data?.id };
   }

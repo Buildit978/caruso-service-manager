@@ -1,0 +1,68 @@
+// backend/src/utils/email.ts
+// Unified email sender: Resend API (production) or nodemailer (fallback)
+
+import { Resend } from "resend";
+import { buildFrom, getMailer } from "./mailer";
+
+export interface SendEmailArgs {
+  to: string;
+  subject: string;
+  text: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}
+
+/**
+ * Send email via Resend (if EMAIL_PROVIDER=resend) or nodemailer.
+ * Returns { messageId } on success; throws on failure.
+ */
+export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: string }> {
+  const provider = (process.env.EMAIL_PROVIDER ?? "").trim().toLowerCase();
+
+  if (provider === "resend") {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey || !apiKey.trim()) {
+      throw new Error("RESEND_API_KEY is required when EMAIL_PROVIDER=resend");
+    }
+    const fromRaw = process.env.EMAIL_FROM ?? process.env.SMTP_USER;
+    const from = typeof fromRaw === "string" ? fromRaw.trim() : "";
+    if (!from) {
+      throw new Error("EMAIL_FROM or SMTP_USER is required when EMAIL_PROVIDER=resend");
+    }
+
+    const resend = new Resend(apiKey.trim());
+    const attachments = (args.attachments ?? []).map((a) => ({
+      filename: a.filename,
+      content: a.content.toString("base64"),
+      contentType: a.contentType,
+    }));
+
+    const { data, error } = await resend.emails.send({
+      from,
+      to: args.to,
+      subject: args.subject,
+      text: args.text,
+      attachments: attachments.length ? attachments : undefined,
+    });
+
+    if (error) {
+      throw new Error(error.message ?? "Resend send failed");
+    }
+    return { messageId: data?.id };
+  }
+
+  // Nodemailer path
+  const transporter = getMailer();
+  const from = buildFrom();
+  const info = await transporter.sendMail({
+    from,
+    to: args.to,
+    subject: args.subject,
+    text: args.text,
+    attachments: (args.attachments ?? []).map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    })),
+  });
+  return { messageId: info?.messageId };
+}

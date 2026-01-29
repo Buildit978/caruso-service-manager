@@ -1,10 +1,9 @@
 // backend/src/routes/users.routes.ts
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import type { SentMessageInfo } from "nodemailer";
 import { User } from "../models/user.model";
 import { requireRole } from "../middleware/requireRole";
-import { buildFrom, getMailer } from "../utils/mailer";
+import { sendEmail } from "../utils/email";
 
 const router = Router();
 
@@ -276,23 +275,16 @@ router.post(
       user.tokenInvalidBefore = new Date();
       await user.save();
 
-      const transporter = getMailer();
-      const from = buildFrom();
       const subject = "Your password has been reset";
       const text = `Your temporary password has been set. Use it to sign in and change your password.\n\nTemporary password: ${tempPassword}`;
 
       console.log("[ResetPw] sending email");
 
-      let info: SentMessageInfo | undefined;
+      let result: { messageId?: string };
       try {
-        info = await transporter.sendMail({
-          from,
-          to: toEmail,
-          subject,
-          text,
-        });
+        result = await sendEmail({ to: toEmail, subject, text });
       } catch (err: any) {
-        console.error("[ResetPw] sendMail failed", {
+        console.error("[ResetPw] sendEmail failed", {
           message: err?.message,
           code: err?.code,
           response: err?.response,
@@ -303,11 +295,7 @@ router.post(
         return res.status(502).json({ ok: false, message: "Email not sent" });
       }
 
-      console.log("[ResetPw] sent", {
-        messageId: info?.messageId,
-        acceptedCount: info?.accepted?.length ?? 0,
-        rejectedCount: info?.rejected?.length ?? 0,
-      });
+      console.log("[ResetPw] sent", { messageId: result?.messageId });
 
       const body: { ok: true; tempPassword?: string } = { ok: true };
       if (process.env.ALLOW_TEMP_PASSWORD_RESPONSE === "true") {

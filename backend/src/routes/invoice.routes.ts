@@ -1,13 +1,12 @@
 // backend/src/routes/invoices.routes.ts
 import { Types } from "mongoose";
-import type { SentMessageInfo } from "nodemailer";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { WorkOrder } from "../models/workOrder.model";
 import Invoice from "../models/invoice.model"; // ✅ default export = runtime model
 import { Vehicle } from "../models/vehicle.model";
 import { Customer } from "../models/customer.model";
 import { buildInvoicePdfBuffer } from "../utils/invoicePdf";
-import { buildFrom, getMailer } from "../utils/mailer";
+import { sendEmail } from "../utils/email";
 import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/invoices/invoiceLifecycle";
 import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
@@ -781,8 +780,6 @@ router.post("/:id/email", async (req, res) => {
     const invoiceNumber = (invoice as any).invoiceNumber ?? String((invoice as any)._id).slice(-6);
     const filename = `invoice-${invoiceNumber}.pdf`;
 
-    const transporter = getMailer();
-    const from = buildFrom();
     const subject = `Invoice #${invoiceNumber}`;
     const text = `Attached is your invoice #${invoiceNumber}.`;
 
@@ -798,17 +795,16 @@ router.post("/:id/email", async (req, res) => {
     console.log("[InvoiceEmail] sending email");
     stage = "sending email";
 
-    let info: SentMessageInfo | undefined;
+    let result: { messageId?: string };
     try {
-      info = await transporter.sendMail({
-        from,
+      result = await sendEmail({
         to: toEmail,
         subject,
         text,
         attachments: [{ filename, content: pdfBuffer, contentType: "application/pdf" }],
       });
     } catch (err: any) {
-      console.error("[InvoiceEmail] sendMail failed", {
+      console.error("[InvoiceEmail] sendEmail failed", {
         stage,
         message: err?.message,
         code: err?.code,
@@ -827,18 +823,14 @@ router.post("/:id/email", async (req, res) => {
       return res.status(502).json({ ok: false, message: "Email not sent" });
     }
 
-    console.log("[InvoiceEmail] sent", {
-      messageId: info?.messageId,
-      acceptedCount: info?.accepted?.length ?? 0,
-      rejectedCount: info?.rejected?.length ?? 0,
-    });
+    console.log("[InvoiceEmail] sent", { messageId: result?.messageId });
 
     (invoice as any).email = {
       ...((invoice as any).email ?? {}),
       status: "sent",
       lastTo: toEmail,
       lastSentAt: new Date(),
-      lastMessageId: info?.messageId ?? "",
+      lastMessageId: result?.messageId ?? "",
       lastError: "",
     };
 
@@ -852,7 +844,7 @@ router.post("/:id/email", async (req, res) => {
     applyInvoiceFinancials(invoice as any);
     await invoice.save();
 
-    return res.status(200).json({ ok: true, messageId: info?.messageId ?? "" });
+    return res.status(200).json({ ok: true, messageId: result?.messageId ?? "" });
   } catch (err: any) {
     console.error("[InvoiceEmail] error", { stage, message: err?.message, code: err?.code, response: err?.response, responseCode: err?.responseCode, command: err?.command, stack: err?.stack });
     return res.status(502).json({ ok: false, message: "Email not sent" });

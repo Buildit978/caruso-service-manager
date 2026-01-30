@@ -116,11 +116,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // Attach normalized context for downstream handlers
-    (req as any).accountId = new Types.ObjectId(accountId);
+    const accountObjectId = new Types.ObjectId(accountId);
+    (req as any).accountId = accountObjectId;
     (req as any).actor = {
       _id: new Types.ObjectId(userId),
       role: dbRole, // ✅ Use DB role, not JWT role
     };
+
+    // Throttled tenant activity: update lastActiveAt only if missing or older than 15 minutes
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
+    Account.updateOne(
+      {
+        _id: accountObjectId,
+        $or: [
+          { lastActiveAt: { $exists: false } },
+          { lastActiveAt: { $lt: cutoff } },
+        ],
+      },
+      { $set: { lastActiveAt: now } }
+    ).catch((err) =>
+      console.debug?.("[requireAuth] lastActiveAt update failed", err?.message)
+    );
 
     return next();
   } catch {

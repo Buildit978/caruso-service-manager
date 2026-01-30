@@ -1,7 +1,9 @@
 // backend/src/utils/email.ts
 // Unified email sender: Resend API (production) or nodemailer (fallback)
 
+import { Types } from "mongoose";
 import { Resend } from "resend";
+import { Account } from "../models/account.model";
 import { buildFrom, getMailer } from "./mailer";
 
 export interface SendEmailArgs {
@@ -9,6 +11,7 @@ export interface SendEmailArgs {
   subject: string;
   text: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  accountId?: string | Types.ObjectId;
 }
 
 /**
@@ -50,6 +53,19 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
         error.message ? `${error.message} | ${details}` : details
       );
     }
+    if (args.accountId != null) {
+      const now = new Date();
+      const accountObjectId =
+        typeof args.accountId === "string"
+          ? new Types.ObjectId(args.accountId)
+          : args.accountId;
+      Account.updateOne(
+        { _id: accountObjectId },
+        { $inc: { emailsSentCount: 1 }, $set: { lastEmailSentAt: now } }
+      ).catch((err) =>
+        console.warn("[email] account counter update failed", err?.message)
+      );
+    }
     return { messageId: data?.id };
   }
 
@@ -67,5 +83,18 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
       contentType: a.contentType,
     })),
   });
+  if (args.accountId != null) {
+    const now = new Date();
+    const accountObjectId =
+      typeof args.accountId === "string"
+        ? new Types.ObjectId(args.accountId)
+        : args.accountId;
+    Account.updateOne(
+      { _id: accountObjectId },
+      { $inc: { emailsSentCount: 1 }, $set: { lastEmailSentAt: now } }
+    ).catch((err) =>
+      console.warn("[email] account counter update failed", err?.message)
+    );
+  }
   return { messageId: info?.messageId };
 }

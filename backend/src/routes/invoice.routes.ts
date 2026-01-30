@@ -802,6 +802,7 @@ router.post("/:id/email", async (req, res) => {
         subject,
         text,
         attachments: [{ filename, content: pdfBuffer, contentType: "application/pdf" }],
+        accountId: req.accountId,
       });
     } catch (err: any) {
       console.error("[InvoiceEmail] sendEmail failed", {

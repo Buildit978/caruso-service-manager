@@ -282,7 +282,7 @@ router.post(
 
       let result: { messageId?: string };
       try {
-        result = await sendEmail({ to: toEmail, subject, text });
+        result = await sendEmail({ to: toEmail, subject, text, accountId: req.accountId });
       } catch (err: any) {
         console.error("[ResetPw] sendEmail failed", {
           message: err?.message,

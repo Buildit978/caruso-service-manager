@@ -7,6 +7,9 @@ export interface IAccount extends Document {
   email?: string;
   phone?: string;
   isActive: boolean;
+  lastActiveAt?: Date;
+  emailsSentCount: number;
+  lastEmailSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +22,9 @@ const accountSchema = new Schema<IAccount>(
     email: String,
     phone: String,
     isActive: { type: Boolean, default: true, required: true },
+    lastActiveAt: Date,
+    emailsSentCount: { type: Number, default: 0 },
+    lastEmailSentAt: Date,
   },
   {
     timestamps: true,

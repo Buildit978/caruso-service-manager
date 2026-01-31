@@ -80,6 +80,56 @@ router.put("/", async (req, res) => {
     }
 });
 
+const INVOICE_PROFILE_KEYS = ["shopName", "logoUrl", "address", "phone", "email"] as const;
+
+// GET /api/settings/invoice-profile
+router.get("/invoice-profile", async (req, res) => {
+    try {
+        const accountId = (req as any).accountId;
+        if (!accountId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const settings = await getOrCreateSettings(accountId);
+        const invoiceProfile = settings.invoiceProfile ?? {};
+        return res.status(200).json(invoiceProfile);
+    } catch (error) {
+        console.error("Error in GET /api/settings/invoice-profile:", error);
+        return res.status(500).json({ message: "Failed to load invoice profile" });
+    }
+});
+
+// PATCH /api/settings/invoice-profile (owner only)
+router.patch("/invoice-profile", requireRole(["owner"]), async (req, res) => {
+    try {
+        const accountId = (req as any).accountId;
+        if (!accountId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const settings = await getOrCreateSettings(accountId);
+
+        const body = req.body ?? {};
+        const updates: Record<string, string> = {};
+
+        for (const key of INVOICE_PROFILE_KEYS) {
+            if (key in body && typeof body[key] === "string") {
+                updates[key] = body[key].trim();
+            }
+        }
+
+        settings.invoiceProfile = {
+            ...(settings.invoiceProfile ?? {}),
+            ...updates,
+        };
+        await settings.save();
+
+        const invoiceProfile = settings.invoiceProfile ?? {};
+        return res.status(200).json(invoiceProfile);
+    } catch (error) {
+        console.error("Error in PATCH /api/settings/invoice-profile:", error);
+        return res.status(500).json({ message: "Failed to update invoice profile" });
+    }
+});
+
 // PATCH /api/settings/permissions (owner only)
 router.patch("/permissions", requireRole(["owner"]), async (req, res) => {
     try {

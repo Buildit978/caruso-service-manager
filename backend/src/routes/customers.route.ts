@@ -7,6 +7,7 @@ import { Vehicle } from '../models/vehicle.model';
 import { WorkOrder } from '../models/workOrder.model';
 import { requireRole } from '../middleware/requireRole';
 import { sanitizeCustomerForActor, sanitizeCustomersForActor } from '../utils/customerRedaction';
+import { trackEvent } from '../utils/trackEvent';
 
 const router = Router();
 
@@ -484,6 +485,12 @@ router.post('/', requireRole(["owner", "manager"]), async (req: Request, res: Re
             email,
             address,
             notes
+        });
+
+        trackEvent({
+          req,
+          type: "customer_created",
+          entity: { kind: "customer", id: customer._id },
         });
 
         res.status(201).json(customer);

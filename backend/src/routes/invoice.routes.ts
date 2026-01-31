@@ -12,6 +12,7 @@ import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/in
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import { requireRole } from "../middleware/requireRole";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
+import { trackEvent } from "../utils/trackEvent";
 import { Settings } from "../models/settings.model";
 
 const router = Router();
@@ -396,6 +397,13 @@ router.post(
         // ✅ authoritative financial truth
         const fin = computeInvoiceFinancials({ total, payments } as any);
 
+        trackEvent({
+          req,
+          type: "invoice_create_skipped_existing",
+          entity: { kind: "invoice", id: existingInvoice._id },
+          meta: { fromWorkOrder: workOrder._id },
+        });
+
         return res.status(200).json({
           ok: true,
           alreadyExists: true,
@@ -548,6 +556,13 @@ router.post(
       workOrder.invoiceId = invoice._id;
       await workOrder.save();
 
+      trackEvent({
+        req,
+        type: "invoice_created",
+        entity: { kind: "invoice", id: invoice._id },
+        meta: { fromWorkOrder: workOrder._id },
+      });
+
       // ✅ return invoice with computed truth attached
       const fin = computeInvoiceFinancials({ total, payments: [] } as any);
 
@@ -598,6 +613,13 @@ router.post("/:id/send", requireInvoiceNotPaid, async (req, res, next) => {
     (invoice as any).sentAt = (invoice as any).sentAt ?? now;
 
     await invoice.save();
+
+    trackEvent({
+      req,
+      type: "invoice_marked_sent",
+      entity: { kind: "invoice", id: invoice._id },
+    });
+
     return res.json({ invoice });
   } catch (err) {
     next(err);
@@ -675,6 +697,13 @@ router.post("/:id/pay", async (req, res, next) => {
     applyInvoiceFinancials(invoice as any);
 
     await invoice.save();
+
+    trackEvent({
+      req,
+      type: "invoice_payment_recorded",
+      entity: { kind: "invoice", id: invoice._id },
+      meta: { method, amount: n },
+    });
 
     // ✅ if fully paid, also close the WorkOrder (financial truth)
     const finNow = computeInvoiceFinancials(invoice as any);
@@ -832,6 +861,14 @@ router.post("/:id/email", async (req, res) => {
         lastError: err?.message ?? "Unknown email error",
       };
       await invoice.save();
+
+      trackEvent({
+        req,
+        type: "invoice_emailed_failed",
+        entity: { kind: "invoice", id: invoice._id },
+        meta: { stage, error: err?.message ?? "unknown" },
+      });
+
       return res.status(502).json({ ok: false, message: "Email not sent" });
     }
 
@@ -855,6 +892,13 @@ router.post("/:id/email", async (req, res) => {
 
     applyInvoiceFinancials(invoice as any);
     await invoice.save();
+
+    trackEvent({
+      req,
+      type: "invoice_emailed_success",
+      entity: { kind: "invoice", id: invoice._id },
+      meta: { to: toEmail },
+    });
 
     return res.status(200).json({ ok: true, messageId: result?.messageId ?? "" });
   } catch (err: any) {

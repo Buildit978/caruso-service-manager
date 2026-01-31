@@ -8,6 +8,7 @@ import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import Invoice from "../models/invoice.model";
 import workOrderMessagesRouter from "./workOrderMessages.route";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
+import { trackEvent } from "../utils/trackEvent";
 import { requireRole } from "../middleware/requireRole";
 
 
@@ -437,6 +438,14 @@ return res.json(result);
         });
 
         await workOrder.save();
+
+        trackEvent({
+          req,
+          type: "work_order_created",
+          entity: { kind: "work_order", id: workOrder._id },
+          meta: { status: workOrder.status },
+        });
+
         res.status(201).json(workOrder);
       } catch (err) {
         next(err);

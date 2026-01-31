@@ -42,10 +42,15 @@ export async function buildInvoicePdfBuffer(args: {
     doc.text(profile.email, 50, leftY);
     leftY += 14;
   }
+  if (profile.taxId) {
+    doc.text(`Tax ID: ${profile.taxId}`, 50, leftY);
+    leftY += 14;
+  }
   const leftBottom = leftY;
 
   // ---- Invoice header (right)
   doc.y = startY;
+  doc.fillColor("#111111");
   const invoiceNumber = invoice.invoiceNumber ?? String(invoice._id).slice(-6);
   doc.fontSize(20).text("INVOICE", 50, startY, { align: "right", width: rightWidth });
   doc.moveDown(0.5);

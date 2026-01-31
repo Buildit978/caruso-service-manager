@@ -5,9 +5,12 @@ import {
     updateSettings,
     updateRoleAccess,
     deactivateAccount,
+    fetchInvoiceProfile,
+    patchInvoiceProfile,
     type SettingsResponse,
     type DiscountType,
     type RoleAccess,
+    type InvoiceProfile,
 } from "../api/settings";
 import TokenPanel from "../components/auth/TokenPanel";
 import RoleSwitcher from "../components/auth/RoleSwitcher";
@@ -50,6 +53,11 @@ export default function SettingsPage() {
     const [deactivateError, setDeactivateError] = useState<string | null>(null);
     const navigate = useNavigate();
 
+    // Invoice Profile (owner can edit, manager can view)
+    const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile | null>(null);
+    const [invoiceProfileDraft, setInvoiceProfileDraft] = useState<InvoiceProfile>({});
+    const [savingInvoiceProfile, setSavingInvoiceProfile] = useState(false);
+
     useEffect(() => {
         let isMounted = true;
 
@@ -77,6 +85,19 @@ export default function SettingsPage() {
                 setDiscountValue(
                     typeof data.discountValue === "number" ? data.discountValue : ""
                 );
+
+                try {
+                    const profile = await fetchInvoiceProfile();
+                    if (isMounted) {
+                        setInvoiceProfile(profile ?? {});
+                        setInvoiceProfileDraft(profile ?? {});
+                    }
+                } catch {
+                    if (isMounted) {
+                        setInvoiceProfile({});
+                        setInvoiceProfileDraft({});
+                    }
+                }
 
                 setError(null);
             } catch (err) {
@@ -168,6 +189,60 @@ export default function SettingsPage() {
         }
     }
 
+    async function handleSaveInvoiceProfile(e: React.FormEvent) {
+        e.preventDefault();
+        setSavingInvoiceProfile(true);
+        setError(null);
+        try {
+            const updated = await patchInvoiceProfile(invoiceProfileDraft);
+            setInvoiceProfile(updated);
+            setInvoiceProfileDraft(updated);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            console.error("Failed to save invoice profile", err);
+            setError("Unable to save invoice profile. Please try again.");
+        } finally {
+            setSavingInvoiceProfile(false);
+        }
+    }
+
+    function invoiceProfileField(
+        id: string,
+        label: string,
+        value: string,
+        onChange: (v: string) => void,
+        helper?: string
+    ) {
+        const inputStyle = {
+            width: "100%" as const,
+            padding: "0.5rem 0.6rem",
+            borderRadius: "0.375rem",
+            border: "1px solid #4b5563",
+            background: "#020617",
+            color: "#e5e7eb",
+        };
+        const labelStyle = { display: "block" as const, fontSize: "0.9rem", marginBottom: "0.35rem", color: "#e5e7eb" };
+        const helperStyle = { fontSize: "0.8rem", color: "#6b7280", marginTop: "0.25rem" };
+        return (
+            <div style={{ marginBottom: "1rem" }}>
+                <label htmlFor={id} style={labelStyle}>{label}</label>
+                {isOwner ? (
+                    <input
+                        id={id}
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        style={inputStyle}
+                    />
+                ) : (
+                    <div style={{ ...inputStyle, background: "#111827", color: "#9ca3af" }}>{value || "—"}</div>
+                )}
+                {helper && <p style={helperStyle}>{helper}</p>}
+            </div>
+        );
+    }
+
     if (loading) {
         return (
             <div className="page">
@@ -226,13 +301,83 @@ export default function SettingsPage() {
             <p className="page-subtitle">
                 Configure your shop name, tax rate, and default discount behavior. These
                 values will be used for invoices and work orders in the future.
-      </p>
+            </p>
 
+            <div className="settings-grid">
+                {/* Invoice Profile — first (top-left on desktop) */}
+                <div className="settings-card">
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        Invoice Profile
+                    </h2>
+                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.25rem" }}>
+                        Branding and contact info shown on invoice PDFs.
+                    </p>
+                    {invoiceProfile !== null && (
+                        <form onSubmit={handleSaveInvoiceProfile}>
+                            {invoiceProfileField(
+                                "invoiceProfile-shopName",
+                                "Shop Name",
+                                invoiceProfileDraft.shopName ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, shopName: v }))
+                            )}
+                            {invoiceProfileField(
+                                "invoiceProfile-logoUrl",
+                                "Logo URL",
+                                invoiceProfileDraft.logoUrl ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, logoUrl: v }))
+                            )}
+                            {invoiceProfileField(
+                                "invoiceProfile-address",
+                                "Address",
+                                invoiceProfileDraft.address ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, address: v }))
+                            )}
+                            {invoiceProfileField(
+                                "invoiceProfile-phone",
+                                "Phone",
+                                invoiceProfileDraft.phone ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, phone: v }))
+                            )}
+                            {invoiceProfileField(
+                                "invoiceProfile-email",
+                                "Email",
+                                invoiceProfileDraft.email ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, email: v }))
+                            )}
+                            {invoiceProfileField(
+                                "invoiceProfile-taxId",
+                                "Tax ID",
+                                invoiceProfileDraft.taxId ?? "",
+                                (v) => setInvoiceProfileDraft((p) => ({ ...p, taxId: v })),
+                                "Shows on invoices (optional)."
+                            )}
+                            {isOwner && (
+                                <button
+                                    type="submit"
+                                    disabled={savingInvoiceProfile}
+                                    style={{
+                                        marginTop: "0.5rem",
+                                        padding: "0.55rem 0.9rem",
+                                        borderRadius: "0.5rem",
+                                        border: "none",
+                                        background: savingInvoiceProfile ? "#4b5563" : "#1d4ed8",
+                                        color: "#e5e7eb",
+                                        fontWeight: 600,
+                                        cursor: savingInvoiceProfile ? "default" : "pointer",
+                                    }}
+                                >
+                                    {savingInvoiceProfile ? "Saving…" : "Save Invoice Profile"}
+                                </button>
+                            )}
+                        </form>
+                    )}
+                </div>
+
+                {/* Shop name, tax, discount */}
+                <div className="settings-card">
             <form
                 onSubmit={handleSave}
                 style={{
-                    maxWidth: "420px",
-                    margin: "0 auto",
                     display: "flex",
                     flexDirection: "column",
                     gap: "1rem",
@@ -425,18 +570,12 @@ export default function SettingsPage() {
                     {saving ? "Saving…" : "Save Settings"}
                 </button>
             </form>
+                </div>
 
             {/* Role Access Section (Owner Only) */}
             {isOwner && roleAccess && (
-                <div
-                    style={{
-                        maxWidth: "420px",
-                        margin: "3rem auto 0",
-                        padding: "1.5rem",
-                        border: "1px solid #1f2937",
-                        borderRadius: "0.75rem",
-                        background: "#020617",
-                    }}
+                <div className="settings-card"
+                    style={{ margin: 0 }}
                 >
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Role Access
@@ -520,16 +659,7 @@ export default function SettingsPage() {
 
             {/* Role Access View-Only for Managers */}
             {me?.role === "manager" && roleAccess && (
-                <div
-                    style={{
-                        maxWidth: "420px",
-                        margin: "3rem auto 0",
-                        padding: "1.5rem",
-                        border: "1px solid #1f2937",
-                        borderRadius: "0.75rem",
-                        background: "#020617",
-                    }}
-                >
+                <div className="settings-card" style={{ margin: 0 }}>
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Role Access
                     </h2>
@@ -571,16 +701,7 @@ export default function SettingsPage() {
 
             {/* Data Tools Section (Owner Only) */}
             {isOwner && (
-                <div
-                    style={{
-                        maxWidth: "420px",
-                        margin: "3rem auto 0",
-                        padding: "1.5rem",
-                        border: "1px solid #1f2937",
-                        borderRadius: "0.75rem",
-                        background: "#020617",
-                    }}
-                >
+                <div className="settings-card" style={{ margin: 0 }}>
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Data Tools
                     </h2>
@@ -772,12 +893,10 @@ export default function SettingsPage() {
             {/* Danger Zone Section (Owner Only) */}
             {isOwner && (
                 <div
+                    className="settings-card"
                     style={{
-                        maxWidth: "420px",
-                        margin: "3rem auto 0",
-                        padding: "1.5rem",
-                        border: "1px solid #dc2626",
-                        borderRadius: "0.75rem",
+                        margin: 0,
+                        borderColor: "#dc2626",
                         background: "#1f1f1f",
                     }}
                 >
@@ -861,6 +980,9 @@ export default function SettingsPage() {
                     </div>
                 </div>
             )}
+
+            </div>
+            {/* end settings-grid */}
 
             <TokenPanel />
             <RoleSwitcher />

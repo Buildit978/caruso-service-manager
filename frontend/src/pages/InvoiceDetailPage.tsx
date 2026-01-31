@@ -367,7 +367,7 @@ return (
 
 
       <div style={{ flex: 1 }}>
-        <h2 style={{ margin: 0 }}>Invoice #{invoice.invoiceNumber}</h2>
+        <h2 style={{ margin: 0, color: "#ffffff" }}>Invoice #{invoice.invoiceNumber}</h2>
 
         {/* NEW: Confidence money line */}
         <div

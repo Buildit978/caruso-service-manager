@@ -188,3 +188,24 @@ td {
   font-size: 0.95rem;
   text-align: center;
 }
+
+/* Settings page: 2 columns on desktop, 1 on mobile */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.settings-card {
+  padding: 1.5rem;
+  border: 1px solid #1f2937;
+  border-radius: 0.75rem;
+  background: #020617;
+}

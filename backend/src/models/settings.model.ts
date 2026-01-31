@@ -23,6 +23,15 @@ export interface IRoleAccess {
     techniciansEnabled: boolean;
 }
 
+export interface IInvoiceProfile {
+    shopName?: string;
+    logoUrl?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    taxId?: string;
+}
+
 export interface ISettings extends Document {
     accountId: Types.ObjectId;
     shopName: string;
@@ -31,6 +40,7 @@ export interface ISettings extends Document {
     discountValue: number; // percent (0–100) or flat amount in CAD
     permissions: IPermissions; // Deprecated but kept for migration
     roleAccess: IRoleAccess; // V1 role kill-switch
+    invoiceProfile?: IInvoiceProfile;
 }
 
 const settingsSchema = new Schema<ISettings>(
@@ -72,6 +82,14 @@ const settingsSchema = new Schema<ISettings>(
                 techniciansEnabled: true,
             }),
             required: true,
+        },
+        invoiceProfile: {
+            shopName: String,
+            logoUrl: String,
+            address: String,
+            phone: String,
+            email: String,
+            taxId: String,
         },
         permissions: {
             type: {

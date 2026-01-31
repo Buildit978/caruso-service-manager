@@ -43,6 +43,7 @@ export interface IInvoiceProfileSnapshot {
   address?: string;
   phone?: string;
   email?: string;
+  taxId?: string;
 }
 
 export type InvoiceEmailMeta = {
@@ -273,6 +274,7 @@ const InvoiceSchema = new Schema(
       address: String,
       phone: String,
       email: String,
+      taxId: String,
     },
 
     issueDate: {

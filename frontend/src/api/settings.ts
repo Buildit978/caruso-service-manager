@@ -88,3 +88,25 @@ export async function deactivateAccount(): Promise<{ ok: boolean }> {
         method: "POST",
     });
 }
+
+export type InvoiceProfile = {
+    shopName?: string;
+    logoUrl?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    taxId?: string;
+};
+
+export async function fetchInvoiceProfile(): Promise<InvoiceProfile> {
+    return await http<InvoiceProfile>("/settings/invoice-profile");
+}
+
+export async function patchInvoiceProfile(
+    payload: Partial<InvoiceProfile>
+): Promise<InvoiceProfile> {
+    return await http<InvoiceProfile>("/settings/invoice-profile", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+    });
+}

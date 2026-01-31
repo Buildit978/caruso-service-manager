@@ -80,7 +80,11 @@ router.put("/", async (req, res) => {
     }
 });
 
-const INVOICE_PROFILE_KEYS = ["shopName", "logoUrl", "address", "phone", "email"] as const;
+const INVOICE_PROFILE_KEYS = ["shopName", "logoUrl", "address", "phone", "email", "taxId"] as const;
+
+function normalizeWhitespace(s: string): string {
+    return s.trim().replace(/\s+/g, " ");
+}
 
 // GET /api/settings/invoice-profile
 router.get("/invoice-profile", async (req, res) => {
@@ -112,7 +116,7 @@ router.patch("/invoice-profile", requireRole(["owner"]), async (req, res) => {
 
         for (const key of INVOICE_PROFILE_KEYS) {
             if (key in body && typeof body[key] === "string") {
-                updates[key] = body[key].trim();
+                updates[key] = normalizeWhitespace(body[key]);
             }
         }
 

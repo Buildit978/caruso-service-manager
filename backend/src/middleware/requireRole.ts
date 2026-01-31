@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 
-type Role = "owner" | "manager" | "technician";
+type Role = "owner" | "manager" | "technician" | "superadmin";
 
 export function requireRole(allowed: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {

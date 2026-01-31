@@ -96,7 +96,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // ✅ Check role kill-switch (V1) - applies to all authenticated requests
-    if (dbRole !== "owner") {
+    if (dbRole !== "owner" && dbRole !== "superadmin") {
       const settings = await Settings.findOne({
         accountId: new Types.ObjectId(accountId),
       }).lean();

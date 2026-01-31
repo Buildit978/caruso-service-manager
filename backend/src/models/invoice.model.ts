@@ -37,6 +37,14 @@ export interface IInvoiceVehicleSnapshot {
   notes?: string;
 }
 
+export interface IInvoiceProfileSnapshot {
+  shopName?: string;
+  logoUrl?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
+
 export type InvoiceEmailMeta = {
   status: InvoiceEmailStatus;
   lastTo?: string;
@@ -76,6 +84,7 @@ export interface IInvoice extends Document {
 
   customerSnapshot: IInvoiceCustomerSnapshot;
   vehicleSnapshot?: IInvoiceVehicleSnapshot;
+  invoiceProfileSnapshot?: IInvoiceProfileSnapshot;
 
   issueDate: Date;
   dueDate?: Date;
@@ -256,6 +265,14 @@ const InvoiceSchema = new Schema(
     vehicleSnapshot: {
       type: InvoiceVehicleSnapshotSchema,
       required: false,
+    },
+
+    invoiceProfileSnapshot: {
+      shopName: String,
+      logoUrl: String,
+      address: String,
+      phone: String,
+      email: String,
     },
 
     issueDate: {

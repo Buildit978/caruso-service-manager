@@ -4,8 +4,9 @@ import PDFDocument from "pdfkit";
 export async function buildInvoicePdfBuffer(args: {
   invoice: any;
   customer?: any;
+  settings?: any;
 }): Promise<Buffer> {
-  const { invoice, customer } = args;
+  const { invoice, customer, settings } = args;
 
   const doc = new PDFDocument({ size: "LETTER", margin: 50 });
 
@@ -18,9 +19,35 @@ export async function buildInvoicePdfBuffer(args: {
 
   const money = (n: any) => Number(n ?? 0).toFixed(2);
 
-  // ---- Header
+  const profile = invoice.invoiceProfileSnapshot ?? settings?.invoiceProfile ?? {};
+  const shopName = profile.shopName || settings?.shopName || "Invoice";
+  const startY = 50;
+  const pageWidth = 612;
+  const rightWidth = pageWidth - 100;
+
+  // ---- Shop header (left) at fixed positions
+  let leftY = startY;
+  doc.fontSize(14).font("Helvetica-Bold").text(shopName, 50, leftY);
+  leftY += 16;
+  doc.font("Helvetica").fontSize(10);
+  if (profile.address) {
+    doc.text(profile.address, 50, leftY);
+    leftY += 14;
+  }
+  if (profile.phone) {
+    doc.text(`Phone: ${profile.phone}`, 50, leftY);
+    leftY += 14;
+  }
+  if (profile.email) {
+    doc.text(profile.email, 50, leftY);
+    leftY += 14;
+  }
+  const leftBottom = leftY;
+
+  // ---- Invoice header (right)
+  doc.y = startY;
   const invoiceNumber = invoice.invoiceNumber ?? String(invoice._id).slice(-6);
-  doc.fontSize(20).text("INVOICE", { align: "right" });
+  doc.fontSize(20).text("INVOICE", 50, startY, { align: "right", width: rightWidth });
   doc.moveDown(0.5);
   doc.fontSize(10).text(`Invoice #: ${invoiceNumber}`, { align: "right" });
 
@@ -99,9 +126,8 @@ export async function buildInvoicePdfBuffer(args: {
     doc.fillColor("#111111");
   }
 
-
-
-  doc.moveDown(1);
+  const headerBottom = doc.y;
+  doc.y = Math.max(leftBottom, headerBottom) + 16;
 
   // ---- Bill To
   const cust = customer ?? (invoice as any).customerId;

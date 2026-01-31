@@ -12,6 +12,7 @@ import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/in
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import { requireRole } from "../middleware/requireRole";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
+import { Settings } from "../models/settings.model";
 
 const router = Router();
 
@@ -771,9 +772,19 @@ router.post("/:id/email", async (req, res) => {
       return res.status(400).json({ message: "No valid customer email found for this invoice." });
     }
 
+    const settings = await Settings.findOne({ accountId }).lean();
+    const newSnapshot = settings?.invoiceProfile ?? undefined;
+    const existing = (invoice as any).invoiceProfileSnapshot;
+    const snapshotStr = (o: any) => JSON.stringify(o ?? {});
+    const needsSnapshotUpdate = !existing || snapshotStr(existing) !== snapshotStr(newSnapshot);
+    if (needsSnapshotUpdate) {
+      (invoice as any).invoiceProfileSnapshot = newSnapshot;
+      await invoice.save();
+    }
+
     console.log("[InvoiceEmail] pdf generating");
     stage = "pdf generating";
-    const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer });
+    const pdfBuffer = await buildInvoicePdfBuffer({ invoice, customer, settings });
     console.log("[InvoiceEmail] pdf ready bytes", { bytes: pdfBuffer?.length ?? 0 });
     stage = "pdf ready";
 
@@ -876,10 +887,13 @@ router.get("/:id/pdf", async (req, res, next) => {
     const fin = computeInvoiceFinancials(invoice as any);
     const invoiceForPdf = { ...invoice, ...fin };
 
+    const pdfSettings = await Settings.findOne({ accountId }).lean();
+
     // 2) Generate PDF buffer (reuse your existing PDF builder)
     const pdfBuffer = await buildInvoicePdfBuffer({
       invoice: invoiceForPdf,
       customer,
+      settings: pdfSettings,
     });
 
     // 3) Stream PDF to browser

@@ -1,7 +1,8 @@
 import "dotenv/config";
 import jwt from "jsonwebtoken";
+import type { UserRole } from "../models/user.model";
 
-type Role = "owner" | "manager" | "technician";
+const VALID_ROLES: UserRole[] = ["owner", "manager", "technician", "superadmin"];
 
 /**
  * Dev-only helper to mint an auth token for local testing.
@@ -14,7 +15,7 @@ type Role = "owner" | "manager" | "technician";
  */
 async function main() {
   const [userId, accountId, roleArg] = process.argv.slice(2);
-  const role = (roleArg || "").toLowerCase() as Role;
+  const role = (roleArg || "").toLowerCase() as UserRole;
   const secret = process.env.AUTH_TOKEN_SECRET;
 
   if (!secret) {
@@ -24,12 +25,12 @@ async function main() {
 
   if (!userId || !accountId || !role) {
     console.error("Usage: ts-node src/scripts/mintToken.ts <userId> <accountId> <role>");
-    console.error("role must be one of: owner | manager | technician");
+    console.error("role must be one of: owner | manager | technician | superadmin");
     process.exit(1);
   }
 
-  if (!["owner", "manager", "technician"].includes(role)) {
-    console.error("Invalid role. Expected one of: owner | manager | technician");
+  if (!VALID_ROLES.includes(role)) {
+    console.error("Invalid role. Expected one of: owner | manager | technician | superadmin");
     process.exit(1);
   }
 

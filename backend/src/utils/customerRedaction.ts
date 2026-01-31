@@ -2,8 +2,7 @@
 // Redacts customer PII based on actor role
 
 import type { ICustomer } from "../models/customer.model";
-
-type ActorRole = "owner" | "manager" | "technician";
+import type { UserRole } from "../models/user.model";
 
 /**
  * Redacts PII from customer data for technicians.
@@ -22,7 +21,7 @@ type ActorRole = "owner" | "manager" | "technician";
  */
 export function sanitizeCustomerForActor(
   customer: any,
-  actorRole: ActorRole
+  actorRole: UserRole
 ): any {
   if (!customer) return customer;
 
@@ -48,7 +47,7 @@ export function sanitizeCustomerForActor(
  */
 export function sanitizeCustomersForActor(
   customers: any[],
-  actorRole: ActorRole
+  actorRole: UserRole
 ): any[] {
   return customers.map((customer) => sanitizeCustomerForActor(customer, actorRole));
 }

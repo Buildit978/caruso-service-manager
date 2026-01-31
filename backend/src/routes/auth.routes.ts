@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
-import { User } from "../models/user.model";
+import { User, type UserRole } from "../models/user.model";
 import { Settings } from "../models/settings.model";
 import { Account } from "../models/account.model";
 import { requireAuth } from "../middleware/requireAuth";
@@ -12,7 +12,7 @@ import { Types } from "mongoose";
 interface JwtPayload {
   userId: string;
   accountId: string;
-  role: "owner" | "manager" | "technician";
+  role: UserRole;
 }
 
 

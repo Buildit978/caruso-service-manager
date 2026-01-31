@@ -1,15 +1,14 @@
 // backend/src/middleware/account.middleware.ts
 import type { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
-
-type ActorRole = "owner" | "manager" | "technician";
+import type { UserRole } from "../models/user.model";
 
 declare module "express-serve-static-core" {
   interface Request {
     accountId?: Types.ObjectId;
     actor?: {
       _id: Types.ObjectId;
-      role: ActorRole;
+      role: UserRole;
     };
   }
 }

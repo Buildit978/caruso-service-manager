@@ -1,16 +1,16 @@
 import type { Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
 import jwt from "jsonwebtoken";
-import { User } from "../models/user.model";
+import { User, type UserRole } from "../models/user.model";
 import { Account } from "../models/account.model";
 import { Settings } from "../models/settings.model";
 
-type ActorRole = "owner" | "manager" | "technician";
+const VALID_ROLES: UserRole[] = ["owner", "manager", "technician", "superadmin"];
 
 interface AuthTokenPayload {
   userId: string;
   accountId: string;
-  role: ActorRole;
+  role: UserRole;
   iat?: number; // Issued at (timestamp in seconds)
   // allow extra claims but we only rely on these
   [key: string]: unknown;
@@ -21,7 +21,7 @@ declare module "express-serve-static-core" {
     accountId?: Types.ObjectId;
     actor?: {
       _id: Types.ObjectId;
-      role: ActorRole;
+      role: UserRole;
     };
   }
 }
@@ -47,11 +47,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const { userId, accountId, role, iat } = decoded || ({} as AuthTokenPayload);
 
     // Basic shape + value checks
-    if (
-      !userId ||
-      !accountId ||
-      (role !== "owner" && role !== "manager" && role !== "technician")
-    ) {
+    if (!userId || !accountId || !VALID_ROLES.includes(role as UserRole)) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -82,7 +78,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     // ✅ Use DB role (authoritative), not JWT payload role
     const dbRole = user.role;
-    if (dbRole !== "owner" && dbRole !== "manager" && dbRole !== "technician") {
+    if (!VALID_ROLES.includes(dbRole)) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 

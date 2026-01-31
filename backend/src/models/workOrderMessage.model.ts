@@ -1,5 +1,6 @@
 // backend/src/models/workOrderMessage.model.ts
 import { Schema, model, Types } from "mongoose";
+import type { UserRole } from "./user.model";
 
 export type WorkOrderMessageChannel = "internal" | "customer";
 export type WorkOrderMessageVisibility = "internal" | "customer";
@@ -14,7 +15,7 @@ export interface WorkOrderMessage {
   actor: {
     id: Types.ObjectId;
     nameSnapshot: string;
-    roleSnapshot: "owner" | "manager" | "technician";
+    roleSnapshot: UserRole;
   };
 
   meta?: {
@@ -52,7 +53,7 @@ const WorkOrderMessageSchema = new Schema<WorkOrderMessage>(
       nameSnapshot: { type: String, required: true },
       roleSnapshot: {
         type: String,
-        enum: ["owner", "manager", "technician"],
+        enum: ["owner", "manager", "technician", "superadmin"],
         required: true,
       },
     },

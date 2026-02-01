@@ -23,6 +23,14 @@ declare module "express-serve-static-core" {
       _id: Types.ObjectId;
       role: UserRole;
     };
+    adminActor?: {
+      _id: Types.ObjectId;
+      role: UserRole;
+    };
+    auditContext?: {
+      ip?: string;
+      userAgent?: string;
+    };
   }
 }
 
@@ -91,6 +99,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return res.status(403).json({ message: "Account inactive" });
     }
 
+    const now = new Date();
+    if (account.quarantineUntil && account.quarantineUntil > now) {
+      return res.status(403).json({ message: "Account quarantined" });
+    }
+    if (account.throttleUntil && account.throttleUntil > now) {
+      return res.status(429).json({ message: "Account throttled" });
+    }
+
     // ✅ Check role kill-switch (V1) - applies to all authenticated requests
     if (dbRole !== "owner" && dbRole !== "superadmin") {
       const settings = await Settings.findOne({
@@ -120,7 +136,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     };
 
     // Throttled tenant activity: update lastActiveAt only if missing or older than 15 minutes
-    const now = new Date();
     const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
     Account.updateOne(
       {

@@ -1,4 +1,4 @@
-import { Schema, model, type Document } from "mongoose";
+import { Schema, model, type Document, Types } from "mongoose";
 
 export interface IAccount extends Document {
   name: string;
@@ -10,6 +10,11 @@ export interface IAccount extends Document {
   lastActiveAt?: Date;
   emailsSentCount: number;
   lastEmailSentAt?: Date;
+  throttleUntil?: Date;
+  quarantineUntil?: Date;
+  securityNote?: string;
+  lastSecurityActionAt?: Date;
+  lastSecurityActorId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +30,11 @@ const accountSchema = new Schema<IAccount>(
     lastActiveAt: Date,
     emailsSentCount: { type: Number, default: 0 },
     lastEmailSentAt: Date,
+    throttleUntil: Date,
+    quarantineUntil: Date,
+    securityNote: String,
+    lastSecurityActionAt: Date,
+    lastSecurityActorId: Schema.Types.ObjectId,
   },
   {
     timestamps: true,

@@ -12,9 +12,11 @@ import invoiceRoutes from "./routes/invoice.routes";
 import { getMailer } from "./utils/mailer";
 import reportsRouter from "./routes/reports.routes";
 import { requireAuth } from "./middleware/requireAuth";
+import { requireAdmin } from "./middleware/requireAdmin";
 import vehicleRoutes from "./routes/vehicles.route";
 import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter } from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
+import adminBetaRouter from "./routes/adminBeta.route";
 
 const app = express();
 
@@ -70,6 +72,7 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRoutes);
+app.use("/api/admin/beta", requireAdmin, adminBetaRouter);
 
 console.log("✅ Mounted /api/invoices routes");
 console.log("✅ Mounted /api/reports routes");

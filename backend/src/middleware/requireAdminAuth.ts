@@ -4,7 +4,8 @@ import jwt from "jsonwebtoken";
 import { User, type UserRole } from "../models/user.model";
 
 interface AdminTokenPayload {
-  userId: string;
+  userId?: string;
+  adminUserId?: string;
   iat?: number;
   [key: string]: unknown;
 }
@@ -27,14 +28,15 @@ export async function requireAdminAuth(req: Request, res: Response, next: NextFu
   try {
     const decoded = jwt.verify(token, secret) as AdminTokenPayload;
 
-    const { userId, iat } = decoded || ({} as AdminTokenPayload);
+    const { userId, adminUserId, iat } = decoded || ({} as AdminTokenPayload);
+    const resolvedUserId = adminUserId ?? userId;
 
-    if (!userId || !Types.ObjectId.isValid(userId)) {
+    if (!resolvedUserId || !Types.ObjectId.isValid(resolvedUserId)) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const user = await User.findOne({
-      _id: new Types.ObjectId(userId),
+      _id: new Types.ObjectId(resolvedUserId),
     }).lean();
 
     if (!user) {

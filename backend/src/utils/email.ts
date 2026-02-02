@@ -12,6 +12,8 @@ export interface SendEmailArgs {
   text: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
   accountId?: string | Types.ObjectId;
+  /** Override From (e.g. ADMIN_FROM_EMAIL/ADMIN_FROM_NAME). Invoice emails keep using INVOICE_FROM_* / default. */
+  from?: { name: string; email: string };
 }
 
 /**
@@ -26,8 +28,15 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
     if (!apiKey || !apiKey.trim()) {
       throw new Error("RESEND_API_KEY is required when EMAIL_PROVIDER=resend");
     }
-    const fromRaw = process.env.EMAIL_FROM ?? process.env.SMTP_USER;
-    const from = typeof fromRaw === "string" ? fromRaw.trim() : "";
+    let from: string;
+    if (args.from?.email?.trim()) {
+      from = args.from.name?.trim()
+        ? `${args.from.name.trim()} <${args.from.email.trim()}>`
+        : args.from.email.trim();
+    } else {
+      const fromRaw = process.env.EMAIL_FROM ?? process.env.SMTP_USER;
+      from = typeof fromRaw === "string" ? fromRaw.trim() : "";
+    }
     if (!from) {
       throw new Error("EMAIL_FROM or SMTP_USER is required when EMAIL_PROVIDER=resend");
     }
@@ -71,7 +80,9 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
 
   // Nodemailer path
   const transporter = getMailer();
-  const from = buildFrom();
+  const from = args.from?.email?.trim()
+    ? (args.from.name?.trim() ? `${args.from.name.trim()} <${args.from.email.trim()}>` : args.from.email.trim())
+    : buildFrom();
   const info = await transporter.sendMail({
     from,
     to: args.to,

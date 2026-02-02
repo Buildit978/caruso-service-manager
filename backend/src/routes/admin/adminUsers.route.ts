@@ -64,7 +64,7 @@ router.post("/", async (req: Request, res: Response) => {
       const subject = "Admin access – sign in";
       const text = `You have been invited to the admin area. Sign in at:\n\n${getAdminLoginUrl()}\n\nEmail: ${emailNorm}\nTemporary password: ${tempPassword}\n\nChange your password after first sign-in if possible.`;
       try {
-        await sendEmail({ to: emailNorm, subject, text });
+        await sendEmail({ to: emailNorm, subject, text, from: getAdminFrom() });
       } catch (err: any) {
         console.error("[AdminInvite] sendEmail failed", err?.message);
         return res.status(502).json({ message: "Email not sent" });
@@ -101,7 +101,7 @@ router.post("/", async (req: Request, res: Response) => {
     const subject = "Admin access – sign in";
     const text = `You have been invited to the admin area. Sign in at:\n\n${getAdminLoginUrl()}\n\nEmail: ${emailNorm}\nTemporary password: ${tempPassword}\n\nChange your password after first sign-in if possible.`;
     try {
-      await sendEmail({ to: emailNorm, subject, text });
+      await sendEmail({ to: emailNorm, subject, text, from: getAdminFrom() });
     } catch (err: any) {
       console.error("[AdminInvite] sendEmail failed", err?.message);
       return res.status(502).json({ message: "Email not sent" });
@@ -178,10 +178,10 @@ router.post("/:id/reset-password", async (req: Request, res: Response) => {
     const subject = "Admin password reset";
     const text = `Your admin password has been reset. Sign in at:\n\n${getAdminLoginUrl()}\n\nEmail: ${toEmail}\nTemporary password: ${tempPassword}`;
     try {
-      await sendEmail({ to: toEmail, subject, text });
+      await sendEmail({ to: toEmail, subject, text, from: getAdminFrom() });
     } catch (err: any) {
       console.error("[AdminResetPw] sendEmail failed", err?.message);
-      return res.status(502).json({ message: "Email not sent" });
+      return res.status(500).json({ message: "Email send failed" });
     }
 
     const after = { userId: user._id.toString(), email: user.email, role: user.role };
@@ -257,6 +257,13 @@ router.patch("/:id/role", async (req: Request, res: Response) => {
 function getAdminLoginUrl(): string {
   const base = process.env.ADMIN_UI_BASE_URL || process.env.FRONTEND_URL || "";
   return base ? `${base.replace(/\/$/, "")}/admin` : "/admin";
+}
+
+/** From address for admin invite/reset emails. ADMIN_FROM_EMAIL/ADMIN_FROM_NAME, fallback SMTP_USER. */
+function getAdminFrom(): { name: string; email: string } {
+  const email = (process.env.ADMIN_FROM_EMAIL || process.env.SMTP_USER || "").trim();
+  const name = (process.env.ADMIN_FROM_NAME || "Shop Service Manager Admin").trim();
+  return { name, email };
 }
 
 export default router;

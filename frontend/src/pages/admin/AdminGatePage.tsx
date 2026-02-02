@@ -32,7 +32,7 @@ export default function AdminGatePage() {
     setLoading(true);
     try {
       const res = await adminLogin({ email: email.trim(), password });
-      const role = res.user?.role;
+      const role = res.adminUser?.role;
       if (!role || !isAllowedRole(role)) {
         setError("Access denied. Admin or Superadmin role required.");
         setLoading(false);

@@ -1,7 +1,7 @@
 // Admin API client: uses localStorage adminToken, only /api/admin/*
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-const ADMIN_TOKEN_KEY = "adminToken";
+const ADMIN_TOKEN_KEY = "admin_token";
 const ADMIN_ROLE_KEY = "adminRole";
 
 export type AdminRole = "admin" | "superadmin";
@@ -33,13 +33,13 @@ export function clearAdminRole(): void {
   localStorage.removeItem(ADMIN_ROLE_KEY);
 }
 
-/** POST /api/auth/login for admin gate; does not touch tenant token. Returns { token, user } or throws. */
+/** POST /api/admin/auth/login for admin gate; stores token in admin_token only (does not touch tenant token). Returns { token, adminUser } or throws. */
 export interface AdminLoginResponse {
   token: string;
-  user: { id: string; name: string; role: string; accountId: string };
+  adminUser: { id: string; email: string; name: string; role: string; accountId: string };
 }
 export async function adminLogin(credentials: { email: string; password: string }): Promise<AdminLoginResponse> {
-  const url = `${API_BASE_URL}/auth/login`;
+  const url = `${API_BASE_URL}/admin/auth/login`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

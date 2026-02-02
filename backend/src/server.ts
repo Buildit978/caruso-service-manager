@@ -18,6 +18,7 @@ import vehicleRoutes from "./routes/vehicles.route";
 import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter } from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
+import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
 
 const app = express();
 
@@ -30,7 +31,8 @@ app.use(express.json());
 
 // (Optional) health check (public)
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", build: "admin-auth-public-check-1" });
+
 });
 // Render expects this exact path
 app.get("/health", (_req, res) => {
@@ -58,6 +60,9 @@ app.get("/__build", (_req, res) => {
 app.post("/api/auth/register", registerLimiter, handleRegister);
 app.post("/api/auth/login", loginLimiter, handleLogin);
 app.post("/api/auth/reactivate", reactivateLimiter, handleReactivate);
+
+// 🔓 Public admin auth (login only; rest of /api/admin requires token)
+app.use("/api/admin/auth", adminAuthPublicRouter);
 
 app.use("/api/admin", requireAdminAuth, adminRouter);
 

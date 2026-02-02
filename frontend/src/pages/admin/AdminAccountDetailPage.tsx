@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import {
   fetchAdminAccounts,
   fetchAdminAudits,
@@ -20,7 +20,6 @@ type SheetKind = "quarantine" | "throttle" | "force-logout-confirm" | null;
 
 export default function AdminAccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
-  const navigate = useNavigate();
   const location = useLocation();
   const accountFromState = (location.state as { account?: AdminAccountItem })?.account;
 

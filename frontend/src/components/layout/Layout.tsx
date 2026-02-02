@@ -1,17 +1,12 @@
 // src/components/layout/Layout.tsx
-import type { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, Outlet } from 'react-router-dom'
 import { useSettingsAccess } from '../../contexts/SettingsAccessContext'
 import { useAccess } from '../../contexts/AccessContext'
 import { useMe } from "../../auth/useMe";
 import { clearToken } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 
-interface LayoutProps {
-  children: ReactNode
-}
-
-function Layout({ children }: LayoutProps) {
+function Layout() {
   const location = useLocation()
   const { hasAccess } = useSettingsAccess()
   const { customersAccess, vehiclesAccess } = useAccess()
@@ -156,7 +151,7 @@ function Layout({ children }: LayoutProps) {
       </aside>
 
       <main style={{ flex: 1, padding: '1.5rem 2rem' }}>
-        {children}
+        <Outlet />
       </main>
     </div>
   )

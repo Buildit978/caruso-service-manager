@@ -3,8 +3,29 @@ import { Types } from "mongoose";
 import { Account } from "../../models/account.model";
 import { User } from "../../models/user.model";
 import { trackAdminAudit } from "../../utils/trackAdminAudit";
+import { getAccountAudits } from "../../utils/getAccountAudits";
 
 const router = Router();
+
+const AUDITS_MAX_LIMIT = 200;
+const AUDITS_DEFAULT_LIMIT = 50;
+const AUDITS_DEFAULT_SKIP = 0;
+
+function parseAuditsLimit(query: Request["query"]): number {
+  const raw = query.limit;
+  if (raw == null || raw === "") return AUDITS_DEFAULT_LIMIT;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return AUDITS_DEFAULT_LIMIT;
+  return Math.min(Math.max(n, 1), AUDITS_MAX_LIMIT);
+}
+
+function parseAuditsSkip(query: Request["query"]): number {
+  const raw = query.skip;
+  if (raw == null || raw === "") return AUDITS_DEFAULT_SKIP;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0) return AUDITS_DEFAULT_SKIP;
+  return n;
+}
 
 const SECURITY_FIELDS = [
   "quarantineUntil",
@@ -35,6 +56,23 @@ function securitySubset(account: Record<string, unknown>): Record<string, unknow
   }
   return out;
 }
+
+/*
+ * GET /api/admin/accounts/:accountId/audits?limit=50&skip=0
+ * Example: curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/accounts/<accountId>/audits?limit=50&skip=0"
+ */
+router.get("/:accountId/audits", async (req: Request, res: Response) => {
+  try {
+    const accountId = parseAccountId(req.params.accountId);
+    if (!accountId) return res.status(400).json({ message: "Invalid accountId" });
+    const limit = parseAuditsLimit(req.query);
+    const skip = parseAuditsSkip(req.query);
+    const result = await getAccountAudits(accountId, { limit, skip });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 // POST /accounts/:accountId/security/quarantine
 router.post("/:accountId/security/quarantine", async (req: Request, res: Response) => {

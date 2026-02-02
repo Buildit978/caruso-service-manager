@@ -49,7 +49,7 @@ export async function requireAdminAuth(req: Request, res: Response, next: NextFu
       }
     }
 
-    if (user.role !== "superadmin") {
+    if (user.role !== "admin" && user.role !== "superadmin") {
       return res.status(403).json({ message: "Forbidden" });
     }
 

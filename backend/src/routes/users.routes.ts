@@ -4,19 +4,9 @@ import bcrypt from "bcryptjs";
 import { User } from "../models/user.model";
 import { requireRole } from "../middleware/requireRole";
 import { sendEmail } from "../utils/email";
+import { generateTempPassword } from "../utils/password";
 
 const router = Router();
-
-// Helper: Generate temporary password (12+ characters)
-function generateTempPassword(): string {
-  const length = 16;
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-}
 
 // Helper: Validate email format
 function isValidEmail(email: string): boolean {

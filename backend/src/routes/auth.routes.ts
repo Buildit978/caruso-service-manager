@@ -215,26 +215,24 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
     }
 
     // ✅ Check role kill-switch (V1)
-    if (user.role !== "owner") {
+    if (user.role === "manager" || user.role === "technician") {
       const settings = await Settings.findOne({
         accountId: new Types.ObjectId(user.accountId),
       }).lean();
 
-      // Fail-closed: if settings missing, deny access
       if (!settings || !settings.roleAccess) {
-        if (user.role === "manager") {
-          return res.status(403).json({ message: "Manager access disabled by owner" });
-        }
-        if (user.role === "technician") {
-          return res.status(403).json({ message: "Technician access disabled by owner" });
-        }
-        return res.status(403).json({ message: "Access disabled by owner" });
+        return res.status(403).json({
+          message:
+            user.role === "manager"
+              ? "Manager access disabled by owner"
+              : "Technician access disabled by owner",
+        });
       }
 
-      // Check role-specific toggle
       if (user.role === "manager" && settings.roleAccess.managersEnabled !== true) {
         return res.status(403).json({ message: "Manager access disabled by owner" });
       }
+
       if (user.role === "technician" && settings.roleAccess.techniciansEnabled !== true) {
         return res.status(403).json({ message: "Technician access disabled by owner" });
       }

@@ -5,7 +5,7 @@ import { User, type UserRole } from "../models/user.model";
 import { Account } from "../models/account.model";
 import { Settings } from "../models/settings.model";
 
-const VALID_ROLES: UserRole[] = ["owner", "manager", "technician", "superadmin"];
+const VALID_ROLES: UserRole[] = ["owner", "manager", "technician", "admin", "superadmin"];
 
 interface AuthTokenPayload {
   userId: string;
@@ -108,7 +108,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // ✅ Check role kill-switch (V1) - applies to all authenticated requests
-    if (dbRole !== "owner" && dbRole !== "superadmin") {
+    if (dbRole !== "owner" && dbRole !== "admin" && dbRole !== "superadmin") {
       const settings = await Settings.findOne({
         accountId: new Types.ObjectId(accountId),
       }).lean();

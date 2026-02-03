@@ -69,7 +69,7 @@ export default function CustomerDetailPage() {
                     <div style={{ marginBottom: "0.5rem" }}>
                         <Link to="/customers">&larr; Back to Customers</Link>
                     </div>
-                    <h2 style={{ marginBottom: "0.5rem", fontSize: "1.6rem", fontWeight: 600 }}>
+                    <h2 style={{ marginBottom: "0.5rem", fontSize: "1.6rem", fontWeight: 600, color: "#ffffff" }}>
                         {name}
                     </h2>
                 </div>

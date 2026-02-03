@@ -3,26 +3,45 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { User } from "../models/user.model";
+import { Account } from "../models/account.model";
 
 async function main() {
-  const email = "superadmin@caruso.local"; // 👈 your real email
-  const tempPassword = "TempAdmin123!"; // 👈 temporary, change later
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error("Missing ADMIN_EMAIL or ADMIN_PASSWORD");
+  }
 
   const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
   if (!mongoUri) throw new Error("Missing MONGO_URI");
 
   await mongoose.connect(mongoUri);
 
-  const user = await User.findOne({ email: email.toLowerCase() });
-  if (!user) throw new Error(`Superadmin not found: ${email}`);
-  if (user.role !== "superadmin")
-    throw new Error(`User is not superadmin (role=${user.role})`);
+  const systemAccount = await Account.findOne({ slug: "system" });
+  if (!systemAccount) throw new Error("System account not found");
 
-  user.passwordHash = await bcrypt.hash(tempPassword, 10);
-  await user.save();
+  const passwordHash = await bcrypt.hash(password, 10);
 
-  console.log("✅ Superadmin password bootstrapped");
-  console.log("   email:", email);
+  const user = await User.findOneAndUpdate(
+    {
+      email: email.toLowerCase(),
+      accountId: systemAccount._id,
+    },
+    {
+      email: email.toLowerCase(),
+      accountId: systemAccount._id,
+      role: "superadmin",
+      isActive: true,
+      passwordHash,
+    },
+    { upsert: true, new: true }
+  );
+
+  console.log("✅ System superadmin ready");
+  console.log("   id:", user._id.toString());
+  console.log("   email:", user.email);
+  console.log("   accountId:", user.accountId.toString());
 
   await mongoose.disconnect();
 }

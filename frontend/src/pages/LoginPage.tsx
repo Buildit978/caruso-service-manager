@@ -105,7 +105,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}
         >
-          Auto Service Manager
+          Shop Service Manager
         </h1>
 
         {showReactivate ? (

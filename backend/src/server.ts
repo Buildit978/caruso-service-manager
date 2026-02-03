@@ -31,8 +31,7 @@ app.use(express.json());
 
 // (Optional) health check (public)
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", build: "admin-auth-public-check-1" });
-
+  res.json({ status: "ok" });
 });
 // Render expects this exact path
 app.get("/health", (_req, res) => {

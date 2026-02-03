@@ -1,4 +1,5 @@
 // src/components/layout/Layout.tsx
+import { useState } from 'react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { useSettingsAccess } from '../../contexts/SettingsAccessContext'
 import { useAccess } from '../../contexts/AccessContext'
@@ -10,6 +11,7 @@ function Layout() {
   const location = useLocation()
   const { hasAccess } = useSettingsAccess()
   const { customersAccess, vehiclesAccess } = useAccess()
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // ✅ NEW: fetch server-truth identity (role/account) using x-auth-token
   const { me, loading: meLoading } = useMe()
@@ -25,6 +27,8 @@ function Layout() {
     // Hard redirect to login (resets all state including access flags)
     window.location.href = "/login";
   }
+
+  const closeDrawer = () => setDrawerOpen(false)
 
   // ✅ Optional: avoid UI flicker before role is known
   if (meLoading) {
@@ -43,9 +47,6 @@ function Layout() {
     )
   }
 
-  // Use shop name from settings, fallback to default
-  const displayTitle = shopName || "Auto Service Manager"
-
   const linkStyle = (path: string) => ({
     display: 'block',
     padding: '0.35rem 0.6rem',
@@ -59,31 +60,47 @@ function Layout() {
 
 
   return (
-    <div style={{
-      display: 'flex',
-      minHeight: '100vh',
-      width: '100%',
-      background: '#020617',
-      color: '#e5e7eb',
-    }}>
-      <aside style={{
-        width: '220px',
-        padding: '1rem',
-        borderRight: '1px solid #1f2937',
-        background: '#020617',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        overflowY: 'auto',
-      }}>
-        <h1 style={{
-          fontSize: '1.1rem',
-          fontWeight: 700,
-          marginBottom: '0.5rem',
-        }}>
-          {displayTitle}
-        </h1>
+    <div className={`layout-root${drawerOpen ? ' is-drawer-open' : ''}`}>
+      {/* Mobile only: top bar with hamburger */}
+      <header className="layout-mobile-topbar">
+        <button
+          type="button"
+          className="layout-mobile-menu-btn"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open menu"
+        >
+          <span className="layout-mobile-menu-icon" aria-hidden>☰</span>
+        </button>
+        <span className="layout-mobile-topbar-title">Shop Service Manager</span>
+      </header>
+
+      {/* Mobile only: backdrop when drawer is open */}
+      <div
+        className="layout-drawer-backdrop"
+        aria-hidden={!drawerOpen}
+        onClick={closeDrawer}
+      />
+
+      <aside className="layout-sidebar">
+        <div style={{ marginBottom: '0.5rem' }}>
+          <h1 style={{
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            margin: 0,
+            marginBottom: shopName ? '0.25rem' : 0,
+          }}>
+            Shop Service Manager
+          </h1>
+          {shopName && (
+            <div style={{
+              fontSize: '0.75rem',
+              color: '#9ca3af',
+              fontWeight: 400,
+            }}>
+              {shopName}
+            </div>
+          )}
+        </div>
 
         {/* Session badge */}
         {me && (
@@ -99,23 +116,23 @@ function Layout() {
         )}
 
         <nav>
-          <Link to="/" style={linkStyle('/')}>Dashboard</Link>
-          <Link to="/work-orders" style={linkStyle('/work-orders')}>Work Orders</Link>
+          <Link to="/" style={linkStyle('/')} onClick={closeDrawer}>Dashboard</Link>
+          <Link to="/work-orders" style={linkStyle('/work-orders')} onClick={closeDrawer}>Work Orders</Link>
 
           {me?.role === "owner" && (
-            <Link to="/team" style={linkStyle('/team')}>Team</Link>
+            <Link to="/team" style={linkStyle('/team')} onClick={closeDrawer}>Team</Link>
           )}
 
           {customersAccess !== false && (
-            <Link to="/customers" style={linkStyle('/customers')}>Customers</Link>
+            <Link to="/customers" style={linkStyle('/customers')} onClick={closeDrawer}>Customers</Link>
           )}
 
           {vehiclesAccess !== false && (
-            <Link to="/vehicles" style={linkStyle('/vehicles')}>Vehicles</Link>
+            <Link to="/vehicles" style={linkStyle('/vehicles')} onClick={closeDrawer}>Vehicles</Link>
           )}
 
           {hasAccess !== false && (
-            <Link to="/settings" style={linkStyle('/settings')}>Settings</Link>
+            <Link to="/settings" style={linkStyle('/settings')} onClick={closeDrawer}>Settings</Link>
           )}
         </nav>
 
@@ -150,7 +167,7 @@ function Layout() {
         </div>
       </aside>
 
-      <main style={{ flex: 1, padding: '1.5rem 2rem' }}>
+      <main className="layout-main">
         <Outlet />
       </main>
     </div>

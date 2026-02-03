@@ -192,31 +192,35 @@ export default function CustomerVehiclesSection({
                             <ul style={{ paddingLeft: "1.25rem", marginBottom: "1rem" }}>
                                 {vehicles.map((v) => (
                                     <li key={v._id} style={{ marginBottom: "0.25rem" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                        <Link
-                                            to={`/vehicles/${v._id}`}
-                                            style={{ textDecoration: "none", color: "inherit" }}
-                                        >
-                                            {v.year && `${v.year} `}
-                                            {v.make} {v.model}
-                                            {v.licensePlate && ` (${v.licensePlate})`}
-                                        </Link>
-                                        <button
-                                            type="button"
-                                            style={{ marginLeft: "0.5rem" }}
-                                            onClick={() => handleEditClick(v)}
-                                        >
-                                            Edit
-              </button>
-                                        <button
-                                            type="button"
-                                            style={{ marginLeft: "0.5rem" }}
-                                            onClick={() => handleDeleteClick(v._id)}
-                                        >
-                                            Delete
-              </button>
+                                        <div className="cust-vehicle-row" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                            <div className="cust-vehicle-info">
+                                                <Link
+                                                    to={`/vehicles/${v._id}`}
+                                                    style={{ textDecoration: "none", color: "inherit" }}
+                                                >
+                                                    {v.year && `${v.year} `}
+                                                    {v.make} {v.model}
+                                                    {v.licensePlate && ` (${v.licensePlate})`}
+                                                </Link>
+                                            </div>
+                                            <div className="cust-vehicle-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                                <button
+                                                    type="button"
+                                                    style={{ marginLeft: "0.5rem" }}
+                                                    onClick={() => handleEditClick(v)}
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    style={{ marginLeft: "0.5rem" }}
+                                                    onClick={() => handleDeleteClick(v._id)}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </div>
-                                    </li> 
+                                    </li>
                                 ))}
                             </ul>
                         )} 

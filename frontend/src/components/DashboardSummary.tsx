@@ -20,9 +20,8 @@ export function DashboardSummary() {
     const navigate = useNavigate();                   // 👈 NEW
     const { me } = useMe();
     
-    // Get shop name from settings (with fallback)
+    // Get shop name from settings
     const { shopName } = useSettings();
-    const displayName = shopName || "Auto Service Manager";
 
     // Check if tenant is empty (no work orders)
     const isEmptyTenant = useMemo(() => {
@@ -142,7 +141,12 @@ useEffect(() => {
             <div className="dashboard">
                 <header className="dashboard__header">
                     <div>
-                        <h1 className="dashboard__title">{displayName}</h1>
+                        <h1 className="dashboard__title">Shop Service Manager</h1>
+                        {shopName && (
+                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                                {shopName}
+                            </div>
+                        )}
                         <p className="dashboard__subtitle">
                             Quick snapshot of the shop&apos;s workload and revenue.
                         </p>
@@ -175,7 +179,12 @@ useEffect(() => {
             <div className="dashboard">
                 <header className="dashboard__header">
                     <div>
-                        <h1 className="dashboard__title">{displayName}</h1>
+                        <h1 className="dashboard__title">Shop Service Manager</h1>
+                        {shopName && (
+                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                                {shopName}
+                            </div>
+                        )}
                         <p className="dashboard__subtitle">
                             Quick snapshot of the shop&apos;s workload and revenue.
                         </p>
@@ -285,7 +294,12 @@ useEffect(() => {
             <div className="dashboard">
                 <header className="dashboard__header">
                     <div>
-                        <h1 className="dashboard__title">{displayName}</h1>
+                        <h1 className="dashboard__title">Shop Service Manager</h1>
+                        {shopName && (
+                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                                {shopName}
+                            </div>
+                        )}
                         <p className="dashboard__subtitle">
                             Quick snapshot of the shop&apos;s workload and revenue.
                         </p>
@@ -304,7 +318,7 @@ useEffect(() => {
                     }}
                 >
                     <h2 style={{ marginTop: 0, marginBottom: "0.75rem", color: "#e5e7eb", fontSize: "1.5rem", fontWeight: 600 }}>
-                        Welcome to Auto Service Manager
+                        Welcome to Shop Service Manager
                     </h2>
                     <p style={{ marginBottom: "1.5rem", color: "#9ca3af", lineHeight: 1.6, fontSize: "1rem" }}>
                         Let&apos;s create your first work order to get your shop moving.
@@ -380,7 +394,12 @@ useEffect(() => {
         <div className="dashboard">
         <header className="dashboard__header">
                 <div>
-                    <h1 className="dashboard__title">{displayName}</h1>
+                    <h1 className="dashboard__title">Shop Service Manager</h1>
+                    {shopName && (
+                        <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                            {shopName}
+                        </div>
+                    )}
                     <p className="dashboard__subtitle">
                         Quick snapshot of the shop&apos;s workload and revenue.
           </p>

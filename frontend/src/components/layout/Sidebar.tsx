@@ -8,7 +8,7 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="w-64 bg-gray-100 dark:bg-black-000 h-screen p-4">
-            <h1 className="text-xl font-bold mb-6">Auto Service Manager</h1>
+            <h1 className="text-xl font-bold mb-6">Shop Service Manager</h1>
             <nav className="space-y-2">
                 <NavLink
                     to="/"

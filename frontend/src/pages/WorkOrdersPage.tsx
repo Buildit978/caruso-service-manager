@@ -350,10 +350,11 @@ const title =
 
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="page wo-page">
       {/* Page Header */}
      <div style={{ marginBottom: "40px" }}>
   <div
+    className="page-header"
     style={{
       maxWidth: "1100px",
       marginLeft: "auto",
@@ -400,7 +401,7 @@ const title =
     </div>
 
     {/* Right: Controls */}
-    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+    <div className="page-actions wo-controls inv-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
       {/* 🔍 Search */}
       <input
         type="text"
@@ -481,7 +482,7 @@ const title =
       {/* ➕ Button */}
       <Link
         to="/work-orders/new"
-        className="inline-block font-medium text-sm px-4 py-2 rounded"
+        className="wo-primary-action"
         style={{
           backgroundColor: "#2563eb",
           color: "white",
@@ -501,7 +502,7 @@ const title =
             : "No work orders found yet."}
         </p>
       ) : (
-        <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
+        <div className="table-scroll">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>

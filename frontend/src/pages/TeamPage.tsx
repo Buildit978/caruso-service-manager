@@ -209,7 +209,7 @@ export default function TeamPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+    <div className="page team-page" style={{ maxWidth: "1100px", margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: "1rem" }}>
         <h1 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Team</h1>
         <div style={{ fontSize: "0.85rem", color: "#9ca3af" }}>
@@ -228,16 +228,7 @@ export default function TeamPage() {
           setTempPassword(null);
         }}
       />
-
-      <div
-        style={{
-          marginTop: "1.25rem",
-          display: "grid",
-          gridTemplateColumns: "380px 1fr",
-          gap: "1.25rem",
-          alignItems: "start",
-        }}
-      >
+      <div className="stack team-stack">
         {/* Left: create */}
         <div
           style={{
@@ -305,6 +296,7 @@ export default function TeamPage() {
 
         {/* Right: list */}
         <div
+          className="team-list"
           style={{
             border: "1px solid #1f2937",
             borderRadius: "0.75rem",
@@ -385,7 +377,7 @@ export default function TeamPage() {
           {loading ? (
             <div style={{ color: "#9ca3af" }}>Loading…</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className="table-scroll team-reset-scroll" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {(filteredUsers || []).map((u) => (
                 <div
                   key={u.id}

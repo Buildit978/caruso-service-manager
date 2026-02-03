@@ -195,7 +195,7 @@ export default function CustomersPage() {
       </div>
 
       {/* Table (unchanged content, just wrapped cleanly) */}
-      <div className="overflow-x-auto bg-white shadow-sm rounded-lg">
+      <div className="table-scroll customers-table-scroll">
         <table
           style={{
             width: "100%",
@@ -228,9 +228,9 @@ export default function CustomersPage() {
                 <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                   {c.fullName || `${c.firstName} ${c.lastName}`}
                 </td>
-                <td>{c.phone || "-"}</td>
+                <td className="phone">{c.phone || "-"}</td>
                 <td>{c.email || "-"}</td>
-                <td>{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
+                <td className="num">{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
                 <td>
                   <Link to={`/customers/${c._id}`}>View</Link>
                 </td>

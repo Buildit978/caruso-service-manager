@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import {
-  fetchAdminAccounts,
+  fetchAdminAccountById,
   fetchAdminAudits,
   postQuarantine,
   deleteQuarantine,
@@ -16,46 +16,53 @@ import {
 import AdminLayout from "./AdminLayout";
 import "./Admin.css";
 
-type SheetKind = "quarantine" | "throttle" | "force-logout-confirm" | null;
+type SheetKind = "quarantine" | "throttle" | null;
+
+function formatDate(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+}
+
+function formatDateTime(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
+}
 
 export default function AdminAccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
-  const location = useLocation();
-  const accountFromState = (location.state as { account?: AdminAccountItem })?.account;
-
-  const [account, setAccount] = useState<AdminAccountItem | null>(accountFromState ?? null);
+  const [account, setAccount] = useState<AdminAccountItem | null>(null);
   const [audits, setAudits] = useState<AdminAuditItem[]>([]);
-  const [loading, setLoading] = useState(!accountFromState);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Minutes + note for quarantine/throttle
   const [minutes, setMinutes] = useState("60");
   const [note, setNote] = useState("");
   const isSuperAdmin = getAdminRole() === "superadmin";
 
-  useEffect(() => {
+  const loadAccount = useCallback(() => {
     if (!accountId) return;
-    if (accountFromState && accountFromState.accountId === accountId) {
-      setAccount(accountFromState);
+    setError(null);
+    fetchAdminAccountById(accountId)
+      .then(setAccount)
+      .catch((err) => setError((err as HttpError).message ?? "Failed to load account"))
+      .finally(() => setLoading(false));
+  }, [accountId]);
+
+  useEffect(() => {
+    if (!accountId) {
       setLoading(false);
-    } else {
-      setLoading(true);
-      setError(null);
-      fetchAdminAccounts({ limit: 500 })
-        .then((res) => {
-          const a = res.items.find((i) => i.accountId === accountId);
-          setAccount(a ?? null);
-          if (!a) setError("Account not found");
-        })
-        .catch((err) => {
-          setError((err as HttpError).message ?? "Failed to load account");
-        })
-        .finally(() => setLoading(false));
+      return;
     }
-  }, [accountId, accountFromState?.accountId]);
+    setLoading(true);
+    setAccount(null);
+    loadAccount();
+  }, [accountId, loadAccount]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -63,6 +70,12 @@ export default function AdminAccountDetailPage() {
       .then((res) => setAudits(res.items))
       .catch(() => setAudits([]));
   }, [accountId]);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const t = setTimeout(() => setSuccessMessage(null), 4000);
+    return () => clearTimeout(t);
+  }, [successMessage]);
 
   function closeSheet() {
     setSheet(null);
@@ -81,7 +94,7 @@ export default function AdminAccountDetailPage() {
     postQuarantine(accountId, { until, note: note.trim() || undefined })
       .then(() => {
         closeSheet();
-        setAccount((prev) => prev ? { ...prev } : null);
+        loadAccount();
       })
       .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
       .finally(() => setActionLoading(false));
@@ -95,7 +108,7 @@ export default function AdminAccountDetailPage() {
     deleteQuarantine(accountId, { note: note.trim() || undefined })
       .then(() => {
         closeSheet();
-        setAccount((prev) => prev ? { ...prev } : null);
+        loadAccount();
       })
       .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
       .finally(() => setActionLoading(false));
@@ -111,7 +124,7 @@ export default function AdminAccountDetailPage() {
     postThrottle(accountId, { until, note: note.trim() || undefined })
       .then(() => {
         closeSheet();
-        setAccount((prev) => prev ? { ...prev } : null);
+        loadAccount();
       })
       .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
       .finally(() => setActionLoading(false));
@@ -125,22 +138,29 @@ export default function AdminAccountDetailPage() {
     deleteThrottle(accountId, { note: note.trim() || undefined })
       .then(() => {
         closeSheet();
-        setAccount((prev) => prev ? { ...prev } : null);
+        loadAccount();
       })
       .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
       .finally(() => setActionLoading(false));
   }
 
-  function handleForceLogoutConfirm(e: React.FormEvent) {
-    e.preventDefault();
+  function handleForceLogoutClick() {
     if (!accountId) return;
+    const confirmed = window.confirm(
+      "Force logout will invalidate all sessions for this account. Users will need to sign in again. Continue?"
+    );
+    if (!confirmed) return;
     setActionLoading(true);
     setActionError(null);
-    postForceLogout(accountId, { note: note.trim() || undefined })
+    setSuccessMessage(null);
+    postForceLogout(accountId)
       .then(() => {
-        closeSheet();
+        setSuccessMessage("All users signed out.");
+        loadAccount();
       })
-      .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
+      .catch((err) => {
+        setActionError((err as HttpError).message ?? "Failed");
+      })
       .finally(() => setActionLoading(false));
   }
 
@@ -156,16 +176,43 @@ export default function AdminAccountDetailPage() {
 
   return (
     <AdminLayout title={displayName} showBack>
-      {loading && <p>Loading…</p>}
-      {error && <p style={{ color: "#f87171" }}>{error}</p>}
+      {loading && <p className="admin-detail-loading">Loading…</p>}
+      {error && <p className="admin-gate-error admin-detail-error">{error}</p>}
+      {successMessage && <p className="admin-detail-success" role="status">{successMessage}</p>}
       {!loading && account && (
         <>
           <div className="admin-detail-section">
             <h3>Account</h3>
-            <p style={{ margin: 0 }}>{account.shopName || "—"} · {account.isActive ? "Active" : "Inactive"}</p>
-            <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.875rem", color: "var(--admin-muted, #94a3b8)" }}>
-              ID: {accountId}
-            </p>
+            <dl className="admin-detail-dl">
+              <dt>Name</dt>
+              <dd>{account.name || "—"}</dd>
+              <dt>Slug</dt>
+              <dd>{account.slug || "—"}</dd>
+              <dt>Region</dt>
+              <dd>{account.region || "—"}</dd>
+              <dt>Status</dt>
+              <dd>{account.isActive ? "Active" : "Inactive"}</dd>
+              <dt>Created</dt>
+              <dd>{formatDate(account.createdAt)}</dd>
+              <dt>Last Active</dt>
+              <dd>{formatDateTime(account.lastActiveAt)}</dd>
+              <dt>ID</dt>
+              <dd className="admin-detail-id">{accountId}</dd>
+            </dl>
+          </div>
+
+          <div className="admin-detail-section">
+            <h3>Counts</h3>
+            <dl className="admin-detail-dl admin-detail-counts">
+              <dt>Work orders</dt>
+              <dd>{account.counts.workOrders}</dd>
+              <dt>Invoices</dt>
+              <dd>{account.counts.invoices}</dd>
+              <dt>Customers</dt>
+              <dd>{account.counts.customers}</dd>
+              <dt>Users</dt>
+              <dd>{account.counts.users}</dd>
+            </dl>
           </div>
 
           <div className="admin-detail-section">
@@ -183,8 +230,7 @@ export default function AdminAccountDetailPage() {
             </ul>
           </div>
 
-          {/* Sticky bottom action bar (mobile); inline on md+ — superadmin only */}
-          {isSuperAdmin && (
+          {isSuperAdmin ? (
             <div className="admin-detail-actions">
               <button
                 type="button"
@@ -203,17 +249,20 @@ export default function AdminAccountDetailPage() {
               <button
                 type="button"
                 className="admin-btn admin-btn-danger"
-                onClick={() => setSheet("force-logout-confirm")}
+                onClick={handleForceLogoutClick}
+                disabled={actionLoading}
               >
-                Force Logout
+                {actionLoading ? "…" : "Force Logout"}
               </button>
+              {actionError && !sheet && <p className="admin-gate-error admin-detail-action-error">{actionError}</p>}
             </div>
+          ) : (
+            <p className="admin-detail-security-note">Security controls require superadmin.</p>
           )}
         </>
       )}
 
-      {/* Modal / bottom sheet: Quarantine */}
-      {sheet === "quarantine" && (
+      {isSuperAdmin && sheet === "quarantine" && (
         <div className="admin-overlay" onClick={() => closeSheet()} role="presentation">
           <div className="admin-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="quarantine-title">
             <div className="admin-sheet-header" id="quarantine-title">Quarantine account</div>
@@ -238,7 +287,7 @@ export default function AdminAccountDetailPage() {
                   rows={3}
                 />
               </div>
-              {actionError && <p style={{ color: "#f87171", margin: 0, fontSize: "0.875rem" }}>{actionError}</p>}
+              {actionError && <p className="admin-gate-error admin-detail-sheet-error">{actionError}</p>}
             </form>
             <div className="admin-sheet-footer">
               <button type="button" className="admin-btn admin-btn-secondary" onClick={closeSheet}>
@@ -255,8 +304,7 @@ export default function AdminAccountDetailPage() {
         </div>
       )}
 
-      {/* Throttle sheet */}
-      {sheet === "throttle" && (
+      {isSuperAdmin && sheet === "throttle" && (
         <div className="admin-overlay" onClick={() => closeSheet()} role="presentation">
           <div className="admin-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="throttle-title">
             <div className="admin-sheet-header" id="throttle-title">Throttle account</div>
@@ -281,7 +329,7 @@ export default function AdminAccountDetailPage() {
                   rows={3}
                 />
               </div>
-              {actionError && <p style={{ color: "#f87171", margin: 0, fontSize: "0.875rem" }}>{actionError}</p>}
+              {actionError && <p className="admin-gate-error admin-detail-sheet-error">{actionError}</p>}
             </form>
             <div className="admin-sheet-footer">
               <button type="button" className="admin-btn admin-btn-secondary" onClick={closeSheet}>
@@ -292,38 +340,6 @@ export default function AdminAccountDetailPage() {
               </button>
               <button type="submit" className="admin-btn admin-btn-primary" disabled={actionLoading} onClick={(e) => { e.preventDefault(); handleThrottleSubmit(e); }}>
                 {actionLoading ? "…" : "Set throttle"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Force Logout confirm */}
-      {sheet === "force-logout-confirm" && (
-        <div className="admin-overlay" onClick={() => closeSheet()} role="presentation">
-          <div className="admin-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="force-logout-title">
-            <div className="admin-sheet-header" id="force-logout-title">Confirm Force Logout</div>
-            <div className="admin-sheet-body">
-              <p className="admin-confirm-text">
-                Force logout will invalidate all sessions for this account. Users will need to sign in again. Continue?
-              </p>
-              <div className="admin-form-group">
-                <label htmlFor="force-logout-note">Note (optional)</label>
-                <textarea
-                  id="force-logout-note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={2}
-                />
-              </div>
-              {actionError && <p style={{ color: "#f87171", margin: 0, fontSize: "0.875rem" }}>{actionError}</p>}
-            </div>
-            <div className="admin-sheet-footer">
-              <button type="button" className="admin-btn admin-btn-secondary" onClick={closeSheet}>
-                Cancel
-              </button>
-              <button type="button" className="admin-btn admin-btn-danger" onClick={handleForceLogoutConfirm} disabled={actionLoading}>
-                {actionLoading ? "…" : "Force Logout"}
               </button>
             </div>
           </div>

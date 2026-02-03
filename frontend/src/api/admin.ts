@@ -63,6 +63,17 @@ export interface HttpError extends Error {
   data?: unknown;
 }
 
+/** GET /api/admin/me — current admin (id, email, name, role). Requires token. */
+export interface AdminMeResponse {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+export async function fetchAdminMe(): Promise<AdminMeResponse> {
+  return adminFetch<AdminMeResponse>("/me");
+}
+
 async function adminFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -120,18 +131,19 @@ export interface AdminAccountItem {
   accountId: string;
   name: string;
   slug: string;
+  region?: "Canada" | "TT";
   isActive: boolean;
   createdAt: string;
   lastActiveAt?: string;
-  shopName?: string;
-  roleAccess?: { managersEnabled: boolean; techniciansEnabled: boolean };
-  usage: { lastEventAt?: string; totalEvents: number; byType: Record<string, number> };
+  counts: { workOrders: number; invoices: number; customers: number; users: number };
 }
 
 export interface AdminAccountsResponse {
   range: { days: number; since: string };
   region: string;
-  paging: { skip: number; limit: number; returned: number };
+  status?: string;
+  q?: string;
+  paging: { skip: number; limit: number; returned: number; total: number };
   items: AdminAccountItem[];
 }
 
@@ -161,16 +173,25 @@ export function fetchAdminOverview(params?: { days?: number }): Promise<AdminOve
 export function fetchAdminAccounts(params?: {
   days?: number;
   region?: string;
+  status?: string;
+  q?: string;
   limit?: number;
   skip?: number;
 }): Promise<AdminAccountsResponse> {
   const sp = new URLSearchParams();
   if (params?.days != null) sp.set("days", String(params.days));
   if (params?.region != null) sp.set("region", params.region);
+  if (params?.status != null) sp.set("status", params.status);
+  if (params?.q != null && params.q !== "") sp.set("q", params.q);
   if (params?.limit != null) sp.set("limit", String(params.limit));
   if (params?.skip != null) sp.set("skip", String(params.skip));
-  const q = sp.toString() ? `?${sp.toString()}` : "";
-  return adminFetch<AdminAccountsResponse>(`/beta/accounts${q}`);
+  const query = sp.toString() ? `?${sp.toString()}` : "";
+  return adminFetch<AdminAccountsResponse>(`/beta/accounts${query}`);
+}
+
+/** GET /api/admin/beta/accounts/:accountId — single account detail (same shape as list item). */
+export function fetchAdminAccountById(accountId: string): Promise<AdminAccountItem> {
+  return adminFetch<AdminAccountItem>(`/beta/accounts/${accountId}`);
 }
 
 export function fetchAdminAudits(accountId: string, params?: { limit?: number; skip?: number }): Promise<AdminAuditsResponse> {

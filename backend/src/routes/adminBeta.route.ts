@@ -1,8 +1,13 @@
 // backend/src/routes/adminBeta.route.ts
 import { Router, type Request, type Response } from "express";
+import { Types } from "mongoose";
 import { Account } from "../models/account.model";
 import { Settings } from "../models/settings.model";
 import { Event } from "../models/event.model";
+import { User } from "../models/user.model";
+import { WorkOrder } from "../models/workOrder.model";
+import Invoice from "../models/invoice.model";
+import { Customer } from "../models/customer.model";
 
 const router = Router();
 
@@ -20,12 +25,23 @@ function parseRegion(query: Request["query"]): "Canada" | "TT" | "all" {
   return "all";
 }
 
+function parseStatus(query: Request["query"]): "active" | "inactive" | "all" {
+  const raw = String(query.status ?? "all").trim();
+  if (raw === "active" || raw === "inactive") return raw;
+  return "all";
+}
+
+function parseQ(query: Request["query"]): string | undefined {
+  const raw = typeof query.q === "string" ? query.q.trim() : "";
+  return raw === "" ? undefined : raw;
+}
+
 function parseLimit(query: Request["query"]): number {
   const raw = query.limit;
-  if (raw == null || raw === "") return 200;
+  if (raw == null || raw === "") return 50;
   const n = Math.floor(Number(raw));
-  if (!Number.isFinite(n) || n < 1) return 200;
-  return Math.min(Math.max(n, 1), 500);
+  if (!Number.isFinite(n) || n < 1) return 50;
+  return Math.min(Math.max(n, 1), 200);
 }
 
 function parseSkip(query: Request["query"]): number {
@@ -39,6 +55,9 @@ function parseSkip(query: Request["query"]): number {
 function computeSince(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
+
+/** Tenant roles only (exclude admin/superadmin) for q=email match. */
+const TENANT_ROLES = ["owner", "manager", "technician"];
 
 // GET /overview?days=7
 router.get("/overview", async (req: Request, res: Response) => {
@@ -80,99 +99,139 @@ router.get("/overview", async (req: Request, res: Response) => {
   }
 });
 
-// GET /accounts?days=7&region=Canada|TT|all&limit=200&skip=0
+// GET /accounts — V1 list: days, region, status, q, limit, skip
+// q matches: Account.name, Account.slug, Settings.shopName; if q looks like email, also match tenant User.email (accountIds only)
 router.get("/accounts", async (req: Request, res: Response) => {
   try {
     const days = parseDays(req.query);
     const region = parseRegion(req.query);
+    const status = parseStatus(req.query);
+    const q = parseQ(req.query);
     const limit = parseLimit(req.query);
     const skip = parseSkip(req.query);
     const since = computeSince(days);
     const sinceISO = since.toISOString();
 
-    const accounts = await Account.find({})
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const accountFilter: Record<string, unknown> = {};
+    if (region !== "all") accountFilter.region = region;
+    if (status === "active") accountFilter.isActive = true;
+    if (status === "inactive") accountFilter.isActive = false;
+
+    if (q) {
+      const looksLikeEmail = /@/.test(q) || /^[^\s]*\.[^\s]*$/.test(q) || /^[a-z0-9._%+-]+$/i.test(q);
+      const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      if (looksLikeEmail) {
+        const users = await User.find({
+          role: { $in: TENANT_ROLES },
+          email: re,
+        })
+          .select("accountId")
+          .lean();
+        const ids = [...new Set(users.map((u) => (u as { accountId: Types.ObjectId }).accountId))];
+        if (ids.length === 0) {
+          return res.json({
+            range: { days, since: sinceISO },
+            region,
+            status,
+            q,
+            paging: { skip, limit, returned: 0, total: 0 },
+            items: [],
+          });
+        }
+        accountFilter._id = { $in: ids };
+      } else {
+        const allForQ = await Account.find(accountFilter).select("_id name slug").lean();
+        const aids = allForQ.map((a) => a._id);
+        const settings = await Settings.find({ accountId: { $in: aids } }).select("accountId shopName").lean();
+        const settingsByAcc = new Map<string, string>();
+        for (const s of settings) {
+          const id = String((s as { accountId: Types.ObjectId }).accountId);
+          settingsByAcc.set(id, (s as { shopName?: string }).shopName ?? "");
+        }
+        const matchIds = allForQ.filter((a) => {
+          const id = String(a._id);
+          const name = (a as { name?: string }).name ?? "";
+          const slug = (a as { slug?: string }).slug ?? "";
+          const shopName = settingsByAcc.get(id) ?? "";
+          return re.test(name) || re.test(slug) || re.test(shopName);
+        }).map((a) => a._id);
+        if (matchIds.length === 0) {
+          return res.json({
+            range: { days, since: sinceISO },
+            region,
+            status,
+            q,
+            paging: { skip, limit, returned: 0, total: 0 },
+            items: [],
+          });
+        }
+        accountFilter._id = { $in: matchIds };
+      }
+    }
+
+    const [total, accounts] = await Promise.all([
+      Account.countDocuments(accountFilter),
+      Account.find(accountFilter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    ]);
 
     const accountIds = accounts.map((a) => a._id);
 
-    const eventMatch: Record<string, unknown> = {
-    createdAt: { $gte: since },
-    accountId: { $in: accountIds },
-  };
-
-    if (region !== "all") {
-      eventMatch["meta.region"] = region;
+    if (accountIds.length === 0) {
+      return res.json({
+        range: { days, since: sinceISO },
+        region,
+        status,
+        q: q ?? undefined,
+        paging: { skip, limit, returned: 0, total },
+        items: [],
+      });
     }
 
-    const usageAggPipeline = [
-      { $match: eventMatch },
-      {
-        $group: {
-          _id: { accountId: "$accountId", type: "$type" },
-          count: { $sum: 1 },
-          lastAt: { $max: "$createdAt" },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id.accountId",
-          byType: { $push: { type: "$_id.type", count: "$count" } },
-          lastEventAt: { $max: "$lastAt" },
-          totalEvents: { $sum: "$count" },
-        },
-      },
-    ];
-
-    const [settings, usageAgg] = await Promise.all([
-      accountIds.length > 0
-        ? Settings.find({ accountId: { $in: accountIds } }).lean()
-        : Promise.resolve([]),
-      Event.aggregate(usageAggPipeline).exec(),
+    const [countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+      WorkOrder.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { accountId: { $in: accountIds } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } },
+      ]),
+      Invoice.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { accountId: { $in: accountIds } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } },
+      ]),
+      Customer.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { accountId: { $in: accountIds } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } },
+      ]),
+      User.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { accountId: { $in: accountIds }, role: { $in: TENANT_ROLES } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } },
+      ]),
     ]);
 
-    const settingsMap = new Map<string, { shopName?: string; roleAccess?: { managersEnabled: boolean; techniciansEnabled: boolean } }>();
-    for (const s of settings) {
-      const id = String((s as any).accountId);
-      settingsMap.set(id, {
-        shopName: (s as any).shopName,
-        roleAccess: (s as any).roleAccess,
-      });
-    }
-
-    const usageMap = new Map<string, { lastEventAt?: Date; totalEvents: number; byType: Record<string, number> }>();
-    for (const u of usageAgg) {
-      const id = String(u._id);
-      const byType: Record<string, number> = {};
-      for (const t of u.byType) {
-        byType[t.type] = t.count;
-      }
-      usageMap.set(id, {
-        lastEventAt: u.lastEventAt,
-        totalEvents: u.totalEvents ?? 0,
-        byType,
-      });
-    }
+    const mapCount = (arr: { _id: Types.ObjectId; count: number }[]) => {
+      const m = new Map<string, number>();
+      for (const x of arr) m.set(String(x._id), x.count);
+      return m;
+    };
+    const woMap = mapCount(countsWo);
+    const invMap = mapCount(countsInv);
+    const custMap = mapCount(countsCust);
+    const usersMap = mapCount(countsUsers);
 
     const items = accounts.map((a) => {
       const id = String(a._id);
-      const s = settingsMap.get(id);
-      const u = usageMap.get(id) ?? { totalEvents: 0, byType: {} };
+      const acc = a as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
       return {
         accountId: id,
-        name: a.name,
-        slug: a.slug,
-        isActive: a.isActive ?? true,
-        createdAt: (a.createdAt as Date).toISOString(),
-        lastActiveAt: a.lastActiveAt ? (a.lastActiveAt as Date).toISOString() : undefined,
-        shopName: s?.shopName,
-        roleAccess: s?.roleAccess,
-        usage: {
-          lastEventAt: u.lastEventAt ? new Date(u.lastEventAt).toISOString() : undefined,
-          totalEvents: u.totalEvents,
-          byType: u.byType,
+        name: acc.name,
+        slug: acc.slug,
+        region: acc.region,
+        isActive: acc.isActive ?? true,
+        createdAt: (acc.createdAt as Date).toISOString(),
+        lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
+        counts: {
+          workOrders: woMap.get(id) ?? 0,
+          invoices: invMap.get(id) ?? 0,
+          customers: custMap.get(id) ?? 0,
+          users: usersMap.get(id) ?? 0,
         },
       };
     });
@@ -180,7 +239,9 @@ router.get("/accounts", async (req: Request, res: Response) => {
     return res.json({
       range: { days, since: sinceISO },
       region,
-      paging: { skip, limit, returned: items.length },
+      status,
+      q: q ?? undefined,
+      paging: { skip, limit, returned: items.length, total },
       items,
     });
   } catch (err) {
@@ -189,10 +250,56 @@ router.get("/accounts", async (req: Request, res: Response) => {
   }
 });
 
+// GET /accounts/:accountId — single account detail (same shape as one list item)
+router.get("/accounts/:accountId", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.accountId;
+    if (raw == null || raw === "" || !Types.ObjectId.isValid(raw)) {
+      return res.status(400).json({ message: "Invalid accountId" });
+    }
+    const accountId = new Types.ObjectId(raw);
+    const account = await Account.findById(accountId).lean();
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const [countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+      WorkOrder.countDocuments({ accountId }),
+      Invoice.countDocuments({ accountId }),
+      Customer.countDocuments({ accountId }),
+      User.countDocuments({ accountId, role: { $in: TENANT_ROLES } }),
+    ]);
+
+    const id = String(account._id);
+    const acc = account as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
+    return res.json({
+      accountId: id,
+      name: acc.name,
+      slug: acc.slug,
+      region: acc.region,
+      isActive: acc.isActive ?? true,
+      createdAt: (acc.createdAt as Date).toISOString(),
+      lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
+      counts: {
+        workOrders: countsWo,
+        invoices: countsInv,
+        customers: countsCust,
+        users: countsUsers,
+      },
+    });
+  } catch (err) {
+    console.error("[admin/beta] GET /accounts/:accountId error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 /*
  * Example curl (token in $ADMIN_TOKEN, x-auth-token):
  *   curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/beta/overview?days=7"
- *   curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/beta/accounts?days=7&region=all"
+ *   curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/beta/accounts?days=7&region=all&status=all&limit=50&skip=0"
+ *   curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/beta/accounts?region=Canada&status=active&q=caruso"
+ *   curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/beta/accounts?q=user@example.com"
+ *   curl -s -H "x-auth-token: $SUPER_TOKEN" "http://localhost:4000/api/admin/beta/accounts/<ACCOUNT_ID>" | jq
  */
 
 export default router;

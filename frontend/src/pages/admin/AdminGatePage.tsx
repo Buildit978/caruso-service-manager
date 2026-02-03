@@ -5,7 +5,7 @@ import {
   setAdminRole,
   clearAdminToken,
   adminLogin,
-  fetchAdminOverview,
+  fetchAdminMe,
   type AdminRole,
   type HttpError,
 } from "../../api/admin";
@@ -17,9 +17,14 @@ function isAllowedRole(role: string): role is AdminRole {
   return ALLOWED_ADMIN_ROLES.includes(role as AdminRole);
 }
 
+function normalizeEmail(value: string): string {
+  return value.replace(/\u00A0/g, " ").trim().toLowerCase();
+}
+
 export default function AdminGatePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +36,7 @@ export default function AdminGatePage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await adminLogin({ email: email.trim(), password });
+      const res = await adminLogin({ email: normalizeEmail(email), password });
       const role = res.adminUser?.role;
       if (!role || !isAllowedRole(role)) {
         setError("Access denied. Admin or Superadmin role required.");
@@ -64,8 +69,15 @@ export default function AdminGatePage() {
     setLoading(true);
     setAdminToken(t);
     try {
-      await fetchAdminOverview({ days: 7 });
-      setAdminRole("admin");
+      const me = await fetchAdminMe();
+      const role = me?.role;
+      if (!role || !isAllowedRole(role)) {
+        clearAdminToken();
+        setLoading(false);
+        setError("Access denied. Admin or Superadmin role required.");
+        return;
+      }
+      setAdminRole(role);
       navigate("/admin/accounts", { replace: true });
     } catch (err) {
       clearAdminToken();
@@ -100,15 +112,36 @@ export default function AdminGatePage() {
           </div>
           <div className="admin-form-group">
             <label htmlFor="admin-password">Password</label>
-            <input
-              id="admin-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                id="admin-password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  padding: 4,
+                  cursor: "pointer",
+                  color: "var(--admin-muted, #94a3b8)",
+                  fontSize: "0.875rem",
+                }}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
           {error && <p className="admin-gate-error">{error}</p>}
           <button type="submit" className="admin-btn admin-btn-primary" style={{ width: "100%" }} disabled={loading}>

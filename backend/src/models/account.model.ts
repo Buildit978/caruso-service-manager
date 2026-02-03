@@ -1,8 +1,11 @@
 import { Schema, model, type Document, Types } from "mongoose";
 
+export type AccountRegion = "Canada" | "TT";
+
 export interface IAccount extends Document {
   name: string;
   slug?: string;          // e.g. "carusos-service-center"
+  region?: AccountRegion; // Canada | TT for admin filtering
   contactName?: string;
   email?: string;
   phone?: string;
@@ -23,6 +26,7 @@ const accountSchema = new Schema<IAccount>(
   {
     name: { type: String, required: true },
     slug: { type: String, unique: true, sparse: true },
+    region: { type: String, enum: ["Canada", "TT"], required: false },
     contactName: String,
     email: String,
     phone: String,

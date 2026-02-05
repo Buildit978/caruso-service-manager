@@ -4,6 +4,7 @@ import { http } from "./http";
 export interface LoginRequest {
   email: string;
   password: string;
+  shopCode?: string;
 }
 
 export interface RegisterRequest {

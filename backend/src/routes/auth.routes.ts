@@ -164,54 +164,107 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
  */
 export async function handleLogin(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password }: {
+    const { email, password, shopCode }: {
       email?: string;
       password?: string;
+      shopCode?: string;
     } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    // Find active user by email (case-insensitive via lowercase storage)
-    const user = await User.findOne({
-      email: String(email).toLowerCase().trim(),
-      isActive: true,
-    }).lean();
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const normalizedShopCode =
+      typeof shopCode === "string" && shopCode.trim() !== ""
+        ? shopCode.trim()
+        : undefined;
 
-    if (!user) {
-      // Don't reveal if user exists or not (security best practice)
-      return res.status(401).json({ message: "Invalid email or password" });
+    let user: any = null;
+    let account: any = null;
+
+    if (normalizedShopCode) {
+      // Preferred path: scope by shop code (Account.slug)
+      account = await Account.findOne({
+        slug: normalizedShopCode,
+        isActive: true,
+      }).lean();
+
+      if (!account) {
+        return res.status(404).json({
+          message: "Shop code not found. Please check your Shop Code.",
+        });
+      }
+
+      user = await User.findOne({
+        accountId: account._id,
+        email: normalizedEmail,
+        isActive: true,
+      }).lean();
+
+      if (!user) {
+        // Do not reveal whether email exists; keep generic
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+    } else {
+      // Backward-compatible path: email-only login when unambiguous
+      const candidates = await User.find({
+        email: normalizedEmail,
+        isActive: true,
+      }).lean();
+
+      if (!candidates.length) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const accountIds = Array.from(
+        new Set(candidates.map((u) => String(u.accountId)))
+      );
+
+      const accounts = await Account.find({
+        _id: { $in: accountIds },
+      }).lean();
+
+      const activeAccountIds = new Set(
+        accounts
+          .filter((a) => a && a.isActive !== false)
+          .map((a) => String(a._id))
+      );
+
+      const activeUsers = candidates.filter((u) =>
+        activeAccountIds.has(String(u.accountId))
+      );
+
+      if (!activeUsers.length) {
+        // All matching users belong to inactive accounts
+        return res.status(403).json({ message: "Account inactive" });
+      }
+
+      if (activeUsers.length > 1) {
+        // Ambiguous across multiple active accounts – require Shop Code
+        return res.status(409).json({
+          message: "Shop Code required",
+          code: "SHOP_CODE_REQUIRED",
+        });
+      }
+
+      user = activeUsers[0];
+      account =
+        accounts.find(
+          (a) => a && String(a._id) === String(user.accountId)
+        ) ?? null;
     }
 
-    // Temporary debug: log user info after user is found
-    console.log("🔍 [handleLogin] User found:", {
-      email: user.email,
-      accountId: user.accountId?.toString(),
-    });
+    // Final safety check on account status
+    if (!account || account.isActive === false) {
+      return res.status(403).json({ message: "Account inactive" });
+    }
 
     // Compare password with hash
     const passwordMatch = await bcrypt.compare(String(password), user.passwordHash);
 
     if (!passwordMatch) {
       return res.status(401).json({ message: "Invalid email or password" });
-    }
-
-    // ✅ Check Account.isActive
-    const account = await Account.findById(user.accountId).lean();
-    
-    // Temporary debug: log account info after Account.findById
-    console.log("🔍 [handleLogin] Account found:", {
-      accountId: account?._id?.toString(),
-      isActive: account?.isActive,
-      isActiveType: typeof account?.isActive,
-    });
-    
-    if (!account) {
-      return res.status(403).json({ message: "Account inactive" });
-    }
-    if (account.isActive === false) {
-      return res.status(403).json({ message: "Account inactive" });
     }
 
     // ✅ Check role kill-switch (V1)

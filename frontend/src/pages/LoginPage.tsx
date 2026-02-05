@@ -1,5 +1,5 @@
 // frontend/src/pages/LoginPage.tsx
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, reactivate } from "../api/auth";
@@ -10,12 +10,14 @@ import "./LoginPage.css";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [shopCode, setShopCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showReactivate, setShowReactivate] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const [showReactivatePassword, setShowReactivatePassword] = useState(false);
+  const shopCodeInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
@@ -24,24 +26,42 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await login({ email, password });
+      const response = await login({
+        email,
+        password,
+        shopCode: shopCode.trim() || undefined,
+      });
       
       // Store token in localStorage (same key as TokenPanel uses)
       setToken(response.token);
       
-      // Redirect to dashboard
+      // Redirect to dashboardƒ
       navigate("/", { replace: true });
     } catch (err) {
       setLoading(false);
       if (err instanceof Error && "status" in err) {
         const httpError = err as HttpError;
+        const data = httpError.data as any;
         if (httpError.status === 401) {
           setError("Invalid email or password");
-        } else if (httpError.status === 403 && (httpError.data as any)?.message === "Account inactive") {
+        } else if (
+          httpError.status === 403 &&
+          (data as any)?.message === "Account inactive"
+        ) {
           setError(null);
           setShowReactivate(true);
+        } else if (
+          httpError.status === 409 &&
+          data &&
+          (data as any).code === "SHOP_CODE_REQUIRED"
+        ) {
+          setError("This email is used in multiple shops. Enter your Shop Code.");
+          // Gently guide the user to the Shop Code field
+          if (shopCodeInputRef.current) {
+            shopCodeInputRef.current.focus();
+          }
         } else {
-          setError((httpError.data as any)?.message || httpError.message || "Login failed");
+          setError((data as any)?.message || httpError.message || "Login failed");
         }
       } else {
         setError("An unexpected error occurred");
@@ -284,6 +304,48 @@ export default function LoginPage() {
 
           <div style={{ marginBottom: "1rem" }}>
             <label
+              htmlFor="shop-code"
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontSize: "0.9rem",
+                fontWeight: 500,
+                color: "#e5e7eb",
+              }}
+            >
+              Shop Code
+            </label>
+            <input
+              id="shop-code"
+              type="text"
+              value={shopCode}
+              onChange={(e) => setShopCode(e.target.value)}
+              disabled={loading}
+              autoComplete="off"
+              ref={shopCodeInputRef}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.6rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: "0.9rem",
+              }}
+            />
+            <p
+              style={{
+                marginTop: "0.25rem",
+                fontSize: "0.8rem",
+                color: "#9ca3af",
+              }}
+            >
+              Ask your shop owner for this code.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label
               htmlFor="email"
               style={{
                 display: "block",
@@ -302,6 +364,37 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.6rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: "0.9rem",
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label
+              htmlFor="shop-code"
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontSize: "0.9rem",
+                fontWeight: 500,
+                color: "#e5e7eb",
+              }}
+            >
+              Shop Code
+            </label>
+            <input
+              id="shop-code"
+              type="text"
+              value={shopCode}
+              onChange={(e) => setShopCode(e.target.value)}
               disabled={loading}
               style={{
                 width: "100%",

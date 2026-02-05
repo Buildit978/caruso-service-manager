@@ -5,14 +5,17 @@ import { useNavigate } from "react-router-dom";
 import { login, reactivate } from "../api/auth";
 import { setToken } from "../api/http";
 import type { HttpError } from "../api/http";
+import "./LoginPage.css";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showReactivate, setShowReactivate] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const [showReactivatePassword, setShowReactivatePassword] = useState(false);
   const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
@@ -187,24 +190,35 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <input
-                  id="reactivate-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  disabled={reactivating}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.6rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid #4b5563",
-                    background: "#020617",
-                    color: "#e5e7eb",
-                    fontSize: "0.9rem",
-                  }}
-                />
+                <div className="password-field">
+                  <input
+                    id="reactivate-password"
+                    type={showReactivatePassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    disabled={reactivating}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem 0.6rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #4b5563",
+                      background: "#020617",
+                      color: "#e5e7eb",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowReactivatePassword((s) => !s)}
+                    aria-label={showReactivatePassword ? "Hide password" : "Show password"}
+                    disabled={reactivating}
+                    className="password-toggle"
+                  >
+                    {showReactivatePassword ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -314,24 +328,35 @@ export default function LoginPage() {
             >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.6rem",
-                borderRadius: "0.375rem",
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
-                fontSize: "0.9rem",
-              }}
-            />
+            <div className="password-field">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #4b5563",
+                  background: "#020617",
+                  color: "#e5e7eb",
+                  fontSize: "0.9rem",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                disabled={loading}
+                className="password-toggle"
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
 
           <button

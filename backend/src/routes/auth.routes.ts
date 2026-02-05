@@ -7,6 +7,7 @@ import { Settings } from "../models/settings.model";
 import { Account } from "../models/account.model";
 import { requireAuth } from "../middleware/requireAuth";
 import { Types } from "mongoose";
+import { validateNewPassword } from "../utils/passwordValidation";
 
 // JWT payload type
 interface JwtPayload {
@@ -267,6 +268,17 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    // Check if temporary password has expired
+    if (user.tempPasswordExpiresAt) {
+      const now = new Date();
+      if (now > new Date(user.tempPasswordExpiresAt)) {
+        return res.status(401).json({
+          message: "Temporary password has expired. Please request a new password reset.",
+          code: "TEMP_PASSWORD_EXPIRED",
+        });
+      }
+    }
+
     // ✅ Check role kill-switch (V1)
     if (user.role === "manager" || user.role === "technician") {
       const settings = await Settings.findOne({
@@ -316,6 +328,7 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
         role: user.role,
         accountId: user.accountId.toString(),
       },
+      mustChangePassword: user.mustChangePassword === true,
     });
   } catch (err) {
     next(err);
@@ -468,6 +481,59 @@ export async function handleMe(req: Request, res: Response, next: NextFunction) 
         email: user.email,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/change-password
+ * Protected endpoint - change password (forced change flow, no current password required)
+ */
+export async function handleChangePassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const accountId = (req as any).accountId;
+    const actor = (req as any).actor;
+
+    if (!accountId || !actor?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { newPassword } = req.body as { newPassword?: string };
+
+    if (!newPassword || typeof newPassword !== "string") {
+      return res.status(400).json({ message: "newPassword is required" });
+    }
+
+    const validationErrors = validateNewPassword(newPassword);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        message: validationErrors.join(" "),
+        errors: validationErrors,
+      });
+    }
+
+    const user = await User.findOne({
+      _id: actor._id,
+      accountId,
+      isActive: true,
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found or inactive" });
+    }
+
+    // Hash new password
+    const saltRounds = Number(process.env.BCRYPT_ROUNDS) || 10;
+    user.passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Clear mustChangePassword and tempPasswordExpiresAt
+    user.mustChangePassword = false;
+    user.tempPasswordExpiresAt = null;
+
+    await user.save();
+
+    return res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, reactivate } from "../api/auth";
-import { setToken } from "../api/http";
+import { setToken, setMustChangePassword } from "../api/http";
 import type { HttpError } from "../api/http";
 import "./LoginPage.css";
 
@@ -35,8 +35,17 @@ export default function LoginPage() {
       // Store token in localStorage (same key as TokenPanel uses)
       setToken(response.token);
       
-      // Redirect to dashboardƒ
-      navigate("/", { replace: true });
+      // Store mustChangePassword flag if present
+      if (response.mustChangePassword === true) {
+        setMustChangePassword(true);
+        // Redirect to change password page
+        navigate("/change-password", { replace: true });
+      } else {
+        // Clear flag if not set (in case it was previously set)
+        setMustChangePassword(false);
+        // Redirect to dashboard
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       setLoading(false);
       if (err instanceof Error && "status" in err) {
@@ -364,37 +373,6 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.6rem",
-                borderRadius: "0.375rem",
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
-                fontSize: "0.9rem",
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              htmlFor="shop-code"
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontSize: "0.9rem",
-                fontWeight: 500,
-                color: "#e5e7eb",
-              }}
-            >
-              Shop Code
-            </label>
-            <input
-              id="shop-code"
-              type="text"
-              value={shopCode}
-              onChange={(e) => setShopCode(e.target.value)}
               disabled={loading}
               style={{
                 width: "100%",

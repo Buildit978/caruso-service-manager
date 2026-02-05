@@ -2,6 +2,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { User } from "../models/user.model";
+import { Account } from "../models/account.model";
 import { requireRole } from "../middleware/requireRole";
 import { sendEmail } from "../utils/email";
 import { generateTempPassword } from "../utils/password";
@@ -95,6 +96,13 @@ router.post(
         isActive: true,
       });
 
+      // Fetch Account.slug for shopCode
+      const account = await Account.findById(accountId).select("slug").lean();
+      const shopCode = account?.slug || null;
+
+      // Determine if email was sent (we don't send email on create, only on reset)
+      const emailSent = false;
+
       return res.status(201).json({
         user: {
           id: user._id.toString(),
@@ -106,6 +114,8 @@ router.post(
           role: user.role,
         },
         tempPassword, // Return temp password only on create
+        shopCode,
+        emailSent,
       });
     } catch (err: any) {
       // Handle unique index violation
@@ -261,37 +271,40 @@ router.post(
       const saltRounds = Number(process.env.BCRYPT_ROUNDS) || 10;
       const passwordHash = await bcrypt.hash(tempPassword, saltRounds);
 
+      // Set temp password expiry to 60 minutes from now
+      const tempPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
       user.passwordHash = passwordHash;
       user.tokenInvalidBefore = new Date();
+      user.mustChangePassword = true;
+      user.tempPasswordExpiresAt = tempPasswordExpiresAt;
       await user.save();
 
+      // Fetch Account.slug for shopCode (needed for email and response)
+      const account = await Account.findById(accountId).select("slug").lean();
+      const shopCode = account?.slug || null;
+
       const subject = "Your password has been reset";
-      const text = `Your temporary password has been set. Use it to sign in and change your password.\n\nTemporary password: ${tempPassword}`;
+      const text = `Your temporary password has been set. Use it to sign in and change your password.\n\nShop Code: ${shopCode || "N/A"}\nTemporary password: ${tempPassword}\n\nThis password expires in 60 minutes.`;
 
-      console.log("[ResetPw] sending email");
-
-      let result: { messageId?: string };
+      let emailSent = false;
       try {
-        result = await sendEmail({ to: toEmail, subject, text, accountId: req.accountId });
-      } catch (err: any) {
-        console.error("[ResetPw] sendEmail failed", {
-          message: err?.message,
-          code: err?.code,
-          response: err?.response,
-          responseCode: err?.responseCode,
-          command: err?.command,
-          stack: err?.stack,
-        });
-        return res.status(502).json({ ok: false, message: "Email not sent" });
+        await sendEmail({ to: toEmail, subject, text, accountId: req.accountId });
+        emailSent = true;
+      } catch (err: unknown) {
+        console.error("[ResetPw] sendEmail failed", err instanceof Error ? err.message : "unknown");
+        // Still return 200 with credentials so owner can copy; do not log tempPassword
       }
 
-      console.log("[ResetPw] sent", { messageId: result?.messageId });
+      const expiresAt = tempPasswordExpiresAt.toISOString();
 
-      const body: { ok: true; tempPassword?: string } = { ok: true };
-      if (process.env.ALLOW_TEMP_PASSWORD_RESPONSE === "true") {
-        body.tempPassword = tempPassword;
-      }
-      return res.status(200).json(body);
+      return res.status(200).json({
+        ok: true,
+        tempPassword,
+        shopCode,
+        expiresAt,
+        emailSent,
+      });
     } catch (err) {
       next(err);
     }
@@ -341,7 +354,15 @@ router.post(
       user.tokenInvalidBefore = new Date(); // Invalidate old tokens for security
       await user.save();
 
-      return res.json({ tempPassword });
+      // Fetch Account.slug for shopCode
+      const account = await Account.findById(accountId).select("slug").lean();
+      const shopCode = account?.slug || null;
+
+      return res.json({
+        tempPassword,
+        shopCode,
+        emailSent: false, // Reactivate doesn't send email
+      });
     } catch (err) {
       next(err);
     }

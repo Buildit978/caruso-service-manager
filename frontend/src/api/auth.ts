@@ -22,6 +22,7 @@ export interface LoginResponse {
     role: "owner" | "manager" | "technician";
     accountId: string;
   };
+  mustChangePassword?: boolean;
 }
 
 export interface MeResponse {
@@ -73,5 +74,23 @@ export async function reactivate(credentials: ReactivateRequest): Promise<LoginR
   return http<LoginResponse>("/auth/reactivate", {
     method: "POST",
     body: JSON.stringify(credentials),
+  });
+}
+
+export interface ChangePasswordRequest {
+  newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  ok: true;
+}
+
+/**
+ * Change password (forced change flow, no current password required)
+ */
+export async function changePassword(request: ChangePasswordRequest): Promise<ChangePasswordResponse> {
+  return http<ChangePasswordResponse>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(request),
   });
 }

@@ -40,6 +40,9 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
 
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [shopCode, setShopCode] = useState<string | null>(null);
+  const [modalEmailSent, setModalEmailSent] = useState<boolean>(true);
+  const [modalExpiresAt, setModalExpiresAt] = useState<string | null>(null);
 
   const activeCounts = useMemo(() => {
     const counts = { manager: 0, technician: 0 };
@@ -132,6 +135,7 @@ export default function TeamPage() {
     setSaving(true);
     setError(null);
     setTempPassword(null);
+    setShopCode(null);
 
     try {
       const resp = await createUser({
@@ -142,7 +146,10 @@ export default function TeamPage() {
         role: form.role,
       });
 
-      setTempPassword(resp.tempPassword);
+      setTempPassword(resp.tempPassword || null);
+      setShopCode(resp.shopCode || null);
+      setModalEmailSent(resp.emailSent);
+      setModalExpiresAt(null);
 
       const refreshed = await listUsers();
       setUsers(refreshed.users || []);
@@ -183,7 +190,10 @@ export default function TeamPage() {
 
     try {
       const resp = await resetUserPassword(u.id);
-      setTempPassword(resp.tempPassword);
+      setTempPassword(resp.tempPassword ?? null);
+      setShopCode(resp.shopCode ?? null);
+      setModalEmailSent(resp.emailSent);
+      setModalExpiresAt(resp.expiresAt ?? null);
     } catch (err) {
       const e = err as HttpError;
       setError((e?.data as any)?.message || e?.message || "Failed to reset password.");
@@ -196,8 +206,11 @@ export default function TeamPage() {
 
     try {
       const resp = await reactivateUser(u.id);
-      setTempPassword(resp.tempPassword);
-      
+      setTempPassword(resp.tempPassword || null);
+      setShopCode(resp.shopCode || null);
+      setModalEmailSent(resp.emailSent);
+      setModalExpiresAt(null);
+
       // Refresh list to show updated status
       const refreshed = await listUsers();
       setUsers(refreshed.users || []);
@@ -224,8 +237,14 @@ export default function TeamPage() {
       <TempPasswordModal
         open={!!tempPassword}
         tempPassword={tempPassword}
+        shopCode={shopCode}
+        emailSent={modalEmailSent}
+        expiresAt={modalExpiresAt}
         onClose={() => {
           setTempPassword(null);
+          setShopCode(null);
+          setModalEmailSent(true);
+          setModalExpiresAt(null);
         }}
       />
       <div className="stack team-stack">

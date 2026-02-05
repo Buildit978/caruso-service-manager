@@ -34,6 +34,8 @@ export interface CreateUserResponse {
     role: "manager" | "technician";
   };
   tempPassword: string;
+  shopCode: string | null;
+  emailSent: boolean;
 }
 
 export interface ListUsersResponse {
@@ -54,11 +56,17 @@ export interface DeactivateUserResponse {
 }
 
 export interface ResetPasswordResponse {
+  ok: true;
   tempPassword: string;
+  shopCode: string | null;
+  expiresAt?: string;
+  emailSent: boolean;
 }
 
 export interface ReactivateUserResponse {
   tempPassword: string;
+  shopCode: string | null;
+  emailSent: boolean;
 }
 
 /**

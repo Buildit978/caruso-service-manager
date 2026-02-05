@@ -3,6 +3,7 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 const TOKEN_KEY = "csm_token";
+const MUST_CHANGE_PASSWORD_KEY = "csm_must_change_password";
 
 export interface HttpError extends Error {
   status: number;
@@ -28,6 +29,25 @@ export function setToken(token: string): void {
  */
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+}
+
+/**
+ * Store mustChangePassword flag
+ */
+export function setMustChangePassword(value: boolean): void {
+  if (value) {
+    localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, "true");
+  } else {
+    localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+  }
+}
+
+/**
+ * Get mustChangePassword flag
+ */
+export function getMustChangePassword(): boolean {
+  return localStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === "true";
 }
 
 /**

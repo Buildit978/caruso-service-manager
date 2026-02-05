@@ -1,14 +1,15 @@
 // src/components/layout/Layout.tsx
-import { useState } from 'react'
-import { Link, useLocation, Outlet } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import { useSettingsAccess } from '../../contexts/SettingsAccessContext'
 import { useAccess } from '../../contexts/AccessContext'
 import { useMe } from "../../auth/useMe";
-import { clearToken } from "../../api/http";
+import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 
 function Layout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { hasAccess } = useSettingsAccess()
   const { customersAccess, vehiclesAccess } = useAccess()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -19,9 +20,16 @@ function Layout() {
   // Fetch settings for shop name (technicians may get 403, use fallback)
   const { shopName } = useSettings()
 
+  // Route guard: redirect to /change-password if mustChangePassword is true
+  useEffect(() => {
+    if (!meLoading && getMustChangePassword() && location.pathname !== "/change-password") {
+      navigate("/change-password", { replace: true });
+    }
+  }, [meLoading, location.pathname, navigate]);
+
   // Logout handler
   function handleLogout() {
-    // Clear token
+    // Clear token and mustChangePassword flag
     clearToken();
     
     // Hard redirect to login (resets all state including access flags)

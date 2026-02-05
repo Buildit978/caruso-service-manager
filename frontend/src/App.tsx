@@ -19,6 +19,7 @@ import RevenueReportPage from "./pages/RevenueReportPage";
 import LoginPage from "./pages/LoginPage";
 import StartPage from "./pages/StartPage";
 import TeamPage from "./pages/TeamPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 import AdminGatePage from "./pages/admin/AdminGatePage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminAccountDetailPage from "./pages/admin/AdminAccountDetailPage";
@@ -30,6 +31,7 @@ function App() {
     <Routes>
       <Route path="/start" element={<StartPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/admin" element={<Outlet />}>
         <Route index element={<AdminGatePage />} />
         <Route path="accounts" element={<AdminGuard><AdminAccountsPage /></AdminGuard>} />

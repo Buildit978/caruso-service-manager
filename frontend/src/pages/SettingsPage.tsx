@@ -7,6 +7,7 @@ import {
     deactivateAccount,
     fetchInvoiceProfile,
     patchInvoiceProfile,
+    regenerateShopCode,
     type SettingsResponse,
     type DiscountType,
     type RoleAccess,
@@ -51,6 +52,8 @@ export default function SettingsPage() {
     const [deactivateConfirm, setDeactivateConfirm] = useState("");
     const [deactivating, setDeactivating] = useState(false);
     const [deactivateError, setDeactivateError] = useState<string | null>(null);
+    const [shopCode, setShopCode] = useState<string | null>(null);
+    const [regeneratingShopCode, setRegeneratingShopCode] = useState(false);
     const navigate = useNavigate();
 
     // Invoice Profile (owner can edit, manager can view)
@@ -73,6 +76,7 @@ export default function SettingsPage() {
                 setSettings(data);
                 setShopName(data.shopName ?? "");
                 setRoleAccess(data.roleAccess || { managersEnabled: true, techniciansEnabled: true });
+                setShopCode(data.shopCode ?? null);
 
                 // taxRate is stored as decimal (0.13) → show as percent (13)
                 setTaxRatePercent(
@@ -383,6 +387,127 @@ export default function SettingsPage() {
                     gap: "1rem",
                 }}
             >
+                {/* Shop Code (Owner Only) */}
+                {isOwner && (
+                    <div>
+                        <label
+                            htmlFor="shopCode"
+                            style={{
+                                display: "block",
+                                fontSize: "0.9rem",
+                                marginBottom: "0.25rem",
+                                color: "#e5e7eb",
+                            }}
+                        >
+                            Shop Code
+                        </label>
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+                            <div
+                                style={{
+                                    flex: 1,
+                                    padding: "0.5rem 0.6rem",
+                                    borderRadius: "0.375rem",
+                                    border: "1px solid #4b5563",
+                                    background: "#111827",
+                                    color: "#e5e7eb",
+                                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                    fontSize: "0.95rem",
+                                    fontWeight: 600,
+                                    letterSpacing: "0.05em",
+                                }}
+                            >
+                                {shopCode || "—"}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!window.confirm("Regenerate Shop Code? Staff will need the new code for future logins.")) {
+                                        return;
+                                    }
+                                    setRegeneratingShopCode(true);
+                                    try {
+                                        const resp = await regenerateShopCode();
+                                        setShopCode(resp.shopCode);
+                                        setSaved(true);
+                                        setTimeout(() => setSaved(false), 2000);
+                                    } catch (err: any) {
+                                        console.error("Failed to regenerate shop code", err);
+                                        if (err?.status === 429) {
+                                            setError("Shop Code was recently regenerated. Please wait a few minutes before trying again.");
+                                        } else {
+                                            setError(err?.message || "Failed to regenerate shop code");
+                                        }
+                                    } finally {
+                                        setRegeneratingShopCode(false);
+                                    }
+                                }}
+                                disabled={regeneratingShopCode}
+                                style={{
+                                    padding: "0.5rem 0.75rem",
+                                    borderRadius: "0.375rem",
+                                    border: "1px solid #4b5563",
+                                    background: regeneratingShopCode ? "#4b5563" : "#1d4ed8",
+                                    color: "#e5e7eb",
+                                    fontSize: "0.85rem",
+                                    fontWeight: 600,
+                                    cursor: regeneratingShopCode ? "not-allowed" : "pointer",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {regeneratingShopCode ? "Regenerating…" : "Regenerate"}
+                            </button>
+                            {shopCode && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await navigator.clipboard.writeText(shopCode);
+                                            setSaved(true);
+                                            setTimeout(() => setSaved(false), 2000);
+                                        } catch (err) {
+                                            // Fallback
+                                            const textarea = document.createElement("textarea");
+                                            textarea.value = shopCode;
+                                            textarea.style.position = "fixed";
+                                            textarea.style.opacity = "0";
+                                            document.body.appendChild(textarea);
+                                            textarea.select();
+                                            try {
+                                                document.execCommand("copy");
+                                                setSaved(true);
+                                                setTimeout(() => setSaved(false), 2000);
+                                            } catch {}
+                                            document.body.removeChild(textarea);
+                                        }
+                                    }}
+                                    style={{
+                                        padding: "0.5rem 0.75rem",
+                                        borderRadius: "0.375rem",
+                                        border: "1px solid #4b5563",
+                                        background: "transparent",
+                                        color: "#e5e7eb",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    Copy
+                                </button>
+                            )}
+                        </div>
+                        <p
+                            style={{
+                                fontSize: "0.8rem",
+                                color: "#6b7280",
+                                marginTop: "0.25rem",
+                            }}
+                        >
+                            Share this code with your staff. They'll need it to sign in.
+                        </p>
+                    </div>
+                )}
+
                 {/* Shop Name */}
                 <div>
                     <label

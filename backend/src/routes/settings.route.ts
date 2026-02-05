@@ -1,5 +1,6 @@
 // backend/src/routes/settings.route.ts
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { Settings } from "../models/settings.model";
 import { Account } from "../models/account.model";
 import { User } from "../models/user.model";
@@ -7,6 +8,15 @@ import { requireRole } from "../middleware/requireRole";
 import { Types } from "mongoose";
 
 const router = express.Router();
+
+// Rate limiter for shop code regeneration (1 per 10 minutes)
+const regenerateShopCodeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 1,
+  message: { message: "Shop code can only be regenerated once per 10 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // All settings routes require owner or manager role
 router.use(requireRole(["owner", "manager"]));
@@ -24,11 +34,21 @@ async function getOrCreateSettings(accountId: any) {
 router.get("/", async (req, res) => {
     try {
         const accountId = (req as any).accountId;
+        const actor = (req as any).actor;
+        
         if (!accountId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const settings = await getOrCreateSettings(accountId);
-        return res.json(settings);
+        
+        // Include shopCode (Account.slug) for owners only
+        const response: any = settings.toObject();
+        if (actor?.role === "owner") {
+            const account = await Account.findById(accountId).select("slug").lean();
+            response.shopCode = account?.slug || null;
+        }
+        
+        return res.json(response);
     } catch (error) {
         console.error("Error in GET /api/settings:", error);
         return res.status(500).json({ message: "Failed to load settings" });
@@ -252,6 +272,46 @@ router.post("/account/deactivate", requireRole(["owner"]), async (req, res) => {
     } catch (error) {
         console.error("Error in POST /api/settings/account/deactivate:", error);
         return res.status(500).json({ message: "Failed to deactivate account" });
+    }
+});
+
+// POST /api/settings/account/regenerate-shop-code (owner only)
+router.post("/account/regenerate-shop-code", requireRole(["owner"]), regenerateShopCodeLimiter, async (req, res) => {
+    try {
+        const accountId = (req as any).accountId;
+        if (!accountId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const { generateShopCode } = await import("../utils/slug");
+        const Account = (await import("../models/account.model")).Account;
+
+        // Generate a new unique slug (retry up to 10 times if collision)
+        let newSlug: string;
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        do {
+            newSlug = generateShopCode();
+            const existing = await Account.findOne({ slug: newSlug }).lean();
+            if (!existing) break;
+            attempts++;
+        } while (attempts < maxAttempts);
+
+        if (attempts >= maxAttempts) {
+            return res.status(500).json({ message: "Failed to generate unique shop code. Please try again." });
+        }
+
+        // Update Account.slug
+        await Account.updateOne(
+            { _id: accountId },
+            { slug: newSlug }
+        );
+
+        return res.json({ ok: true, shopCode: newSlug });
+    } catch (error) {
+        console.error("Error in POST /api/settings/account/regenerate-shop-code:", error);
+        return res.status(500).json({ message: "Failed to regenerate shop code" });
     }
 });
 

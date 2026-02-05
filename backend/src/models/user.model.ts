@@ -14,6 +14,8 @@ export interface IUser extends Document {
   passwordHash: string;
   isActive: boolean;
   tokenInvalidBefore?: Date; // Instant token revocation (for firing/force logout)
+  mustChangePassword?: boolean; // Force password change on next login
+  tempPasswordExpiresAt?: Date | null; // Expiry for temporary passwords
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +69,16 @@ const userSchema = new Schema<IUser>(
       required: true,
     },
     tokenInvalidBefore: {
+      type: Date,
+      default: null,
+      required: false,
+    },
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
+      required: false,
+    },
+    tempPasswordExpiresAt: {
       type: Date,
       default: null,
       required: false,

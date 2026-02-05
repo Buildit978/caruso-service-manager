@@ -3,21 +3,26 @@ import { useState } from "react";
 type Props = {
   open: boolean;
   tempPassword: string | null;
+  shopCode: string | null;
+  emailSent?: boolean;
+  expiresAt?: string | null;
   onClose: () => void;
 };
 
-export default function TempPasswordModal({ open, tempPassword, onClose }: Props) {
-  const [copied, setCopied] = useState(false);
+export default function TempPasswordModal({ open, tempPassword, shopCode, emailSent = true, expiresAt, onClose }: Props) {
+  const [copiedPassword, setCopiedPassword] = useState(false);
+  const [copiedShopCode, setCopiedShopCode] = useState(false);
 
   if (!open || !tempPassword) return null;
 
   const pw = tempPassword ?? "";
+  const code = shopCode ?? null;
 
-  async function handleCopy() {
+  async function handleCopyPassword() {
     try {
       await navigator.clipboard.writeText(pw);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedPassword(true);
+      setTimeout(() => setCopiedPassword(false), 2000);
     } catch (err) {
       // Fallback for older browsers
       const textarea = document.createElement("textarea");
@@ -28,8 +33,33 @@ export default function TempPasswordModal({ open, tempPassword, onClose }: Props
       textarea.select();
       try {
         document.execCommand("copy");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setCopiedPassword(true);
+        setTimeout(() => setCopiedPassword(false), 2000);
+      } catch (fallbackErr) {
+        // Silent fail
+      }
+      document.body.removeChild(textarea);
+    }
+  }
+
+  async function handleCopyShopCode() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedShopCode(true);
+      setTimeout(() => setCopiedShopCode(false), 2000);
+    } catch (err) {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopiedShopCode(true);
+        setTimeout(() => setCopiedShopCode(false), 2000);
       } catch (fallbackErr) {
         // Silent fail
       }
@@ -38,7 +68,8 @@ export default function TempPasswordModal({ open, tempPassword, onClose }: Props
   }
 
   function handleClose() {
-    setCopied(false);
+    setCopiedPassword(false);
+    setCopiedShopCode(false);
     onClose();
   }
 
@@ -71,33 +102,141 @@ export default function TempPasswordModal({ open, tempPassword, onClose }: Props
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#fff", marginBottom: "0.75rem" }}>
-          Temporary Password Generated
+          Team Member Credentials
         </div>
         <div style={{ marginBottom: "1rem", color: "#9ca3af", lineHeight: 1.5, fontSize: "0.9rem" }}>
-          Temporary password generated. Copy now — it won't be shown again.
+          Tech will need Shop Code + email + temporary password to log in. Copy these now — they won't be shown again.
         </div>
 
-        <div
-          style={{
-            padding: "1rem",
-            borderRadius: "0.5rem",
-            background: "#111827",
-            border: "1px solid #1f2937",
-            marginBottom: "1rem",
-          }}
-        >
+        {emailSent === false && (
           <div
             style={{
-              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-              fontSize: "1.1rem",
-              fontWeight: 600,
-              color: "#e5e7eb",
-              textAlign: "center",
-              letterSpacing: "0.05em",
-              wordBreak: "break-all",
+              marginBottom: "1rem",
+              padding: "0.75rem",
+              background: "rgba(234, 179, 8, 0.15)",
+              border: "1px solid #eab308",
+              borderRadius: "0.375rem",
+              color: "#fde047",
+              fontSize: "0.9rem",
             }}
           >
-            {pw}
+            Email could not be sent. Share these credentials with the team member manually.
+          </div>
+        )}
+
+        {expiresAt && (
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.5rem 0.75rem",
+              background: "#1e3a5f",
+              border: "1px solid #3b82f6",
+              borderRadius: "0.375rem",
+              color: "#93c5fd",
+              fontSize: "0.85rem",
+            }}
+          >
+            Time sensitive — use this password soon.
+          </div>
+        )}
+
+        {code && (
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.5rem" }}>
+              Shop Code
+            </div>
+            <div
+              style={{
+                padding: "1rem",
+                borderRadius: "0.5rem",
+                background: "#111827",
+                border: "1px solid #1f2937",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  color: "#e5e7eb",
+                  letterSpacing: "0.05em",
+                  flex: 1,
+                }}
+              >
+                {code}
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyShopCode}
+                style={{
+                  padding: "0.4rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #3b82f6",
+                  background: copiedShopCode ? "#10b981" : "#3b82f6",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {copiedShopCode ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.5rem" }}>
+            Temporary Password
+          </div>
+          <div
+            style={{
+              padding: "1rem",
+              borderRadius: "0.5rem",
+              background: "#111827",
+              border: "1px solid #1f2937",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: "1rem",
+                fontWeight: 600,
+                color: "#e5e7eb",
+                textAlign: "left",
+                letterSpacing: "0.05em",
+                wordBreak: "break-all",
+                flex: 1,
+              }}
+            >
+              {pw}
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyPassword}
+              style={{
+                padding: "0.4rem 0.75rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #3b82f6",
+                background: copiedPassword ? "#10b981" : "#3b82f6",
+                color: "#fff",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {copiedPassword ? "Copied!" : "Copy"}
+            </button>
           </div>
         </div>
 
@@ -124,23 +263,6 @@ export default function TempPasswordModal({ open, tempPassword, onClose }: Props
             Close
           </button>
 
-          <button
-            type="button"
-            onClick={handleCopy}
-            style={{
-              padding: "0.5rem 0.9rem",
-              borderRadius: "0.5rem",
-              border: "1px solid #3b82f6",
-              background: copied ? "#10b981" : "#3b82f6",
-              color: "#fff",
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background-color 0.2s ease",
-            }}
-          >
-            {copied ? "Copied!" : "Copy"}
-          </button>
         </div>
       </div>
     </div>

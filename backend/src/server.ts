@@ -15,7 +15,7 @@ import { requireAuth } from "./middleware/requireAuth";
 import { requireAdminAuth } from "./middleware/requireAdminAuth";
 import { requireAdmin } from "./middleware/requireAdmin";
 import vehicleRoutes from "./routes/vehicles.route";
-import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter } from "./routes/auth.routes";
+import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter, handleChangePassword } from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
@@ -70,6 +70,7 @@ app.use("/api", requireAuth);
 
 // 🔐 Protected auth routes (after requireAuth)
 app.get("/api/auth/me", handleMe);
+app.post("/api/auth/change-password", handleChangePassword);
 
 app.use("/api/customers", customerRoutes);
 app.use("/api/work-orders", workOrderRoutes);

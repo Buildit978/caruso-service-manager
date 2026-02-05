@@ -30,6 +30,7 @@ export type SettingsResponse = {
     discountValue: number;  // 0–100 if percent, or CAD if flat
     permissions: Permissions; // Deprecated but kept for migration
     roleAccess: RoleAccess; // V1 role kill-switch
+    shopCode?: string | null; // Account.slug (owner only)
 };
 
 export type UpdateSettingsPayload = {
@@ -85,6 +86,12 @@ export async function updateRoleAccess(
 
 export async function deactivateAccount(): Promise<{ ok: boolean }> {
     return await http<{ ok: boolean }>("/settings/account/deactivate", {
+        method: "POST",
+    });
+}
+
+export async function regenerateShopCode(): Promise<{ ok: true; shopCode: string }> {
+    return await http<{ ok: true; shopCode: string }>("/settings/account/regenerate-shop-code", {
         method: "POST",
     });
 }

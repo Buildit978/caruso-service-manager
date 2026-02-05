@@ -39,6 +39,9 @@ export default function AdminAccountsPage() {
   const [region, setRegion] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<string>("createdAt_desc");
+  const [newFilter, setNewFilter] = useState<"all" | "new">("all");
+  const newDays = 7;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -50,6 +53,9 @@ export default function AdminAccountsPage() {
       q: search.trim() || undefined,
       limit: 50,
       skip: 0,
+      sort: sort || undefined,
+      newOnly: newFilter === "new",
+      newDays: newFilter === "new" ? newDays : undefined,
     })
       .then((res) => {
         setItems(res.items);
@@ -67,7 +73,7 @@ export default function AdminAccountsPage() {
         setPaging(null);
       })
       .finally(() => setLoading(false));
-  }, [days, region, status, search]);
+  }, [days, region, status, search, sort, newFilter]);
 
   useEffect(() => {
     load();
@@ -133,6 +139,31 @@ export default function AdminAccountsPage() {
             aria-label="Search accounts"
           />
         </label>
+        <label className="admin-filter-label">
+          Sort
+          <select
+            className="admin-filter-select"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            aria-label="Sort"
+          >
+            <option value="createdAt_desc">Newest</option>
+            <option value="createdAt_asc">Oldest</option>
+            <option value="lastActive_desc">Last Active</option>
+          </select>
+        </label>
+        <label className="admin-filter-label">
+          Filter
+          <select
+            className="admin-filter-select"
+            value={newFilter}
+            onChange={(e) => setNewFilter(e.target.value as "all" | "new")}
+            aria-label="Filter new"
+          >
+            <option value="all">All</option>
+            <option value="new">New (7d)</option>
+          </select>
+        </label>
         <button type="button" className="admin-btn admin-btn-secondary" onClick={load}>
           Apply
         </button>
@@ -158,7 +189,10 @@ export default function AdminAccountsPage() {
                   >
                     <div className="admin-account-card-row">
                       <span className="admin-account-card-label">Account</span>
-                      <span className="admin-account-card-value">{a.name || a.slug || a.accountId}</span>
+                      <span className="admin-account-card-value">
+                        {a.name || a.slug || a.accountId}
+                        {a.isNew && <span className="admin-badge admin-badge-new">New</span>}
+                      </span>
                     </div>
                     <div className="admin-account-card-row">
                       <span className="admin-account-card-label">Region</span>
@@ -216,7 +250,10 @@ export default function AdminAccountsPage() {
                         }}
                         aria-label={`View ${a.name || a.slug || a.accountId}`}
                       >
-                        <td>{a.name || a.slug || a.accountId}</td>
+                        <td>
+                          {a.name || a.slug || a.accountId}
+                          {a.isNew && <span className="admin-badge admin-badge-new">New</span>}
+                        </td>
                         <td>{a.region || "—"}</td>
                         <td>{formatDate(a.createdAt)}</td>
                         <td>{formatDateTime(a.lastActiveAt)}</td>

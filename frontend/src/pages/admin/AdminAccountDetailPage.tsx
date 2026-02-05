@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   fetchAdminAccountById,
   fetchAdminAudits,
+  fetchAdminAccountUsers,
   postQuarantine,
   deleteQuarantine,
   postThrottle,
@@ -10,6 +11,7 @@ import {
   postForceLogout,
   getAdminRole,
   type AdminAccountItem,
+  type AdminAccountUser,
   type AdminAuditItem,
   type HttpError,
 } from "../../api/admin";
@@ -30,6 +32,11 @@ function formatDateTime(iso: string | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
+function copyToClipboard(value: string): void {
+  if (!value || !navigator.clipboard?.writeText) return;
+  navigator.clipboard.writeText(value);
+}
+
 export default function AdminAccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
   const [account, setAccount] = useState<AdminAccountItem | null>(null);
@@ -44,6 +51,13 @@ export default function AdminAccountDetailPage() {
   const [minutes, setMinutes] = useState("60");
   const [note, setNote] = useState("");
   const isSuperAdmin = getAdminRole() === "superadmin";
+
+  const [users, setUsers] = useState<AdminAccountUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("");
+  const [userActiveFilter, setUserActiveFilter] = useState<string>("");
+  const [userSearch, setUserSearch] = useState("");
+  const [userSearchApplied, setUserSearchApplied] = useState("");
 
   const loadAccount = useCallback(() => {
     if (!accountId) return;
@@ -70,6 +84,24 @@ export default function AdminAccountDetailPage() {
       .then((res) => setAudits(res.items))
       .catch(() => setAudits([]));
   }, [accountId]);
+
+  const loadUsers = useCallback(() => {
+    if (!accountId) return;
+    setUsersLoading(true);
+    const params: { role?: string; isActive?: boolean; search?: string } = {};
+    if (userRoleFilter && userRoleFilter !== "all") params.role = userRoleFilter;
+    if (userActiveFilter === "active") params.isActive = true;
+    else if (userActiveFilter === "inactive") params.isActive = false;
+    if (userSearchApplied) params.search = userSearchApplied;
+    fetchAdminAccountUsers(accountId, params)
+      .then((res) => setUsers(res.items))
+      .catch(() => setUsers([]))
+      .finally(() => setUsersLoading(false));
+  }, [accountId, userRoleFilter, userActiveFilter, userSearchApplied]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -181,6 +213,81 @@ export default function AdminAccountDetailPage() {
       {successMessage && <p className="admin-detail-success" role="status">{successMessage}</p>}
       {!loading && account && (
         <>
+          <div className="admin-detail-section admin-detail-identity">
+            <h3>Identity</h3>
+            <dl className="admin-detail-dl">
+              <dt>Shop Name</dt>
+              <dd>{account.shopName ?? account.name ?? "—"}</dd>
+              <dt>Shop Code</dt>
+              <dd className="admin-detail-copy-row">
+                <span>{account.shopCode ?? account.slug ?? "—"}</span>
+                {(account.shopCode ?? account.slug) && (
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary admin-btn-small"
+                    onClick={() => copyToClipboard(account.shopCode ?? account.slug ?? "")}
+                    aria-label="Copy shop code"
+                  >
+                    Copy
+                  </button>
+                )}
+              </dd>
+              <dt>Primary Owner</dt>
+              <dd>
+                {account.primaryOwner
+                  ? [account.primaryOwner.name, account.primaryOwner.email].filter(Boolean).join(" · ")
+                  : "—"}
+              </dd>
+              {account.primaryOwner?.email && (
+                <>
+                  <dt>Owner Email</dt>
+                  <dd className="admin-detail-copy-row">
+                    <span>{account.primaryOwner.email}</span>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary admin-btn-small"
+                      onClick={() => copyToClipboard(account.primaryOwner!.email ?? "")}
+                      aria-label="Copy owner email"
+                    >
+                      Copy
+                    </button>
+                  </dd>
+                </>
+              )}
+              {account.primaryOwner?.phone && (
+                <>
+                  <dt>WhatsApp</dt>
+                  <dd className="admin-detail-copy-row admin-detail-whatsapp">
+                    <span>{account.primaryOwner.phone}</span>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary admin-btn-small"
+                      onClick={() => copyToClipboard(account.primaryOwner?.phone ?? "")}
+                      aria-label="Copy phone"
+                    >
+                      Copy
+                    </button>
+                  </dd>
+                </>
+              )}
+              {account.address && (
+                <>
+                  <dt>Address</dt>
+                  <dd className="admin-detail-copy-row">
+                    <span className="admin-detail-address">{account.address}</span>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary admin-btn-small"
+                      onClick={() => copyToClipboard(account.address ?? "")}
+                      aria-label="Copy address"
+                    >
+                      Copy
+                    </button>
+                  </dd>
+                </>
+              )}
+            </dl>
+          </div>
           <div className="admin-detail-section">
             <h3>Account</h3>
             <dl className="admin-detail-dl">
@@ -199,6 +306,86 @@ export default function AdminAccountDetailPage() {
               <dt>ID</dt>
               <dd className="admin-detail-id">{accountId}</dd>
             </dl>
+          </div>
+          <div className="admin-detail-section">
+            <h3>Users</h3>
+            <div className="admin-detail-users-toolbar">
+              <select
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+                className="admin-select"
+                aria-label="Filter by role"
+              >
+                <option value="all">All roles</option>
+                <option value="owner">Owner</option>
+                <option value="manager">Manager</option>
+                <option value="technician">Technician</option>
+              </select>
+              <select
+                value={userActiveFilter}
+                onChange={(e) => setUserActiveFilter(e.target.value)}
+                className="admin-select"
+                aria-label="Filter by status"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <input
+                type="search"
+                placeholder="Search name or email…"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && setUserSearchApplied(userSearch)}
+                className="admin-input"
+                aria-label="Search users"
+              />
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={() => setUserSearchApplied(userSearch)}
+              >
+                Search
+              </button>
+            </div>
+            {usersLoading ? (
+              <p className="admin-detail-muted">Loading users…</p>
+            ) : (
+              <div className="admin-detail-table-wrap">
+                <table className="admin-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="admin-detail-muted">No users match.</td>
+                      </tr>
+                    ) : (
+                      users.map((u) => (
+                        <tr key={u.id}>
+                          <td>{u.email}</td>
+                          <td>{u.name}</td>
+                          <td>{u.role}</td>
+                          <td>{u.isActive ? "Active" : "Inactive"}</td>
+                          <td>
+                            {u.mustChangePassword && (
+                              <span className="admin-badge admin-badge-warning" title="Must change password">Must change</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="admin-detail-section">

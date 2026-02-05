@@ -8,9 +8,11 @@ export interface WorkOrderMessage {
   channel: "internal" | "customer"; // legacy, kept for backward compat
   visibility?: "internal" | "customer"; // new field, preferred
   actor: {
-    _id: string;
+    _id?: string;
+    id?: string;
     nameSnapshot: string;
     roleSnapshot: "owner" | "manager" | "technician";
+    email?: string;
   };
   meta?: {
     ip?: string;

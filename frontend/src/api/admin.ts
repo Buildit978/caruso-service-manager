@@ -131,11 +131,29 @@ export interface AdminAccountItem {
   accountId: string;
   name: string;
   slug: string;
+  shopName?: string;
+  shopCode?: string;
   region?: "Canada" | "TT";
   isActive: boolean;
   createdAt: string;
   lastActiveAt?: string;
+  isNew?: boolean;
+  primaryOwner?: { name: string; email?: string; phone?: string };
+  address?: string;
   counts: { workOrders: number; invoices: number; customers: number; users: number };
+}
+
+export interface AdminAccountUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "owner" | "manager" | "technician";
+  isActive: boolean;
+  mustChangePassword: boolean;
+}
+
+export interface AdminAccountUsersResponse {
+  items: AdminAccountUser[];
 }
 
 export interface AdminAccountsResponse {
@@ -177,6 +195,9 @@ export function fetchAdminAccounts(params?: {
   q?: string;
   limit?: number;
   skip?: number;
+  sort?: string;
+  newOnly?: boolean;
+  newDays?: number;
 }): Promise<AdminAccountsResponse> {
   const sp = new URLSearchParams();
   if (params?.days != null) sp.set("days", String(params.days));
@@ -185,13 +206,29 @@ export function fetchAdminAccounts(params?: {
   if (params?.q != null && params.q !== "") sp.set("q", params.q);
   if (params?.limit != null) sp.set("limit", String(params.limit));
   if (params?.skip != null) sp.set("skip", String(params.skip));
+  if (params?.sort != null && params.sort !== "") sp.set("sort", params.sort);
+  if (params?.newOnly === true) sp.set("newOnly", "true");
+  if (params?.newDays != null) sp.set("newDays", String(params.newDays));
   const query = sp.toString() ? `?${sp.toString()}` : "";
   return adminFetch<AdminAccountsResponse>(`/beta/accounts${query}`);
 }
 
-/** GET /api/admin/beta/accounts/:accountId — single account detail (same shape as list item). */
+/** GET /api/admin/beta/accounts/:accountId — single account detail (same shape as list item + shopName, shopCode, primaryOwner). */
 export function fetchAdminAccountById(accountId: string): Promise<AdminAccountItem> {
   return adminFetch<AdminAccountItem>(`/beta/accounts/${accountId}`);
+}
+
+/** GET /api/admin/accounts/:accountId/users?role=&isActive=&search= — tenant users for account overview. */
+export function fetchAdminAccountUsers(
+  accountId: string,
+  params?: { role?: string; isActive?: boolean; search?: string }
+): Promise<AdminAccountUsersResponse> {
+  const sp = new URLSearchParams();
+  if (params?.role != null && params.role !== "") sp.set("role", params.role);
+  if (params?.isActive !== undefined) sp.set("isActive", String(params.isActive));
+  if (params?.search != null && params.search !== "") sp.set("search", params.search);
+  const query = sp.toString() ? `?${sp.toString()}` : "";
+  return adminFetch<AdminAccountUsersResponse>(`/accounts/${accountId}/users${query}`);
 }
 
 export function fetchAdminAudits(accountId: string, params?: { limit?: number; skip?: number }): Promise<AdminAuditsResponse> {

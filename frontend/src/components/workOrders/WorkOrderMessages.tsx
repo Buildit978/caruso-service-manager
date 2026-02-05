@@ -237,7 +237,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                   >
                     <div>
                       <span style={{ fontWeight: 600, color: "#e5e7eb" }}>
-                        {msg.actor.nameSnapshot || "Unknown User"}
+                        {msg.actor?.nameSnapshot || msg.actor?.email || "Unknown User"}
                       </span>
                       <span
                         style={{
@@ -246,7 +246,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                           color: "#9ca3af",
                         }}
                       >
-                        ({formatRole(msg.actor.roleSnapshot)})
+                        ({formatRole(msg.actor?.roleSnapshot || "technician")})
                       </span>
                       {visibility === "customer" && (
                         <span

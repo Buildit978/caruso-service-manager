@@ -57,6 +57,57 @@ function securitySubset(account: Record<string, unknown>): Record<string, unknow
   return out;
 }
 
+const TENANT_ROLES = ["owner", "manager", "technician"];
+
+/*
+ * GET /api/admin/accounts/:accountId/users?role=&isActive=&search=
+ * Returns minimal user fields for the account (tenant users only). accountId param drives results (no cross-tenant).
+ */
+router.get("/:accountId/users", async (req: Request, res: Response) => {
+  try {
+    const accountId = parseAccountId(req.params.accountId);
+    if (!accountId) return res.status(400).json({ message: "Invalid accountId" });
+
+    const role = typeof req.query.role === "string" && req.query.role.trim() !== "" ? req.query.role.trim() : undefined;
+    const isActiveRaw = req.query.isActive;
+    const isActive =
+      isActiveRaw === "true" ? true : isActiveRaw === "false" ? false : undefined;
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+
+    const filter: Record<string, unknown> = { accountId, role: { $in: TENANT_ROLES } };
+    if (role && TENANT_ROLES.includes(role)) filter.role = role;
+    if (isActive !== undefined) filter.isActive = isActive;
+    if (search && search.length > 0) {
+      const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { email: re },
+        { name: re },
+        { firstName: re },
+        { lastName: re },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("_id email name firstName lastName role isActive mustChangePassword")
+      .sort({ role: 1, email: 1 })
+      .lean();
+
+    const items = users.map((u: any) => ({
+      id: u._id.toString(),
+      email: u.email,
+      name: u.name || [u.firstName, u.lastName].filter(Boolean).join(" ").trim() || u.email || "—",
+      role: u.role,
+      isActive: u.isActive,
+      mustChangePassword: u.mustChangePassword === true,
+    }));
+
+    return res.json({ items });
+  } catch (err) {
+    console.error("[admin] GET /accounts/:accountId/users error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 /*
  * GET /api/admin/accounts/:accountId/audits?limit=50&skip=0
  * Example: curl -H "x-auth-token: $ADMIN_TOKEN" "http://localhost:4000/api/admin/accounts/<accountId>/audits?limit=50&skip=0"

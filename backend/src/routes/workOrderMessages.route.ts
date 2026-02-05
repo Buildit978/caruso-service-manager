@@ -1,8 +1,9 @@
 // backend/src/routes/workOrderMessages.route.ts
 import { Router, Request, Response, NextFunction } from "express";
 import { Types } from "mongoose";
-import { WorkOrder } from "../models/workOrder.model"; // adjust if your path differs
+import { WorkOrder } from "../models/workOrder.model";
 import { WorkOrderMessageModel } from "../models/workOrderMessage.model";
+import { User } from "../models/user.model";
 
 const router = Router({ mergeParams: true });
 
@@ -50,9 +51,39 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       query.visibility = "internal";
     }
 
-    const items = await WorkOrderMessageModel.find(query)
+    let items = await WorkOrderMessageModel.find(query)
       .sort({ createdAt: 1 }) // chronological read
       .lean();
+
+    // Best-effort: resolve "Unknown User" for existing messages missing author snapshot
+    const needsResolve = items.filter(
+      (m: any) => !m.actor?.nameSnapshot || m.actor.nameSnapshot === "Unknown User"
+    );
+    if (needsResolve.length > 0) {
+      const authorIds = [...new Set(needsResolve.map((m: any) => String(m.actor?.id)).filter(Boolean))];
+      const users = await User.find({ _id: { $in: authorIds.map((id: string) => new Types.ObjectId(id)) } })
+        .select("_id name firstName lastName email")
+        .lean();
+      const nameByUserId: Record<string, string> = {};
+      for (const u of users) {
+        const id = String((u as any)._id);
+        const displayName =
+          (u as any).name ||
+          [(u as any).firstName, (u as any).lastName].filter(Boolean).join(" ").trim() ||
+          (u as any).email ||
+          "Unknown User";
+        nameByUserId[id] = displayName;
+      }
+      items = items.map((m: any) => {
+        if (!m.actor?.nameSnapshot || m.actor.nameSnapshot === "Unknown User") {
+          const resolved = nameByUserId[String(m.actor?.id)];
+          if (resolved) {
+            return { ...m, actor: { ...m.actor, nameSnapshot: resolved } };
+          }
+        }
+        return m;
+      });
+    }
 
     return res.json({ items });
   } catch (err) {

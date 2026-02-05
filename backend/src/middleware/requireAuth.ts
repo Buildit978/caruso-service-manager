@@ -127,12 +127,19 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       }
     }
 
-    // Attach normalized context for downstream handlers
+    // Attach normalized context for downstream handlers (include name for notes/messages author display)
     const accountObjectId = new Types.ObjectId(accountId);
+    const displayName =
+      (user as any).name ||
+      [ (user as any).firstName, (user as any).lastName ].filter(Boolean).join(" ").trim() ||
+      (user as any).email ||
+      "Unknown User";
     (req as any).accountId = accountObjectId;
     (req as any).actor = {
       _id: new Types.ObjectId(userId),
       role: dbRole, // ✅ Use DB role, not JWT role
+      name: displayName,
+      email: (user as any).email,
     };
 
     // Throttled tenant activity: update lastActiveAt only if missing or older than 15 minutes

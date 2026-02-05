@@ -52,6 +52,25 @@ function parseSkip(query: Request["query"]): number {
   return Math.min(Math.max(n, 0), 5000);
 }
 
+type SortOption = "createdAt_desc" | "createdAt_asc" | "lastActive_desc";
+function parseSort(query: Request["query"]): SortOption {
+  const raw = String(query.sort ?? "createdAt_desc").trim();
+  if (raw === "createdAt_asc" || raw === "lastActive_desc") return raw;
+  return "createdAt_desc";
+}
+
+function parseNewOnly(query: Request["query"]): boolean {
+  return String(query.newOnly ?? "false").trim().toLowerCase() === "true";
+}
+
+function parseNewDays(query: Request["query"]): number {
+  const raw = query.newDays;
+  if (raw == null || raw === "") return 7;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return 7;
+  return Math.min(Math.max(n, 1), 90);
+}
+
 function computeSince(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
@@ -99,7 +118,7 @@ router.get("/overview", async (req: Request, res: Response) => {
   }
 });
 
-// GET /accounts — V1 list: days, region, status, q, limit, skip
+// GET /accounts — V1 list: days, region, status, q, limit, skip, sort, newOnly, newDays
 // q matches: Account.name, Account.slug, Settings.shopName; if q looks like email, also match tenant User.email (accountIds only)
 router.get("/accounts", async (req: Request, res: Response) => {
   try {
@@ -109,6 +128,10 @@ router.get("/accounts", async (req: Request, res: Response) => {
     const q = parseQ(req.query);
     const limit = parseLimit(req.query);
     const skip = parseSkip(req.query);
+    const sortOption = parseSort(req.query);
+    const newOnly = parseNewOnly(req.query);
+    const newDaysNum = parseNewDays(req.query);
+    const newSince = new Date(Date.now() - newDaysNum * 24 * 60 * 60 * 1000);
     const since = computeSince(days);
     const sinceISO = since.toISOString();
 
@@ -116,6 +139,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
     if (region !== "all") accountFilter.region = region;
     if (status === "active") accountFilter.isActive = true;
     if (status === "inactive") accountFilter.isActive = false;
+    if (newOnly) accountFilter.createdAt = { $gte: newSince };
 
     if (q) {
       const looksLikeEmail = /@/.test(q) || /^[^\s]*\.[^\s]*$/.test(q) || /^[a-z0-9._%+-]+$/i.test(q);
@@ -169,9 +193,16 @@ router.get("/accounts", async (req: Request, res: Response) => {
       }
     }
 
+    const sortObj: Record<string, 1 | -1> =
+      sortOption === "lastActive_desc"
+        ? { lastActiveAt: -1, createdAt: -1 }
+        : sortOption === "createdAt_asc"
+          ? { createdAt: 1 }
+          : { createdAt: -1 };
+
     const [total, accounts] = await Promise.all([
       Account.countDocuments(accountFilter),
-      Account.find(accountFilter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Account.find(accountFilter).sort(sortObj).skip(skip).limit(limit).lean(),
     ]);
 
     const accountIds = accounts.map((a) => a._id);
@@ -219,6 +250,8 @@ router.get("/accounts", async (req: Request, res: Response) => {
     const items = accounts.map((a) => {
       const id = String(a._id);
       const acc = a as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
+      const createdAtDate = acc.createdAt as Date | undefined;
+      const isNew = !!createdAtDate && new Date(createdAtDate).getTime() >= newSince.getTime();
       return {
         accountId: id,
         name: acc.name,
@@ -227,6 +260,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
         isActive: acc.isActive ?? true,
         createdAt: (acc.createdAt as Date).toISOString(),
         lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
+        isNew,
         counts: {
           workOrders: woMap.get(id) ?? 0,
           invoices: invMap.get(id) ?? 0,
@@ -250,7 +284,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
   }
 });
 
-// GET /accounts/:accountId — single account detail (same shape as one list item)
+// GET /accounts/:accountId — single account detail (same shape as list item + shopName, shopCode, primaryOwner)
 router.get("/accounts/:accountId", async (req: Request, res: Response) => {
   try {
     const raw = req.params.accountId;
@@ -263,7 +297,9 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    const [countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+    const [settings, primaryOwnerUser, countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+      Settings.findOne({ accountId }).select("shopName invoiceProfile").lean(),
+      User.findOne({ accountId, role: "owner", isActive: true }).select("name email firstName lastName phone").lean(),
       WorkOrder.countDocuments({ accountId }),
       Invoice.countDocuments({ accountId }),
       Customer.countDocuments({ accountId }),
@@ -272,14 +308,30 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
 
     const id = String(account._id);
     const acc = account as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
+    const owner = primaryOwnerUser as { name?: string; email?: string; firstName?: string; lastName?: string; phone?: string } | null;
+    const shopName = (settings as { shopName?: string } | null)?.shopName ?? acc.name ?? undefined;
+    const invoiceProfile = (settings as { invoiceProfile?: { address?: string } } | null)?.invoiceProfile;
+    const address = invoiceProfile?.address?.trim() || undefined;
+    const primaryOwner = owner
+      ? {
+          name: owner.name || [owner.firstName, owner.lastName].filter(Boolean).join(" ").trim() || owner.email || "—",
+          email: owner.email ?? undefined,
+          phone: owner.phone ?? undefined,
+        }
+      : undefined;
+
     return res.json({
       accountId: id,
       name: acc.name,
       slug: acc.slug,
+      shopName: shopName ?? undefined,
+      shopCode: acc.slug ?? undefined,
       region: acc.region,
       isActive: acc.isActive ?? true,
       createdAt: (acc.createdAt as Date).toISOString(),
       lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
+      primaryOwner,
+      address,
       counts: {
         workOrders: countsWo,
         invoices: countsInv,

@@ -527,3 +527,104 @@
   margin: 0 0 1rem 0;
   color: var(--admin-fg, #e2e8f0);
 }
+
+.admin-detail-identity {
+  padding-bottom: 0.5rem;
+}
+
+.admin-detail-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-detail-whatsapp {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-detail-whatsapp .admin-btn-small {
+  min-height: 32px;
+  min-width: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.admin-detail-address {
+  color: var(--admin-muted, #94a3b8);
+  font-size: 0.9rem;
+  white-space: pre-line;
+}
+
+.admin-detail-users-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.admin-select,
+.admin-input {
+  min-height: 38px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--admin-border, #334155);
+  background: var(--admin-bg, #0f172a);
+  color: var(--admin-fg, #e2e8f0);
+}
+
+.admin-input {
+  min-width: 180px;
+}
+
+.admin-detail-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-detail-table th,
+.admin-detail-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--admin-border, #334155);
+}
+
+.admin-detail-table th {
+  font-weight: 600;
+  color: var(--admin-muted, #94a3b8);
+}
+
+.admin-detail-muted {
+  color: var(--admin-muted, #94a3b8);
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.admin-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.admin-badge-warning {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+}
+
+.admin-badge-new {
+  margin-left: 0.35rem;
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}

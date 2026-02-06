@@ -106,6 +106,14 @@ router.post("/", requireRole(["owner", "manager"]), async (req: Request, res: Re
       return res.status(400).json({ message: "make and model are required" });
     }
 
+    let currentOdometer: number | null = null;
+    if (odometer !== undefined && odometer !== null && odometer !== "") {
+      const n = Number(String(odometer).replace(/,/g, "").trim());
+      if (Number.isFinite(n)) {
+        currentOdometer = n;
+      }
+    }
+
     const vehicle = await Vehicle.create({
       accountId,
       customerId,
@@ -116,12 +124,7 @@ router.post("/", requireRole(["owner", "manager"]), async (req: Request, res: Re
       licensePlate,
       color,
       notes,
-      currentOdometer:
-        typeof odometer === "number"
-          ? odometer
-          : odometer
-          ? Number(odometer)
-          : null,
+      currentOdometer,
     });
 
     console.log("[POST /api/vehicles] created", vehicle._id);
@@ -157,6 +160,105 @@ router.get("/:id", requireRole(["owner", "manager"]), async (req: Request, res: 
   }
 });
 
+/**
+ * PATCH /api/vehicles/:id  (owner/manager only)
+ * Updates an existing vehicle (whitelisted fields only)
+ */
+router.patch("/:id", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
+    }
 
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid vehicle id" });
+    }
+
+    const updates: any = {};
+    const body = req.body ?? {};
+
+    // Whitelisted scalar fields
+    if (typeof body.year === "number") {
+      updates.year = body.year;
+    }
+    if (typeof body.make === "string") {
+      updates.make = body.make.trim();
+    }
+    if (typeof body.model === "string") {
+      updates.model = body.model.trim();
+    }
+    if (typeof body.vin === "string") {
+      updates.vin = body.vin.trim();
+    }
+    if (typeof body.licensePlate === "string") {
+      updates.licensePlate = body.licensePlate.trim();
+    }
+    if (typeof body.color === "string") {
+      updates.color = body.color.trim();
+    }
+    if (typeof body.notes === "string") {
+      updates.notes = body.notes;
+    }
+
+    // Odometer mapping -> currentOdometer (accept number or numeric string)
+    const rawOdo = body.odometer;
+    if (rawOdo !== undefined && rawOdo !== null && rawOdo !== "") {
+      const n = Number(String(rawOdo).replace(/,/g, "").trim());
+      if (Number.isFinite(n)) {
+        updates.currentOdometer = n;
+      }
+    }
+
+    // Direct currentOdometer update (number only)
+    if (typeof body.currentOdometer === "number" && Number.isFinite(body.currentOdometer)) {
+      updates.currentOdometer = body.currentOdometer;
+    }
+
+    // Explicitly forbid accountId/customerId changes by not copying them from body
+
+    const vehicle = await Vehicle.findOneAndUpdate(
+      { _id: id, accountId },
+      { $set: updates },
+      { new: true }
+    );
+
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+
+    return res.json(vehicle);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/vehicles/:id  (owner/manager only)
+ * Deletes a vehicle scoped to the account
+ */
+router.delete("/:id", requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = req.accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
+    }
+
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid vehicle id" });
+    }
+
+    const result = await Vehicle.deleteOne({ _id: id, accountId });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+
+    return res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

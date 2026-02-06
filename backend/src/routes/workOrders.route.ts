@@ -148,23 +148,36 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     const {
       view = "active",
       customerId,
+      vehicleId,
       sortBy = "createdAt",
       sortDir = "desc",
     } = req.query as {
       view?: "active" | "financial" | "archive" | "all";
       customerId?: string;
+      vehicleId?: string;
       sortBy?: "createdAt" | "status";
       sortDir?: "asc" | "desc";
       };
     
     console.log("[GET /api/work-orders] view=%s role=%s", view, req.actor?.role);
 
+    // vehicleId: if present but invalid, return 400
+    if (vehicleId !== undefined && vehicleId !== "") {
+      if (!Types.ObjectId.isValid(vehicleId)) {
+        return res.status(400).json({ message: "Invalid vehicleId" });
+      }
+    }
 
     const q: any = { accountId };
 
     // Optional customer filter
     if (customerId && Types.ObjectId.isValid(customerId)) {
       q.customerId = new Types.ObjectId(customerId);
+    }
+
+    // Optional vehicle filter (e.g. Vehicle Status page)
+    if (vehicleId && Types.ObjectId.isValid(vehicleId)) {
+      q["vehicle.vehicleId"] = new Types.ObjectId(vehicleId);
     }
 
     // View filters

@@ -66,8 +66,23 @@ export default function CustomerDetailPage() {
                 }}
             >
                 <div>
-                    <div style={{ marginBottom: "0.5rem" }}>
+                    <div style={{ marginBottom: "0.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
                         <Link to="/customers">&larr; Back to Customers</Link>
+                        <button
+                            type="button"
+                            onClick={() => navigate("/vehicles")}
+                            style={{
+                                fontSize: "0.9rem",
+                                padding: "0.4rem 0.9rem",
+                                borderRadius: "0.4rem",
+                                border: "1px solid #cbd5e1",
+                                background: "#0f172a",
+                                color: "#e5e7eb",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Back to Vehicles
+                        </button>
                     </div>
                     <h2 style={{ marginBottom: "0.5rem", fontSize: "1.6rem", fontWeight: 600, color: "#ffffff" }}>
                         {name}

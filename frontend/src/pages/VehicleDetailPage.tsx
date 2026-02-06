@@ -75,17 +75,31 @@ export default function VehicleDetailPage() {
     
     
   return (
-    <div style={{ padding: "1rem" }}>
+    <div className="vehicle-detail" style={{ padding: "1rem" }}>
       <div style={{ marginBottom: "1rem" }}>
-        <Link to="..">&larr; Back</Link>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            color: "#93c5fd",
+            cursor: "pointer",
+            fontSize: "1rem",
+            fontFamily: "inherit",
+          }}
+        >
+          &larr; Back
+        </button>
       </div>
 
-      <h1 style={{ marginBottom: "0.25rem" }}>
+      <h1 className="vehicle-detail__title" style={{ marginBottom: "0.25rem" }}>
         {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
           "Vehicle"}
       </h1>
 
-      <div style={{ opacity: 0.85, marginBottom: "1rem" }}>
+      <div className="vehicle-detail__meta" style={{ opacity: 0.9, marginBottom: "1rem" }}>
         {vehicle.licensePlate ? `Plate: ${vehicle.licensePlate}` : ""}
         {vehicle.licensePlate && vehicle.vin ? " • " : ""}
         {vehicle.vin ? `VIN: ${vehicle.vin}` : ""}
@@ -108,20 +122,20 @@ export default function VehicleDetailPage() {
           New Work Order
               </button>
           </div>    
-              <section style={{ marginTop: "1.5rem" }}>
-                    <h2 style={{ marginBottom: "0.5rem" }}>Work Orders</h2>
+              <section className="vehicle-detail__section" style={{ marginTop: "1.5rem" }}>
+                    <h2 className="vehicle-detail__section-title" style={{ marginBottom: "0.5rem" }}>Work Orders</h2>
 
                     {woLoading ? (
-                        <p>Loading work orders…</p>
+                        <p className="vehicle-detail__text">Loading work orders…</p>
                     ) : woError ? (
-                        <p>{woError}</p>
+                        <p className="vehicle-detail__text">{woError}</p>
                     ) : workOrders.length === 0 ? (
-                        <p>No work orders for this vehicle.</p>
+                        <p className="vehicle-detail__text">No work orders for this vehicle.</p>
                     ) : (
-                        <ul>
+                        <ul style={{ listStyle: "none", paddingLeft: 0 }}>
                         {workOrders.map((wo) => (
                             <li key={wo._id} style={{ marginBottom: "0.5rem" }}>
-                            <Link to={`/work-orders/${wo._id}`}>
+                            <Link to={`/work-orders/${wo._id}`} className="vehicle-detail__wo-link">
                                 {(wo.status || "open").toUpperCase()} — {wo.complaint || "Work Order"}
                             </Link>
                             </li>
@@ -132,7 +146,7 @@ export default function VehicleDetailPage() {
 
 
         {vehicle.customerId && (
-          <Link to={`/customers/${vehicle.customerId}`} style={{ alignSelf: "center" }}>
+          <Link to={`/customers/${vehicle.customerId}`} className="vehicle-detail__owner-link" style={{ alignSelf: "center", display: "inline-block", marginTop: "1rem" }}>
             View Owner
           </Link>
         )}

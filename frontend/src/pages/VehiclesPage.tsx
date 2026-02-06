@@ -10,14 +10,25 @@ export default function VehiclesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [expandedVinId, setExpandedVinId] = useState<string | null>(null);
+  const [copiedVinId, setCopiedVinId] = useState<string | null>(null);
+  const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
   const { setVehiclesAccess, vehiclesAccess } = useAccess();
 
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Fetch vehicles based on debounced search
   useEffect(() => {
     const loadVehicles = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchAllVehicles({ search });
+        const data = await fetchAllVehicles({ search: debouncedSearch });
         setVehicles(data);
         setVehiclesAccess(true); // Server confirmed access
       } catch (err: unknown) {
@@ -37,15 +48,7 @@ export default function VehiclesPage() {
     };
 
     loadVehicles();
-  }, [search, setVehiclesAccess]);
-
-  if (loading) {
-    return (
-      <div style={{ padding: "1rem" }}>
-        <p>Loading vehicles…</p>
-      </div>
-    );
-  }
+  }, [debouncedSearch, setVehiclesAccess]);
 
   // Server confirmed access denied (403)
   if (vehiclesAccess === false) {
@@ -74,34 +77,41 @@ export default function VehiclesPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-4">Vehicles</h1>
-        <p style={{ color: "#fca5a5" }}>{error}</p>
-      </div>
-    );
-  }
-
   // Helper to truncate VIN for display
   const truncateVIN = (vin: string | undefined): string => {
     if (!vin) return "-";
     return vin.length > 8 ? `${vin.substring(0, 8)}...` : vin;
   };
 
-  // Copy VIN to clipboard
-  const handleCopyVIN = async (vin: string) => {
+  // Copy VIN to clipboard with iOS Safari fallback
+  const handleCopyVIN = async (vin: string, vehicleId: string) => {
     try {
+      // Try modern clipboard API first
       await navigator.clipboard.writeText(vin);
-      // Optional: could show a toast here, but keeping it simple per spec
+      setCopiedVinId(vehicleId);
+      setTimeout(() => setCopiedVinId(null), 1000);
     } catch (err) {
-      console.error("Failed to copy VIN", err);
+      // Fallback for iOS Safari
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = vin;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        setCopiedVinId(vehicleId);
+        setTimeout(() => setCopiedVinId(null), 1000);
+      } catch (fallbackErr) {
+        console.error("Failed to copy VIN", fallbackErr);
+      }
     }
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Page Header */}
+      {/* Page Header - Always rendered */}
       <div className="mb-6">
         <div
           style={{
@@ -118,7 +128,7 @@ export default function VehiclesPage() {
           {/* Left: Title */}
           <h1 className="text-2xl font-semibold">Vehicles</h1>
 
-          {/* Right: Search */}
+          {/* Right: Search - Always rendered */}
           <div
             style={{
               display: "flex",
@@ -146,10 +156,20 @@ export default function VehiclesPage() {
         </div>
       </div>
 
+      {/* Loading indicator - Below input, doesn't replace it */}
+      {loading && (
+        <p style={{ marginBottom: "1rem" }}>Loading vehicles…</p>
+      )}
+
+      {/* Error display */}
+      {error && (
+        <p style={{ color: "#fca5a5", marginBottom: "1rem" }}>{error}</p>
+      )}
+
       {/* Table */}
-      {vehicles.length === 0 ? (
+      {!loading && vehicles.length === 0 ? (
         <p>No vehicles found.</p>
-      ) : (
+      ) : !loading ? (
         <div className="table-scroll customers-table-scroll">
           <table
             style={{
@@ -206,21 +226,51 @@ export default function VehiclesPage() {
                   <td>
                     {v.vin ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                        <span title={v.vin}>{truncateVIN(v.vin)}</span>
                         <button
                           type="button"
-                          onClick={() => handleCopyVIN(v.vin!)}
+                          onClick={() => setExpandedVinId(expandedVinId === v._id ? null : v._id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            color: "inherit",
+                            fontSize: "inherit",
+                            fontFamily: "inherit",
+                            appearance: "none",
+                            WebkitAppearance: "none",
+                          }}
+                        >
+                          {expandedVinId === v._id ? v.vin : truncateVIN(v.vin)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyVIN(v.vin!, v._id)}
+                          aria-label="Copy VIN"
                           style={{
                             fontSize: "0.75rem",
-                            padding: "0.125rem 0.375rem",
+                            padding: "0.25rem 0.5rem",
                             border: "1px solid #cbd5e1",
                             borderRadius: "4px",
-                            backgroundColor: "white",
+                            backgroundColor: "#f8f9fa",
+                            color: "#374151",
                             cursor: "pointer",
+                            margin: 0,
+                            appearance: "none",
+                            WebkitAppearance: "none",
+                            fontWeight: 500,
+                            transition: "background-color 0.15s ease",
                           }}
-                          title="Copy VIN"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#e9ecef";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f8f9fa";
+                          }}
                         >
-                          Copy
+                          {copiedVinId === v._id ? "Copied" : "Copy"}
                         </button>
                       </div>
                     ) : (
@@ -228,7 +278,43 @@ export default function VehiclesPage() {
                     )}
                   </td>
                   <td>{v.color || "-"}</td>
-                  <td>{v.notes || "-"}</td>
+                  <td>
+                    {v.notes ? (
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.25rem", flexWrap: "wrap" }}>
+                        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+                          {expandedNotesId === v._id ? (
+                            v.notes
+                          ) : (
+                            v.notes.length > 60 ? `${v.notes.slice(0, 60)}…` : v.notes
+                          )}
+                        </span>
+                        {v.notes.length > 60 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedNotesId(expandedNotesId === v._id ? null : v._id)}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "0.125rem 0.375rem",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "4px",
+                              backgroundColor: "#f8f9fa",
+                              color: "#374151",
+                              cursor: "pointer",
+                              margin: 0,
+                              appearance: "none",
+                              WebkitAppearance: "none",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {expandedNotesId === v._id ? "Less" : "More"}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                   <td>
                     <Link to={`/customers/${v.customerId}`}>View</Link>
                   </td>
@@ -237,7 +323,7 @@ export default function VehiclesPage() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

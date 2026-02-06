@@ -34,6 +34,7 @@ export default function CustomerVehiclesSection({
         licensePlate: "",
         color: "",
         notes: "",
+        odometer: "",
     });
 
     useEffect(() => {
@@ -75,6 +76,7 @@ export default function CustomerVehiclesSection({
             licensePlate: "",
             color: "",
             notes: "",
+            odometer: "",
         });
         setEditingVehicleId(null);
     };
@@ -108,6 +110,10 @@ export default function CustomerVehiclesSection({
             licensePlate: vehicle.licensePlate || "",
             color: vehicle.color || "",
             notes: vehicle.notes || "",
+            odometer:
+                vehicle.currentOdometer != null
+                    ? String(vehicle.currentOdometer)
+                    : "",
         });
     };
 
@@ -144,13 +150,31 @@ export default function CustomerVehiclesSection({
         setSaving(true);
         setError(null);
 
+        // Normalize odometer before sending
+        const payload: NewVehiclePayload = { ...form };
+        if (typeof payload.odometer === "string") {
+            const raw = payload.odometer.trim();
+            if (!raw) {
+                // omit odometer if empty
+                delete (payload as any).odometer;
+            } else {
+                const n = Number(raw.replace(/,/g, ""));
+                if (Number.isFinite(n)) {
+                    payload.odometer = n;
+                } else {
+                    // if invalid, omit rather than sending bad data
+                    delete (payload as any).odometer;
+                }
+            }
+        }
+
         try {
             if (editingVehicleId) {
                 // Update existing vehicle
                 const updated = await updateCustomerVehicle(
                     customerId,
                     editingVehicleId,
-                    form
+                    payload
                 );
 
                 setVehicles((prev) =>
@@ -158,7 +182,7 @@ export default function CustomerVehiclesSection({
                 );
             } else {
                 // Create new vehicle
-                const created = await addCustomerVehicle(customerId, form);
+                const created = await addCustomerVehicle(customerId, payload);
                 setVehicles((prev) => [...prev, created]);
             }
 
@@ -181,6 +205,16 @@ export default function CustomerVehiclesSection({
     return (
         <section style={{ marginTop: "2rem" }}>
             <h3 style={{ marginBottom: "0.5rem" }}>Vehicles</h3>
+            <p
+                style={{
+                    fontSize: "0.85rem",
+                    color: "#9ca3af",
+                    marginBottom: "0.75rem",
+                    marginTop: 0,
+                }}
+            >
+                Tip: Use Edit to update vehicle details. Click the vehicle name to view work orders and status.
+            </p>
 
             {loading ? (
                 <p>Loading vehicles…</p>
@@ -292,6 +326,16 @@ export default function CustomerVehiclesSection({
                         name="color"
                         placeholder="Color"
                         value={form.color || ""}
+                        onChange={handleChange}
+                        style={{ width: "100%", padding: "0.35rem" }}
+                    />
+                </div>
+                <div>
+                    <input
+                        type="number"
+                        name="odometer"
+                        placeholder="Odometer (last recorded)"
+                        value={typeof form.odometer === "string" ? form.odometer : form.odometer ?? ""}
                         onChange={handleChange}
                         style={{ width: "100%", padding: "0.35rem" }}
                     />

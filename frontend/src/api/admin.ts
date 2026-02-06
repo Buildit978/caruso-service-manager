@@ -140,6 +140,12 @@ export interface AdminAccountItem {
   isNew?: boolean;
   primaryOwner?: { name: string; email?: string; phone?: string };
   address?: string;
+  seats?: {
+    owner: number;
+    manager: number;
+    technician: number;
+    total: number;
+  };
   counts: { workOrders: number; invoices: number; customers: number; users: number };
 }
 

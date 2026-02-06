@@ -297,13 +297,17 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    const [settings, primaryOwnerUser, countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+    const [settings, primaryOwnerUser, countsWo, countsInv, countsCust, countsUsers, seatsAgg] = await Promise.all([
       Settings.findOne({ accountId }).select("shopName invoiceProfile").lean(),
       User.findOne({ accountId, role: "owner", isActive: true }).select("name email firstName lastName phone").lean(),
       WorkOrder.countDocuments({ accountId }),
       Invoice.countDocuments({ accountId }),
       Customer.countDocuments({ accountId }),
       User.countDocuments({ accountId, role: { $in: TENANT_ROLES } }),
+      User.aggregate<{ _id: string; count: number }>([
+        { $match: { accountId, isActive: true, role: { $in: TENANT_ROLES } } },
+        { $group: { _id: "$role", count: { $sum: 1 } } },
+      ]),
     ]);
 
     const id = String(account._id);
@@ -320,6 +324,16 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
         }
       : undefined;
 
+    // Compute seats: active users grouped by role
+    const seatsMap = new Map<string, number>();
+    for (const item of seatsAgg) {
+      seatsMap.set(item._id, item.count);
+    }
+    const seatsOwner = seatsMap.get("owner") ?? 0;
+    const seatsManager = seatsMap.get("manager") ?? 0;
+    const seatsTechnician = seatsMap.get("technician") ?? 0;
+    const seatsTotal = seatsOwner + seatsManager + seatsTechnician;
+
     return res.json({
       accountId: id,
       name: acc.name,
@@ -332,6 +346,12 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
       primaryOwner,
       address,
+      seats: {
+        owner: seatsOwner,
+        manager: seatsManager,
+        technician: seatsTechnician,
+        total: seatsTotal,
+      },
       counts: {
         workOrders: countsWo,
         invoices: countsInv,

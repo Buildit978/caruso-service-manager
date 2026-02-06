@@ -308,6 +308,19 @@ export default function AdminAccountDetailPage() {
             </dl>
           </div>
           <div className="admin-detail-section">
+            <h3>Seats</h3>
+            <dl className="admin-detail-dl admin-detail-counts">
+              <dt>Owners</dt>
+              <dd>{account.seats?.owner ?? 0}</dd>
+              <dt>Managers</dt>
+              <dd>{account.seats?.manager ?? 0}</dd>
+              <dt>Technicians</dt>
+              <dd>{account.seats?.technician ?? 0}</dd>
+              <dt>Total</dt>
+              <dd>{account.seats?.total ?? (account.seats ? (account.seats.owner ?? 0) + (account.seats.manager ?? 0) + (account.seats.technician ?? 0) : 0)}</dd>
+            </dl>
+          </div>
+          <div className="admin-detail-section">
             <h3>Users</h3>
             <div className="admin-detail-users-toolbar">
               <select

@@ -45,6 +45,25 @@ export async function getCustomerVehicles(
 }
 
 /**
+ * Get all vehicles for the account (optionally filtered by search)
+ * Hits: GET /api/vehicles?search=...
+ */
+export async function fetchAllVehicles(
+  options: { search?: string } = {}
+): Promise<Vehicle[]> {
+  const params = new URLSearchParams();
+
+  if (options.search && options.search.trim() !== "") {
+    params.set("search", options.search.trim());
+  }
+
+  const query = params.toString();
+  const url = query ? `/vehicles?${query}` : "/vehicles";
+
+  return await http<Vehicle[]>(url);
+}
+
+/**
  * Create a new vehicle (used by the inline form on Create Work Order)
  * Hits: POST /api/vehicles
  */

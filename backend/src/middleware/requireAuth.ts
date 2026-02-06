@@ -130,6 +130,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // Attach normalized context for downstream handlers (include name for notes/messages author display)
     const accountObjectId = new Types.ObjectId(accountId);
     const displayName =
+      (user as any).displayName?.trim() ||
       (user as any).name ||
       [ (user as any).firstName, (user as any).lastName ].filter(Boolean).join(" ").trim() ||
       (user as any).email ||

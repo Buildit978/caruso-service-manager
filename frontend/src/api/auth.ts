@@ -25,14 +25,20 @@ export interface LoginResponse {
   mustChangePassword?: boolean;
 }
 
+/** Current user shape (from GET /auth/me and PATCH /users/me) */
+export interface MeUser {
+  id: string;
+  role: "owner" | "manager" | "technician";
+  accountId: string;
+  name: string;
+  email: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 export interface MeResponse {
-  user: {
-    id: string;
-    role: "owner" | "manager" | "technician";
-    accountId: string;
-    name: string;
-    email: string;
-  };
+  user: MeUser;
 }
 
 export interface ReactivateRequest {

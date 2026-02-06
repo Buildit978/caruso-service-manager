@@ -26,6 +26,7 @@ function formatTimestamp(isoString: string): string {
 }
 
 function formatRole(role: string): string {
+  if (role === "owner") return "Account owner";
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 

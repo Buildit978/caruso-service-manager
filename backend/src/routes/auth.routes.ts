@@ -444,13 +444,13 @@ export async function handleMe(req: Request, res: Response, next: NextFunction) 
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Fetch user details (optional: include name/email if available)
+    // Fetch user details (include displayName, firstName, lastName for profile/notes)
     const user = await User.findOne({
       _id: actor._id,
       accountId,
       isActive: true,
     })
-      .select("name email role accountId")
+      .select("name email role accountId displayName firstName lastName")
       .lean();
 
     if (!user) {
@@ -467,18 +467,25 @@ export async function handleMe(req: Request, res: Response, next: NextFunction) 
           accountId: accountId.toString(),
           name: undefined,
           email: undefined,
+          displayName: undefined,
+          firstName: undefined,
+          lastName: undefined,
           isEphemeral: true,
         },
       });
     }
 
+    const u = user as { _id: any; accountId: any; name: string; email: string; role: string; displayName?: string; firstName?: string; lastName?: string };
     return res.json({
       user: {
-        id: user._id.toString(),
-        role: user.role,
-        accountId: user.accountId.toString(),
-        name: user.name,
-        email: user.email,
+        id: u._id.toString(),
+        role: u.role,
+        accountId: u.accountId.toString(),
+        name: u.name,
+        email: u.email,
+        displayName: u.displayName ?? undefined,
+        firstName: u.firstName ?? undefined,
+        lastName: u.lastName ?? undefined,
       },
     });
   } catch (err) {

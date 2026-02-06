@@ -10,6 +10,7 @@ export interface IUser extends Document {
   lastName?: string;
   phone?: string;
   name: string;
+  displayName?: string; // optional nickname, shown in notes and admin
   role: UserRole;
   passwordHash: string;
   isActive: boolean;
@@ -52,6 +53,11 @@ const userSchema = new Schema<IUser>(
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+    displayName: {
+      type: String,
+      required: false,
       trim: true,
     },
     role: {

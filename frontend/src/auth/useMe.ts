@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getMe } from "../api/auth";
+import type { MeUser } from "../api/auth";
 import { getToken, clearToken } from "../api/http";
 
-type Role = "owner" | "manager" | "technician";
-type Me = { id: string; role: Role; accountId: string; name?: string; email?: string };
-
 export function useMe() {
-  const [me, setMe] = useState<Me | null>(null);
+  const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const refetch = useCallback(() => {
+    const token = getToken();
+    if (!token) return Promise.resolve();
+    return getMe()
+      .then((res) => setMe(res.user))
+      .catch(() => {
+        clearToken();
+        setMe(null);
+      });
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -26,5 +35,5 @@ export function useMe() {
     })();
   }, []);
 
-  return { me, loading };
+  return { me, loading, refetch };
 }

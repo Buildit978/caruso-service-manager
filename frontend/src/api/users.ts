@@ -1,5 +1,6 @@
 // frontend/src/api/users.ts
 import { http } from "./http";
+import type { MeUser } from "./auth";
 
 export interface User {
   id: string;
@@ -67,6 +68,16 @@ export interface ReactivateUserResponse {
   tempPassword: string;
   shopCode: string | null;
   emailSent: boolean;
+}
+
+/**
+ * Update current user profile (displayName only). Requires auth.
+ */
+export async function updateMe(payload: { displayName?: string }): Promise<MeUser> {
+  return http<MeUser>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 /**

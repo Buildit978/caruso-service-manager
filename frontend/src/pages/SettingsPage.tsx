@@ -19,6 +19,7 @@ import { useSettingsAccess } from "../contexts/SettingsAccessContext";
 import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
 import { exportCustomers, importCustomers, type ImportSummary } from "../api/customers";
+import { updateMe } from "../api/users";
 import { clearToken } from "../api/http";
 import { useNavigate } from "react-router-dom";
 
@@ -36,8 +37,12 @@ export default function SettingsPage() {
     const [saved, setSaved] = useState(false);
     const [isForbidden, setIsForbidden] = useState(false);
     const { setHasAccess } = useSettingsAccess();
-    const { me } = useMe();
+    const { me, refetch: refetchMe } = useMe();
     const isOwner = me?.role === "owner";
+
+    // My profile (display name)
+    const [displayNameDraft, setDisplayNameDraft] = useState("");
+    const [savingDisplayName, setSavingDisplayName] = useState(false);
 
     // Data Tools state
     const [exporting, setExporting] = useState(false);
@@ -55,6 +60,10 @@ export default function SettingsPage() {
     const [shopCode, setShopCode] = useState<string | null>(null);
     const [regeneratingShopCode, setRegeneratingShopCode] = useState(false);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (me) setDisplayNameDraft(me.displayName ?? "");
+    }, [me]);
 
     // Invoice Profile (owner can edit, manager can view)
     const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile | null>(null);
@@ -308,6 +317,67 @@ export default function SettingsPage() {
             </p>
 
             <div className="settings-grid">
+                {/* My profile — display name for notes and admin */}
+                <div className="settings-card">
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        My profile
+                    </h2>
+                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "0.75rem" }}>
+                        Shown on internal notes and activity (e.g., Mikey (Account owner)).
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        <label htmlFor="displayName" style={{ display: "block", fontSize: "0.9rem", color: "#e5e7eb" }}>
+                            Display name (nickname)
+                        </label>
+                        <input
+                            id="displayName"
+                            type="text"
+                            value={displayNameDraft}
+                            onChange={(e) => setDisplayNameDraft(e.target.value)}
+                            maxLength={40}
+                            placeholder={me?.name ?? "Your name"}
+                            style={{
+                                width: "100%",
+                                maxWidth: "20rem",
+                                padding: "0.5rem 0.6rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #4b5563",
+                                background: "#020617",
+                                color: "#e5e7eb",
+                            }}
+                        />
+                        <button
+                            type="button"
+                            disabled={savingDisplayName}
+                            onClick={async () => {
+                                setSavingDisplayName(true);
+                                try {
+                                    await updateMe({ displayName: displayNameDraft.trim() || undefined });
+                                    await refetchMe();
+                                    setSaved(true);
+                                    setTimeout(() => setSaved(false), 2000);
+                                } catch (err: any) {
+                                    setError(err?.message ?? "Failed to save display name");
+                                } finally {
+                                    setSavingDisplayName(false);
+                                }
+                            }}
+                            style={{
+                                alignSelf: "flex-start",
+                                padding: "0.5rem 0.75rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #4b5563",
+                                background: savingDisplayName ? "#4b5563" : "#1d4ed8",
+                                color: "#e5e7eb",
+                                fontWeight: 600,
+                                cursor: savingDisplayName ? "default" : "pointer",
+                            }}
+                        >
+                            {savingDisplayName ? "Saving…" : "Save name"}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Invoice Profile — first (top-left on desktop) */}
                 <div className="settings-card">
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>

@@ -167,6 +167,61 @@ router.get(
 );
 
 /**
+ * PATCH /api/users/me
+ * Update current user profile (displayName only). Requires auth.
+ */
+const DISPLAY_NAME_MAX_LENGTH = 40;
+router.patch("/me", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const accountId = (req as any).accountId;
+    const actor = (req as any).actor;
+    if (!accountId || !actor?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { displayName: rawDisplayName } = req.body as { displayName?: unknown };
+    if (rawDisplayName !== undefined) {
+      if (typeof rawDisplayName !== "string") {
+        return res.status(400).json({ message: "displayName must be a string" });
+      }
+      const trimmed = String(rawDisplayName).trim();
+      if (trimmed.length > DISPLAY_NAME_MAX_LENGTH) {
+        return res.status(400).json({
+          message: `displayName must be at most ${DISPLAY_NAME_MAX_LENGTH} characters`,
+        });
+      }
+    }
+
+    const user = await User.findOne({
+      _id: actor._id,
+      accountId,
+      isActive: true,
+    });
+    if (!user) {
+      return res.status(401).json({ message: "User not found or inactive" });
+    }
+
+    if (rawDisplayName !== undefined) {
+      (user as any).displayName = String(rawDisplayName).trim();
+    }
+    await user.save();
+
+    const u = user.toObject ? user.toObject() : (user as any);
+    return res.json({
+      id: u._id.toString(),
+      email: u.email,
+      role: u.role,
+      name: u.name,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      displayName: u.displayName ?? undefined,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * PATCH /api/users/:id/deactivate
  * Deactivate a user (owner/manager only)
  * V1 Rules:

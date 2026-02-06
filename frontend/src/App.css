@@ -590,3 +590,33 @@ td {
     box-sizing: border-box;
   }
 }
+
+/* === Vehicle Detail (Status) page — scoped contrast (dark background) === */
+.vehicle-detail {
+  color: #e5e7eb;
+}
+.vehicle-detail .vehicle-detail__title,
+.vehicle-detail h1 {
+  color: #ffffff;
+}
+.vehicle-detail .vehicle-detail__section-title,
+.vehicle-detail .vehicle-detail__section h2 {
+  color: #f3f4f6;
+  font-weight: 600;
+}
+.vehicle-detail .vehicle-detail__text,
+.vehicle-detail .vehicle-detail__meta {
+  color: #d1d5db;
+}
+.vehicle-detail .vehicle-detail__wo-link,
+.vehicle-detail .vehicle-detail__owner-link,
+.vehicle-detail a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+.vehicle-detail .vehicle-detail__wo-link:hover,
+.vehicle-detail .vehicle-detail__owner-link:hover,
+.vehicle-detail a:hover {
+  color: #bfdbfe;
+  text-decoration: underline;
+}

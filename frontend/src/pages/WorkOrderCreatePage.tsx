@@ -625,17 +625,121 @@ export default function WorkOrderCreatePage() {
                         background: "#020617",
                       }}
                     >
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-                        New vehicle details (placeholder)
-                      </div>
-
-                      {/* Add your newVehicle inputs here later */}
-
+                      {!form.customerId ? (
+                        <p style={{ fontSize: "0.85rem", color: "#9ca3af", margin: "0 0 0.5rem 0" }}>
+                          Please select a customer first.
+                        </p>
+                      ) : (
+                        <>
+                          <p style={{ fontSize: "0.8rem", color: "#9ca3af", margin: "0 0 0.5rem 0" }}>
+                            This vehicle will be added to the selected customer.
+                          </p>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                              gap: "0.5rem",
+                            }}
+                          >
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Year</label>
+                              <input
+                                type="number"
+                                value={newVehicle.year}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, year: e.target.value }))}
+                                placeholder="e.g. 2020"
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Make *</label>
+                              <input
+                                type="text"
+                                value={newVehicle.make}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, make: e.target.value }))}
+                                placeholder="e.g. Honda"
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Model *</label>
+                              <input
+                                type="text"
+                                value={newVehicle.model}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, model: e.target.value }))}
+                                placeholder="e.g. Civic"
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Plate</label>
+                              <input
+                                type="text"
+                                value={newVehicle.licensePlate}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, licensePlate: e.target.value }))}
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>VIN</label>
+                              <input
+                                type="text"
+                                value={newVehicle.vin}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, vin: e.target.value }))}
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Color</label>
+                              <input
+                                type="text"
+                                value={newVehicle.color}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, color: e.target.value }))}
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Odometer (optional)</label>
+                              <input
+                                type="number"
+                                value={newVehicle.odometer}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, odometer: e.target.value }))}
+                                placeholder="e.g. 127000"
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
+                              />
+                            </div>
+                            <div style={{ gridColumn: "1 / -1" }}>
+                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Notes</label>
+                              <textarea
+                                rows={2}
+                                value={newVehicle.notes}
+                                onChange={(e) => setNewVehicle((prev) => ({ ...prev, notes: e.target.value }))}
+                                style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem", resize: "vertical" }}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
                       <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                        <button type="button" onClick={handleCreateVehicle} disabled={vehicleSaving}>
+                        <button type="button" onClick={handleCreateVehicle} disabled={vehicleSaving || !form.customerId}>
                           Save vehicle
                         </button>
-                        <button type="button" onClick={() => setShowNewVehicleForm(false)}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewVehicle({
+                              year: "",
+                              make: "",
+                              model: "",
+                              vin: "",
+                              licensePlate: "",
+                              color: "",
+                              notes: "",
+                              odometer: "",
+                            });
+                            setShowNewVehicleForm(false);
+                          }}
+                        >
                           Cancel
                         </button>
                       </div>

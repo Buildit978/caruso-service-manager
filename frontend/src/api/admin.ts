@@ -138,6 +138,7 @@ export interface AdminAccountItem {
   createdAt: string;
   lastActiveAt?: string;
   isNew?: boolean;
+  primaryOwnerDisplayName?: string;
   primaryOwner?: { name: string; email?: string; phone?: string };
   address?: string;
   seats?: {

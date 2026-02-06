@@ -247,6 +247,28 @@ router.get("/accounts", async (req: Request, res: Response) => {
     const custMap = mapCount(countsCust);
     const usersMap = mapCount(countsUsers);
 
+    // Primary owner display name per account (for list column)
+    const owners = await User.find({
+      accountId: { $in: accountIds },
+      role: "owner",
+      isActive: true,
+    })
+      .select("accountId displayName name firstName lastName email")
+      .lean();
+    const primaryOwnerDisplayByAcc = new Map<string, string>();
+    for (const o of owners) {
+      const accId = String((o as { accountId: Types.ObjectId }).accountId);
+      if (primaryOwnerDisplayByAcc.has(accId)) continue;
+      const u = o as { displayName?: string; name?: string; firstName?: string; lastName?: string; email?: string };
+      const display =
+        (u.displayName && u.displayName.trim()) ||
+        u.name ||
+        [u.firstName, u.lastName].filter(Boolean).join(" ").trim() ||
+        u.email ||
+        "—";
+      primaryOwnerDisplayByAcc.set(accId, display);
+    }
+
     const items = accounts.map((a) => {
       const id = String(a._id);
       const acc = a as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
@@ -261,6 +283,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
         createdAt: (acc.createdAt as Date).toISOString(),
         lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
         isNew,
+        primaryOwnerDisplayName: primaryOwnerDisplayByAcc.get(id) ?? "—",
         counts: {
           workOrders: woMap.get(id) ?? 0,
           invoices: invMap.get(id) ?? 0,

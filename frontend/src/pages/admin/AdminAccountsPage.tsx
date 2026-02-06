@@ -227,6 +227,7 @@ export default function AdminAccountsPage() {
                   <thead>
                     <tr>
                       <th>Account</th>
+                      <th>Primary Owner</th>
                       <th>Region</th>
                       <th>Created</th>
                       <th>Last Active</th>
@@ -253,6 +254,11 @@ export default function AdminAccountsPage() {
                         <td>
                           {a.name || a.slug || a.accountId}
                           {a.isNew && <span className="admin-badge admin-badge-new">New</span>}
+                        </td>
+                        <td title={a.primaryOwnerDisplayName ?? "—"}>
+                          {(a.primaryOwnerDisplayName ?? "—").length > 24
+                            ? `${(a.primaryOwnerDisplayName ?? "—").slice(0, 24)}…`
+                            : (a.primaryOwnerDisplayName ?? "—")}
                         </td>
                         <td>{a.region || "—"}</td>
                         <td>{formatDate(a.createdAt)}</td>

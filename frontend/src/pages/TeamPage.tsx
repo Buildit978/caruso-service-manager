@@ -7,6 +7,7 @@ import {
   listUsers,
   resetUserPassword,
   reactivateUser,
+  updateUserRole,
   type User,
 } from "../api/users";
 import type { HttpError } from "../api/http";
@@ -42,7 +43,15 @@ export default function TeamPage() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [shopCode, setShopCode] = useState<string | null>(null);
   const [modalEmailSent, setModalEmailSent] = useState<boolean>(true);
+  const [modalEmailError, setModalEmailError] = useState<string | undefined>(undefined);
   const [modalExpiresAt, setModalExpiresAt] = useState<string | null>(null);
+
+  // Role update state per user
+  const [roleUpdates, setRoleUpdates] = useState<Record<string, {
+    selectedRole: "manager" | "technician";
+    updating: boolean;
+    result: { changed: boolean; emailSent: boolean; emailError?: string } | null;
+  }>>({});
 
   const activeCounts = useMemo(() => {
     const counts = { manager: 0, technician: 0 };
@@ -136,6 +145,7 @@ export default function TeamPage() {
     setError(null);
     setTempPassword(null);
     setShopCode(null);
+    setModalEmailError(undefined);
 
     try {
       const resp = await createUser({
@@ -148,7 +158,8 @@ export default function TeamPage() {
 
       setTempPassword(resp.tempPassword || null);
       setShopCode(resp.shopCode || null);
-      setModalEmailSent(resp.emailSent);
+      setModalEmailSent(resp.emailSent ?? true);
+      setModalEmailError(resp.emailError);
       setModalExpiresAt(null);
 
       const refreshed = await listUsers();
@@ -192,7 +203,8 @@ export default function TeamPage() {
       const resp = await resetUserPassword(u.id);
       setTempPassword(resp.tempPassword ?? null);
       setShopCode(resp.shopCode ?? null);
-      setModalEmailSent(resp.emailSent);
+      setModalEmailSent(resp.emailSent ?? true);
+      setModalEmailError(resp.emailError);
       setModalExpiresAt(resp.expiresAt ?? null);
     } catch (err) {
       const e = err as HttpError;
@@ -208,7 +220,8 @@ export default function TeamPage() {
       const resp = await reactivateUser(u.id);
       setTempPassword(resp.tempPassword || null);
       setShopCode(resp.shopCode || null);
-      setModalEmailSent(resp.emailSent);
+      setModalEmailSent(resp.emailSent ?? true);
+      setModalEmailError(resp.emailError);
       setModalExpiresAt(null);
 
       // Refresh list to show updated status
@@ -218,6 +231,68 @@ export default function TeamPage() {
     } catch (err) {
       const e = err as HttpError;
       setError((e?.data as any)?.message || e?.message || "Failed to reactivate user.");
+    }
+  }
+
+  async function handleUpdateRole(u: User, newRole: "manager" | "technician") {
+    if (!u?.id) return;
+    if (u.role === newRole) return;
+
+    setRoleUpdates((prev) => ({
+      ...prev,
+      [u.id]: { ...prev[u.id], updating: true, result: null },
+    }));
+
+    try {
+      const resp = await updateUserRole(u.id, newRole);
+
+      // Update local state immediately if changed
+      if (resp.changed) {
+        setUsers((prev) =>
+          prev.map((user) => (user.id === u.id ? { ...user, role: newRole as any } : user))
+        );
+      }
+
+      setRoleUpdates((prev) => ({
+        ...prev,
+        [u.id]: {
+          selectedRole: newRole,
+          updating: false,
+          result: {
+            changed: resp.changed,
+            emailSent: resp.emailSent,
+            emailError: resp.emailError,
+          },
+        },
+      }));
+
+      // Clear result after 5 seconds
+      setTimeout(() => {
+        setRoleUpdates((prev) => {
+          if (!prev[u.id]) return prev;
+          return {
+            ...prev,
+            [u.id]: {
+              ...prev[u.id],
+              result: null,
+            },
+          };
+        });
+      }, 5000);
+    } catch (err) {
+      const e = err as HttpError;
+      setRoleUpdates((prev) => {
+        const existing = prev[u.id];
+        return {
+          ...prev,
+          [u.id]: {
+            selectedRole: existing?.selectedRole || (u.role as "manager" | "technician"),
+            updating: false,
+            result: null,
+          },
+        };
+      });
+      setError((e?.data as any)?.message || e?.message || "Failed to update role.");
     }
   }
 
@@ -239,11 +314,13 @@ export default function TeamPage() {
         tempPassword={tempPassword}
         shopCode={shopCode}
         emailSent={modalEmailSent}
+        emailError={modalEmailError}
         expiresAt={modalExpiresAt}
         onClose={() => {
           setTempPassword(null);
           setShopCode(null);
           setModalEmailSent(true);
+          setModalEmailError(undefined);
           setModalExpiresAt(null);
         }}
       />
@@ -397,7 +474,10 @@ export default function TeamPage() {
             <div style={{ color: "#9ca3af" }}>Loading…</div>
           ) : (
             <div className="table-scroll team-reset-scroll" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {(filteredUsers || []).map((u) => (
+              {(filteredUsers || []).map((u) => {
+                const ru = roleUpdates[u.id];
+                const result = ru?.result;
+                return (
                 <div
                   key={u.id}
                   style={{
@@ -417,10 +497,11 @@ export default function TeamPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1.5fr 1fr 1.5fr 1fr 1fr auto",
+                      gridTemplateColumns: "1.5fr 1.2fr 1.5fr 1fr 1fr auto",
                       gap: "1rem",
                       alignItems: "center",
                     }}
+                    className="team-row-grid"
                   >
                     {/* Name column */}
                     <div>
@@ -433,8 +514,72 @@ export default function TeamPage() {
                     </div>
 
                     {/* Role column */}
-                    <div style={{ color: "#e5e7eb", fontSize: "0.9rem" }}>
-                      {u.role}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                      {u.role === "owner" || !u.isActive ? (
+                        <div style={{ color: "#e5e7eb", fontSize: "0.9rem" }}>{u.role}</div>
+                      ) : (
+                        <>
+                          <select
+                            value={ru?.selectedRole || u.role}
+                            onChange={(e) => {
+                              setRoleUpdates((prev) => ({
+                                ...prev,
+                                [u.id]: {
+                                  selectedRole: e.target.value as "manager" | "technician",
+                                  updating: prev[u.id]?.updating || false,
+                                  result: prev[u.id]?.result || null,
+                                },
+                              }));
+                            }}
+                            disabled={ru?.updating}
+                            aria-label={`Role for ${formatName(u)}`}
+                            style={{
+                              padding: "0.4rem 0.5rem",
+                              fontSize: "0.85rem",
+                              borderRadius: "0.375rem",
+                              border: "1px solid #374151",
+                              background: "#111827",
+                              color: "#e5e7eb",
+                              cursor: ru?.updating ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <option value="manager">manager</option>
+                            <option value="technician">technician</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRole(u, ru?.selectedRole || u.role)}
+                            disabled={
+                              ru?.updating ||
+                              (ru?.selectedRole || u.role) === u.role
+                            }
+                            style={{
+                              padding: "0.3rem 0.6rem",
+                              fontSize: "0.75rem",
+                              borderRadius: "0.375rem",
+                              border: "1px solid #374151",
+                              background:
+                                ru?.updating ||
+                                (ru?.selectedRole || u.role) === u.role
+                                  ? "#1f2937"
+                                  : "#3b82f6",
+                              color:
+                                ru?.updating ||
+                                (ru?.selectedRole || u.role) === u.role
+                                  ? "#6b7280"
+                                  : "#ffffff",
+                              cursor:
+                                ru?.updating ||
+                                (ru?.selectedRole || u.role) === u.role
+                                  ? "not-allowed"
+                                  : "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {ru?.updating ? "Updating..." : "Update Role"}
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     {/* Email column */}
@@ -520,8 +665,48 @@ export default function TeamPage() {
                       )}
                     </div>
                   </div>
+                  {/* Role update status message */}
+                  {result && (
+                    <div
+                      style={{
+                        marginTop: "0.75rem",
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: "0.375rem",
+                        background:
+                          result.changed && result.emailSent === true
+                            ? "rgba(34, 197, 94, 0.15)"
+                            : result.changed && result.emailSent === false
+                            ? "rgba(234, 179, 8, 0.15)"
+                            : "rgba(107, 114, 128, 0.15)",
+                        border: `1px solid ${
+                          result.changed && result.emailSent === true
+                            ? "#22c55e"
+                            : result.changed && result.emailSent === false
+                            ? "#eab308"
+                            : "#6b7280"
+                        }`,
+                        color:
+                          result.changed && result.emailSent === true
+                            ? "#86efac"
+                            : result.changed && result.emailSent === false
+                            ? "#fde047"
+                            : "#9ca3af",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {result.changed ? "Role updated" : "No change"}
+                      {result.emailSent === true && " • Email sent ✅"}
+                      {result.emailSent === false && (
+                        <span>
+                          {" • "}
+                          Email failed ⚠️: {result.emailError || "Email could not be sent"}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+              );
+              })}
               {(!filteredUsers || filteredUsers.length === 0) ? (
                 <div
                   style={{

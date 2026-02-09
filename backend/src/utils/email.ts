@@ -10,6 +10,7 @@ export interface SendEmailArgs {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
   accountId?: string | Types.ObjectId;
   /** Override From (e.g. ADMIN_FROM_EMAIL/ADMIN_FROM_NAME). Invoice emails keep using INVOICE_FROM_* / default. */
@@ -53,6 +54,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
       to: args.to,
       subject: args.subject,
       text: args.text,
+      ...(args.html ? { html: args.html } : {}),
       attachments: attachments.length ? attachments : undefined,
     });
 
@@ -88,6 +90,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
     to: args.to,
     subject: args.subject,
     text: args.text,
+    ...(args.html ? { html: args.html } : {}),
     attachments: (args.attachments ?? []).map((a) => ({
       filename: a.filename,
       content: a.content,

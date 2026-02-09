@@ -5,11 +5,12 @@ type Props = {
   tempPassword: string | null;
   shopCode: string | null;
   emailSent?: boolean;
+  emailError?: string;
   expiresAt?: string | null;
   onClose: () => void;
 };
 
-export default function TempPasswordModal({ open, tempPassword, shopCode, emailSent = true, expiresAt, onClose }: Props) {
+export default function TempPasswordModal({ open, tempPassword, shopCode, emailSent = true, emailError, expiresAt, onClose }: Props) {
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [copiedShopCode, setCopiedShopCode] = useState(false);
 
@@ -108,6 +109,22 @@ export default function TempPasswordModal({ open, tempPassword, shopCode, emailS
           Tech will need Shop Code + email + temporary password to log in. Copy these now — they won't be shown again.
         </div>
 
+        {emailSent === true && (
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.75rem",
+              background: "rgba(34, 197, 94, 0.15)",
+              border: "1px solid #22c55e",
+              borderRadius: "0.375rem",
+              color: "#86efac",
+              fontSize: "0.9rem",
+            }}
+          >
+            Email sent ✅
+          </div>
+        )}
+
         {emailSent === false && (
           <div
             style={{
@@ -120,7 +137,7 @@ export default function TempPasswordModal({ open, tempPassword, shopCode, emailS
               fontSize: "0.9rem",
             }}
           >
-            Email could not be sent. Share these credentials with the team member manually.
+            Email failed ⚠️ {emailError || "Email could not be sent. Please share these credentials with the team member manually."}
           </div>
         )}
 

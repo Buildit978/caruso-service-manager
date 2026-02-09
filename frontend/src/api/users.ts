@@ -37,6 +37,7 @@ export interface CreateUserResponse {
   tempPassword: string;
   shopCode: string | null;
   emailSent: boolean;
+  emailError?: string;
 }
 
 export interface ListUsersResponse {
@@ -62,12 +63,24 @@ export interface ResetPasswordResponse {
   shopCode: string | null;
   expiresAt?: string;
   emailSent: boolean;
+  emailError?: string;
 }
 
 export interface ReactivateUserResponse {
   tempPassword: string;
   shopCode: string | null;
   emailSent: boolean;
+  emailError?: string;
+}
+
+export interface UpdateUserRoleResponse {
+  ok: boolean;
+  changed: boolean;
+  oldRole?: string;
+  newRole?: string;
+  user?: User;
+  emailSent: boolean;
+  emailError?: string;
 }
 
 /**
@@ -126,5 +139,19 @@ export async function resetUserPassword(userId: string): Promise<ResetPasswordRe
 export async function reactivateUser(userId: string): Promise<ReactivateUserResponse> {
   return http<ReactivateUserResponse>(`/users/${userId}/reactivate`, {
     method: "POST",
+  });
+}
+
+/**
+ * Update a user's role (owner only)
+ * Can change role between "manager" and "technician"
+ */
+export async function updateUserRole(
+  userId: string,
+  role: "manager" | "technician"
+): Promise<UpdateUserRoleResponse> {
+  return http<UpdateUserRoleResponse>(`/users/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
   });
 }

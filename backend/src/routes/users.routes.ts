@@ -15,6 +15,12 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+// Helper: Get tenant login URL
+function getTenantLoginUrl(): string {
+  const baseUrl = (process.env.APP_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
+  return `${baseUrl}/login`;
+}
+
 /**
  * POST /api/users
  * Create a new user under the current account (owner/manager only)
@@ -100,8 +106,73 @@ router.post(
       const account = await Account.findById(accountId).select("slug").lean();
       const shopCode = account?.slug || null;
 
-      // Determine if email was sent (we don't send email on create, only on reset)
-      const emailSent = false;
+      // Send invite email
+      const toEmail = user.email;
+      let emailSent = false;
+      let emailError: string | undefined = undefined;
+
+      try {
+        const loginUrl = getTenantLoginUrl();
+        const displayShopCode = shopCode || "(not available)";
+        const subject = "Welcome to Caruso Service Manager";
+        const text = `You've been invited to join Caruso Service Manager as a ${role}.\n\n` +
+          `Shop Code: ${displayShopCode}\n` +
+          `Role: ${role}\n` +
+          `Email: ${toEmail}\n` +
+          `Login URL: ${loginUrl}\n` +
+          `Temporary password: ${tempPassword}\n\n` +
+          `Please sign in and change your password.`;
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <p>You've been invited to join Caruso Service Manager as a <strong>${role}</strong>.</p>
+  
+  <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
+    <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
+    <p style="margin: 0;"><strong>Temporary Password:</strong> <span style="font-size: 18px; font-weight: bold;">${tempPassword}</span></p>
+  </div>
+  
+  <p><strong>Role:</strong> ${role}</p>
+  <p><strong>Email:</strong> ${toEmail}</p>
+  <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+  
+  <p>Please sign in and change your password.</p>
+</body>
+</html>`;
+
+        const result = await sendEmail({
+          to: toEmail,
+          subject,
+          text,
+          html,
+          accountId,
+        });
+
+        emailSent = true;
+        console.log("[TENANT_INVITE_EMAIL] sent", {
+          to: toEmail,
+          role,
+          accountId: String(accountId),
+          shopCode,
+          messageId: result.messageId,
+        });
+      } catch (err: unknown) {
+        emailSent = false;
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        emailError = "Invite email could not be sent. Please copy the temporary password and share it with the team member.";
+        console.error("[TENANT_INVITE_EMAIL] failed", {
+          to: toEmail,
+          role,
+          accountId: String(accountId),
+          shopCode,
+          err: errorMessage,
+        });
+      }
 
       return res.status(201).json({
         user: {
@@ -116,6 +187,7 @@ router.post(
         tempPassword, // Return temp password only on create
         shopCode,
         emailSent,
+        ...(emailError ? { emailError } : {}),
       });
     } catch (err: any) {
       // Handle unique index violation
@@ -338,17 +410,66 @@ router.post(
       // Fetch Account.slug for shopCode (needed for email and response)
       const account = await Account.findById(accountId).select("slug").lean();
       const shopCode = account?.slug || null;
+      const displayShopCode = shopCode || "(not available)";
 
-      const subject = "Your password has been reset";
-      const text = `Your temporary password has been set. Use it to sign in and change your password.\n\nShop Code: ${shopCode || "N/A"}\nTemporary password: ${tempPassword}\n\nThis password expires in 60 minutes.`;
-
+      // Send reset password email
       let emailSent = false;
+      let emailError: string | undefined = undefined;
+
       try {
-        await sendEmail({ to: toEmail, subject, text, accountId: req.accountId });
+        const loginUrl = getTenantLoginUrl();
+        const subject = "Your password has been reset";
+        const text = `Your temporary password has been set. Use it to sign in and change your password.\n\n` +
+          `Shop Code: ${displayShopCode}\n` +
+          `Temporary password: ${tempPassword}\n` +
+          `Login URL: ${loginUrl}\n\n` +
+          `This password expires in 60 minutes.`;
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <p>Your temporary password has been set. Use it to sign in and change your password.</p>
+  
+  <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
+    <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
+    <p style="margin: 0;"><strong>Temporary Password:</strong> <span style="font-size: 18px; font-weight: bold;">${tempPassword}</span></p>
+  </div>
+  
+  <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+  
+  <p>This password expires in 60 minutes.</p>
+</body>
+</html>`;
+
+        const result = await sendEmail({
+          to: toEmail,
+          subject,
+          text,
+          html,
+          accountId,
+        });
+
         emailSent = true;
+        console.log("[ResetPw] sendEmail success", {
+          to: toEmail,
+          accountId: String(accountId),
+          shopCode,
+          messageId: result.messageId,
+        });
       } catch (err: unknown) {
-        console.error("[ResetPw] sendEmail failed", err instanceof Error ? err.message : "unknown");
-        // Still return 200 with credentials so owner can copy; do not log tempPassword
+        emailSent = false;
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        emailError = "Reset password email could not be sent. Please copy the temporary password and share it with the team member.";
+        console.error("[ResetPw] sendEmail failed", {
+          to: toEmail,
+          accountId: String(accountId),
+          shopCode,
+          err: errorMessage,
+        });
       }
 
       const expiresAt = tempPasswordExpiresAt.toISOString();
@@ -359,6 +480,7 @@ router.post(
         shopCode,
         expiresAt,
         emailSent,
+        ...(emailError ? { emailError } : {}),
       });
     } catch (err) {
       next(err);
@@ -412,11 +534,227 @@ router.post(
       // Fetch Account.slug for shopCode
       const account = await Account.findById(accountId).select("slug").lean();
       const shopCode = account?.slug || null;
+      const displayShopCode = shopCode || "(not available)";
+
+      // Send reactivation email
+      const toEmail = (user.email || "").trim();
+      let emailSent = false;
+      let emailError: string | undefined = undefined;
+
+      if (!toEmail || !toEmail.includes("@")) {
+        emailSent = false;
+        emailError = "User has no valid email address. Please share credentials manually.";
+      } else {
+        try {
+          const loginUrl = getTenantLoginUrl();
+          const subject = "Your account has been reactivated";
+          const text = `Your Caruso Service Manager account has been reactivated.\n\n` +
+            `Shop Code: ${displayShopCode}\n` +
+            `Temporary password: ${tempPassword}\n` +
+            `Email: ${toEmail}\n` +
+            `Login URL: ${loginUrl}\n\n` +
+            `Please sign in and change your password.`;
+
+          const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <p>Your Caruso Service Manager account has been reactivated.</p>
+  
+  <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
+    <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
+    <p style="margin: 0;"><strong>Temporary Password:</strong> <span style="font-size: 18px; font-weight: bold;">${tempPassword}</span></p>
+  </div>
+  
+  <p><strong>Email:</strong> ${toEmail}</p>
+  <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+  
+  <p>Please sign in and change your password.</p>
+</body>
+</html>`;
+
+          const result = await sendEmail({
+            to: toEmail,
+            subject,
+            text,
+            html,
+            accountId,
+          });
+
+          emailSent = true;
+          console.log("[Reactivate] sendEmail success", {
+            to: toEmail,
+            accountId: String(accountId),
+            shopCode,
+            messageId: result.messageId,
+          });
+        } catch (err: unknown) {
+          emailSent = false;
+          const errorMessage = err instanceof Error ? err.message : "Unknown error";
+          emailError = "Reactivation email could not be sent. Please copy the temporary password and share it with the team member.";
+          console.error("[Reactivate] sendEmail failed", {
+            to: toEmail,
+            accountId: String(accountId),
+            shopCode,
+            err: errorMessage,
+          });
+        }
+      }
 
       return res.json({
         tempPassword,
         shopCode,
-        emailSent: false, // Reactivate doesn't send email
+        emailSent,
+        ...(emailError ? { emailError } : {}),
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * PATCH /api/users/:id/role
+ * Owner-only: change a user's role (manager/technician only)
+ */
+router.patch(
+  "/:id/role",
+  requireRole(["owner"]),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = (req as any).accountId;
+      const actor = (req as any).actor;
+      const { id } = req.params;
+      const { role: newRole } = req.body;
+
+      if (!accountId || !actor?._id) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      if (!newRole || (newRole !== "manager" && newRole !== "technician")) {
+        return res.status(400).json({ message: "role must be 'manager' or 'technician'" });
+      }
+
+      // Find user scoped by accountId
+      const user = await User.findOne({
+        _id: id,
+        accountId,
+      });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Cannot change role for owners
+      if (user.role === "owner") {
+        return res.status(403).json({ message: "Cannot change role for owner accounts" });
+      }
+
+      const oldRole = user.role;
+
+      // If role unchanged, return early without sending email
+      if (oldRole === newRole) {
+        return res.json({
+          ok: true,
+          changed: false,
+          emailSent: false,
+        });
+      }
+
+      // Update role
+      user.role = newRole;
+      await user.save();
+
+      console.log("[TENANT_ROLE_CHANGE] ok", {
+        userId: id,
+        to: user.email,
+        oldRole,
+        newRole,
+        accountId: String(accountId),
+      });
+
+      // Fetch Account.slug for shopCode
+      const account = await Account.findById(accountId).select("slug").lean();
+      const shopCode = account?.slug || null;
+      const displayShopCode = shopCode || "(not available)";
+
+      // Send role-change email
+      const toEmail = user.email;
+      let emailSent = false;
+      let emailError: string | undefined = undefined;
+
+      try {
+        const loginUrl = getTenantLoginUrl();
+        const subject = "Your role has been updated";
+        const text = `Your role in Caruso Service Manager has been changed.\n\n` +
+          `Shop Code: ${displayShopCode}\n` +
+          `Previous Role: ${oldRole}\n` +
+          `New Role: ${newRole}\n` +
+          `Email: ${toEmail}\n` +
+          `Login URL: ${loginUrl}\n\n` +
+          `Please sign in to access your updated permissions.`;
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <p>Your role in Caruso Service Manager has been changed.</p>
+  
+  <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
+    <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
+    <p style="margin: 0;"><strong>New Role:</strong> <span style="font-size: 18px; font-weight: bold;">${newRole}</span></p>
+  </div>
+  
+  <p><strong>Previous Role:</strong> ${oldRole}</p>
+  <p><strong>Email:</strong> ${toEmail}</p>
+  <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+  
+  <p>Please sign in to access your updated permissions.</p>
+</body>
+</html>`;
+
+        const result = await sendEmail({
+          to: toEmail,
+          subject,
+          text,
+          html,
+          accountId,
+        });
+
+        emailSent = true;
+        console.log("[TENANT_ROLE_CHANGE_EMAIL] sent", {
+          to: toEmail,
+          accountId: String(accountId),
+          shopCode,
+          oldRole,
+          newRole,
+          messageId: result.messageId,
+        });
+      } catch (err: unknown) {
+        emailSent = false;
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        emailError = "Role change email could not be sent. Please notify the team member manually.";
+        console.error("[TENANT_ROLE_CHANGE_EMAIL] failed", {
+          to: toEmail,
+          accountId: String(accountId),
+          shopCode,
+          oldRole,
+          newRole,
+          err: errorMessage,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        changed: true,
+        emailSent,
+        ...(emailError ? { emailError } : {}),
       });
     } catch (err) {
       next(err);

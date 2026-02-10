@@ -2,6 +2,8 @@ import { Schema, model, type Document, Types } from "mongoose";
 
 export type AccountRegion = "Canada" | "TT";
 
+export type BillingStatus = "active" | "past_due" | "canceled";
+
 export interface IAccount extends Document {
   name: string;
   slug?: string;          // e.g. "carusos-service-center"
@@ -18,6 +20,12 @@ export interface IAccount extends Document {
   securityNote?: string;
   lastSecurityActionAt?: Date;
   lastSecurityActorId?: Types.ObjectId;
+  // Billing / subscription
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  billingStatus?: BillingStatus;
+  currentPeriodEnd?: Date;
+  graceEndsAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +47,12 @@ const accountSchema = new Schema<IAccount>(
     securityNote: String,
     lastSecurityActionAt: Date,
     lastSecurityActorId: Schema.Types.ObjectId,
+    // Billing / subscription
+    stripeCustomerId: { type: String },
+    stripeSubscriptionId: { type: String },
+    billingStatus: { type: String, enum: ["active", "past_due", "canceled"], required: false },
+    currentPeriodEnd: Date,
+    graceEndsAt: Date,
   },
   {
     timestamps: true,

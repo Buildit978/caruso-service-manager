@@ -19,6 +19,7 @@ import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, h
 import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
+import billingRouter, { billingWebhookHandler } from "./routes/billing.route";
 
 const app = express();
 
@@ -27,7 +28,16 @@ app.set("trust proxy", 1); // ✅ required on Render/Cloudflare for correct IP +
 
 // 🔹 Global middleware
 app.use(cors());
-app.use(express.json());
+
+// Use JSON body parser for all routes EXCEPT the Stripe webhook,
+// which needs the raw body for signature verification.
+const jsonParser = express.json();
+app.use((req, res, next) => {
+  if (req.originalUrl === "/api/billing/webhook") {
+    return next();
+  }
+  return jsonParser(req, res, next);
+});
 
 // (Optional) health check (public)
 app.get("/api/health", (_req, res) => {
@@ -63,6 +73,13 @@ app.post("/api/auth/reactivate", reactivateLimiter, handleReactivate);
 // 🔓 Public admin auth (login only; rest of /api/admin requires token)
 app.use("/api/admin/auth", adminAuthPublicRouter);
 
+// 🔓 Public Stripe billing webhook (raw body, no auth)
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "application/json" }),
+  billingWebhookHandler
+);
+
 app.use("/api/admin", requireAdminAuth, adminRouter);
 
 // 🔒 All other /api routes require auth
@@ -80,6 +97,7 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRoutes);
+app.use("/api/billing", billingRouter);
 
 console.log("✅ Mounted /api/invoices routes");
 console.log("✅ Mounted /api/reports routes");

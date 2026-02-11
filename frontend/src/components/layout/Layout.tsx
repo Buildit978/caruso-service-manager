@@ -124,21 +124,6 @@ function Layout() {
 
   const canShowUpgradeButton = !billingLock.billingLocked && isOwner;
 
-  const trialTone =
-    daysLeft !== null && daysLeft <= 3 ? "urgent" :
-    daysLeft !== null && daysLeft <= 7 ? "warning" :
-    "neutral";
-
-  const toneColor =
-    trialTone === "urgent" ? "#fecaca" :
-    trialTone === "warning" ? "#fde68a" :
-    "#e5e7eb";
-
-  const toneBg =
-    trialTone === "urgent" ? "#7f1d1d" :
-    trialTone === "warning" ? "#78350f" :
-    "#111827";
-
   return (
     <div className={`layout-root${drawerOpen ? ' is-drawer-open' : ''}`}>
       {/* Mobile only: top bar with hamburger */}

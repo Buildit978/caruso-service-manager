@@ -1,6 +1,8 @@
 // frontend/src/api/http.ts
 // Centralized HTTP client with JWT token handling
 
+import { setBillingLocked, isBillingLockedResponse } from "../state/billingLock";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 const TOKEN_KEY = "csm_token";
 const MUST_CHANGE_PASSWORD_KEY = "csm_must_change_password";
@@ -107,13 +109,18 @@ export async function http<T>(
 
   // Handle other non-2xx errors
   if (!response.ok) {
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      data = undefined;
+    }
+    if (isBillingLockedResponse(response.status, data)) {
+      setBillingLocked((data as { message?: string; billingStatus?: string; graceEndsAt?: string | null; currentPeriodEnd?: string | null }) ?? {});
+    }
     const error: HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as HttpError;
     error.status = response.status;
-    try {
-      error.data = await response.json();
-    } catch {
-      // ignore JSON parse errors
-    }
+    error.data = data;
     throw error;
   }
 
@@ -160,13 +167,18 @@ export async function httpBlob(path: string): Promise<Blob> {
 
   // Handle other non-2xx errors
   if (!response.ok) {
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      data = undefined;
+    }
+    if (isBillingLockedResponse(response.status, data)) {
+      setBillingLocked((data as { message?: string; billingStatus?: string; graceEndsAt?: string | null; currentPeriodEnd?: string | null }) ?? {});
+    }
     const error: HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as HttpError;
     error.status = response.status;
-    try {
-      error.data = await response.json();
-    } catch {
-      // ignore JSON parse errors
-    }
+    error.data = data;
     throw error;
   }
 

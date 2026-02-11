@@ -11,6 +11,7 @@ import {
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
 import { useMe } from "../auth/useMe";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -125,6 +126,11 @@ export default function WorkOrderDetailPage() {
   const [taxRate, setTaxRate] = useState<number>(13);
   const [saving, setSaving] = useState(false);
 
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
+
   // 🔁 Shared loader so we can call it from useEffect AND after save
   async function loadWorkOrder() {
     if (!id) return;
@@ -168,7 +174,7 @@ export default function WorkOrderDetailPage() {
       setWorkOrder(refreshed);
     } catch (err: any) {
       console.error(err);
-      setActionError(err.message || "Failed to update status");
+      setActionError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Failed to update status");
     }
   }
 
@@ -242,7 +248,7 @@ export default function WorkOrderDetailPage() {
       alert("✅ Work order marked complete!");
     } catch (err: any) {
       console.error("[WO Detail] Failed to mark complete", err);
-      setActionError(err.message || "Could not mark work order complete.");
+      setActionError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Could not mark work order complete.");
     } finally {
       setIsMarkingComplete(false);
     }
@@ -254,7 +260,7 @@ export default function WorkOrderDetailPage() {
 
     try {
       setIsCreatingInvoice(true);
-      setError(null);
+      setActionError(null);
 
       const result = await createInvoiceFromWorkOrder(workOrder._id, {
         notes: workOrder.notes ?? undefined,
@@ -272,7 +278,11 @@ export default function WorkOrderDetailPage() {
       navigate(`/invoices/${invoice._id}`);
     } catch (err) {
       console.error("[WO Detail] Error creating invoice", err);
-      setError("Failed to create invoice.");
+      setActionError(
+        isBillingLockedError(err)
+          ? "Billing is inactive. Update billing to create invoices."
+          : "Failed to create invoice."
+      );
     } finally {
       setIsCreatingInvoice(false);
     }
@@ -410,12 +420,12 @@ export default function WorkOrderDetailPage() {
     } catch (err: any) {
       console.error(err);
       const httpError = err as any;
-      
-      // Friendly 403 message
-      if (httpError?.status === 403) {
-        alert("You don't have permission to edit work order details.");
+      if (isBillingLockedError(err)) {
+        setActionError("Billing is inactive. Update billing to save changes.");
+      } else if (httpError?.status === 403) {
+        setActionError("You don't have permission to edit work order details.");
       } else {
-        alert("❌ Failed to save line items.");
+        setActionError("Failed to save line items.");
       }
     } finally {
       setSaving(false);
@@ -665,14 +675,21 @@ export default function WorkOrderDetailPage() {
                   View Invoice
                 </button>
               ) : isCompleted ? (
-                <button
-                  type="button"
-                  onClick={handleCreateInvoice}
-                  disabled={!canCreateInvoice}
-                  title="Create an invoice for this work order."
-                >
-                  {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
-                </button>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateInvoice}
+                    disabled={!canCreateInvoice || billingLocked}
+                    title={billingLocked ? "Billing is inactive. Update billing to create invoices." : "Create an invoice for this work order."}
+                  >
+                    {isCreatingInvoice ? "Creating Invoice…" : "Create Invoice"}
+                  </button>
+                  {billingLocked && (
+                    <span style={{ fontSize: "0.875rem", color: "#b91c1c" }}>
+                      Billing is inactive. Update billing to create invoices.
+                    </span>
+                  )}
+                </span>
               ) : (
                 <button type="button" disabled title="Complete the work order before creating an invoice.">
                   Create Invoice
@@ -798,19 +815,25 @@ export default function WorkOrderDetailPage() {
           <button
             type="button"
             onClick={handleAddLineItem}
+            disabled={billingLocked}
             style={{
               padding: "8px 14px",
               borderRadius: "10px",
               border: "1px solid #111827",
-              backgroundColor: "#111827",
+              backgroundColor: billingLocked ? "#6b7280" : "#111827",
               color: "#ffffff",
               fontSize: "0.9rem",
-              cursor: "pointer",
+              cursor: billingLocked ? "not-allowed" : "pointer",
             }}
           >
             + Add Line
           </button>
         </div>
+        {billingLocked && (
+          <p style={{ margin: "0.5rem 0 0", fontSize: "0.875rem", color: "#b91c1c" }}>
+            Billing is inactive. Update billing to save changes.
+          </p>
+        )}
 
         <div style={{ overflowX: "auto", marginTop: "0.75rem" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
@@ -997,15 +1020,15 @@ export default function WorkOrderDetailPage() {
               <button
                 type="button"
                 onClick={handleSaveLineItems}
-                disabled={saving}
+                disabled={saving || billingLocked}
                 style={{
                   padding: "10px 16px",
                   borderRadius: "10px",
                   border: "1px solid #4b5563",
-                  backgroundColor: saving ? "#e5e7eb" : "#111827",
-                  color: saving ? "#6b7280" : "#ffffff",
+                  backgroundColor: saving || billingLocked ? "#e5e7eb" : "#111827",
+                  color: saving || billingLocked ? "#6b7280" : "#ffffff",
                   fontSize: "0.95rem",
-                  cursor: saving ? "default" : "pointer",
+                  cursor: saving || billingLocked ? "default" : "pointer",
                 }}
               >
                 {saving ? "Saving..." : "Save Line Items"}

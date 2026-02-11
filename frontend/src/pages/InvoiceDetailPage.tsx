@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import type { Invoice } from "../types/invoice";
 import { fetchInvoiceById, emailInvoice, updateInvoiceStatus } from "../api/invoices";
 import { httpBlob } from "../api/http";
+import { isBillingLockedError } from "../state/billingLock";
 import { fetchCustomerById } from "../api/customers";
 import { recordInvoicePayment } from "../api/invoices";
 
@@ -163,7 +164,7 @@ async function handleRecordPayment() {
         const data = await fetchInvoiceById(id);
         if (!cancelled) setInvoice(data);
       } catch (err: any) {
-        if (!cancelled) setError(err.message || "Failed to load invoice");
+        if (!cancelled) setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Failed to load invoice");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -238,7 +239,7 @@ async function handleRecordPayment() {
       // const updated = await updateInvoiceStatus(invoice._id, "sent");
       // setInvoice(updated);
     } catch (err: any) {
-      const msg = err?.message || "Failed to email invoice.";
+      const msg = isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.message || "Failed to email invoice.";
       setEmailError(msg);
       alert("❌ " + msg);
     } finally {
@@ -270,7 +271,7 @@ async function handleRecordPayment() {
     const updated = await updateInvoiceStatus(invoice._id, "void", reason.trim());
     setInvoice(updated);
   } catch (err: any) {
-    setError(err?.message || "Failed to void invoice");
+    setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.message || "Failed to void invoice");
   } finally {
     setIsSaving(false);
   }
@@ -530,7 +531,7 @@ const base: CSSProperties = {
               // Clean up blob URL after 60 seconds
               setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
             } catch (err: any) {
-              const msg = err?.message || "Failed to load PDF. Please try again.";
+              const msg = isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.message || "Failed to load PDF. Please try again.";
               setPdfError(msg);
               console.error("[InvoiceDetail] PDF fetch failed:", err);
             } finally {

@@ -5,6 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { register } from "../api/auth";
 import { setToken } from "../api/http";
 import type { HttpError } from "../api/http";
+import { isBillingLockedError } from "../state/billingLock";
 
 export default function StartPage() {
   const [shopName, setShopName] = useState("");
@@ -37,7 +38,7 @@ export default function StartPage() {
         } else if (httpError.status === 400) {
           setError((httpError.data as any)?.message || httpError.message || "Invalid input");
         } else {
-          setError(httpError.message || "Registration failed");
+          setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : httpError.message || "Registration failed");
         }
       } else {
         setError("An unexpected error occurred");

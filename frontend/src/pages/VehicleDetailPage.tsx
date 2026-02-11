@@ -4,6 +4,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { fetchVehicleById } from "../api/vehicles";
 import { fetchWorkOrders } from "../api/workOrders";
 import type { WorkOrder } from "../types/workOrder";
+import { isBillingLockedError } from "../state/billingLock";
 
 
 type Vehicle = {
@@ -38,7 +39,7 @@ export default function VehicleDetailPage() {
         const data = await fetchVehicleById(id);
         setVehicle(data as Vehicle);
       } catch (e: any) {
-        setError(e?.message ?? "Failed to load vehicle");
+        setError(isBillingLockedError(e) ? "Billing is inactive. Update billing to continue." : e?.message ?? "Failed to load vehicle");
       } finally {
         setLoading(false);
       }
@@ -61,7 +62,7 @@ export default function VehicleDetailPage() {
 
                 setWorkOrders(items);
                 } catch (e: any) {
-                setWoError(e?.message ?? "Failed to load work orders");
+                setWoError(isBillingLockedError(e) ? "Billing is inactive. Update billing to continue." : e?.message ?? "Failed to load work orders");
                 } finally {
                 setWoLoading(false);
                 }

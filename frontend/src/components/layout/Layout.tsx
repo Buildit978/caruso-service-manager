@@ -6,6 +6,7 @@ import { useAccess } from '../../contexts/AccessContext'
 import { useMe } from "../../auth/useMe";
 import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
+import BillingLockBanner from "../common/BillingLockBanner";
 
 function Layout() {
   const location = useLocation()
@@ -176,6 +177,7 @@ function Layout() {
       </aside>
 
       <main className="layout-main">
+        <BillingLockBanner />
         <Outlet />
       </main>
     </div>

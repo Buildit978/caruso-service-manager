@@ -1,5 +1,6 @@
 // src/api/customers.ts
-import { http } from "./http";
+import { http, type HttpError } from "./http";
+import { setBillingLocked, isBillingLockedResponse } from "../state/billingLock";
 import type { Customer } from "../types/customer";
 
 export type CustomerPayload = {
@@ -126,13 +127,18 @@ export async function exportCustomers(): Promise<{ blob: Blob; filename?: string
 
   // Handle other non-2xx errors
   if (!response.ok) {
-    const error: import("./http").HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as import("./http").HttpError;
-    error.status = response.status;
+    let data: unknown;
     try {
-      error.data = await response.json();
+      data = await response.json();
     } catch {
-      // ignore JSON parse errors
+      data = undefined;
     }
+    if (isBillingLockedResponse(response.status, data)) {
+      setBillingLocked((data as { message?: string; billingStatus?: string; graceEndsAt?: string | null; currentPeriodEnd?: string | null }) ?? {});
+    }
+    const error: HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as HttpError;
+    error.status = response.status;
+    error.data = data;
     throw error;
   }
 
@@ -199,13 +205,18 @@ export async function importCustomers(file: File): Promise<ImportSummary> {
 
   // Handle other non-2xx errors
   if (!response.ok) {
-    const error: import("./http").HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as import("./http").HttpError;
-    error.status = response.status;
+    let data: unknown;
     try {
-      error.data = await response.json();
+      data = await response.json();
     } catch {
-      // ignore JSON parse errors
+      data = undefined;
     }
+    if (isBillingLockedResponse(response.status, data)) {
+      setBillingLocked((data as { message?: string; billingStatus?: string; graceEndsAt?: string | null; currentPeriodEnd?: string | null }) ?? {});
+    }
+    const error: HttpError = new Error(`HTTP ${response.status}: ${response.statusText}`) as HttpError;
+    error.status = response.status;
+    error.data = data;
     throw error;
   }
 

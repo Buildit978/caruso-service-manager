@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fetchCustomer, updateCustomer, type CustomerPayload } from "../api/customers";
 import type { HttpError } from "../api/http";
+import { getBillingLockState, subscribe } from "../state/billingLock";
+import { isBillingLockedError } from "../state/billingLock";
 
 type CustomerForm = {
   firstName: string;
@@ -28,6 +30,10 @@ export default function CustomerEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
 
   const returnTo = searchParams.get("returnTo") || "/customers";
 
@@ -88,14 +94,13 @@ export default function CustomerEditPage() {
     } catch (err: any) {
       console.error("[Customer Edit] Failed to update customer", err);
       const httpError = err as HttpError;
-      
-      // Friendly 403 message
-      if (httpError?.status === 403) {
+      if (isBillingLockedError(err)) {
+        setError("Billing is inactive. Update billing to continue.");
+      } else if (httpError?.status === 403) {
         setError("You don't have permission to edit customer details.");
         alert("You don't have permission to edit customer details.");
       } else {
         setError(err.message || "Failed to update customer.");
-        alert("❌ Failed to update customer.");
       }
     } finally {
       setSaving(false);
@@ -318,7 +323,7 @@ export default function CustomerEditPage() {
             >
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || billingLocked}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",

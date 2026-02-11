@@ -41,11 +41,26 @@ router.get("/", async (req, res) => {
         }
         const settings = await getOrCreateSettings(accountId);
         
-        // Include shopCode (Account.slug) for owners only
         const response: any = settings.toObject();
-        if (actor?.role === "owner") {
-            const account = await Account.findById(accountId).select("slug").lean();
-            response.shopCode = account?.slug || null;
+        if (actor?.role === "owner" || actor?.role === "manager") {
+            const account = await Account.findById(accountId)
+                .select("slug isBetaTester trialEndsAt betaCandidate betaCandidateSince betaActivation")
+                .lean();
+            if (actor?.role === "owner") {
+                response.shopCode = account?.slug ?? null;
+            }
+            if (account && (account.isBetaTester === true || account.betaCandidate === true)) {
+                response.betaStatus = {
+                    isBetaTester: account.isBetaTester === true,
+                    trialEndsAt: account.trialEndsAt ? new Date(account.trialEndsAt).toISOString() : null,
+                    betaCandidate: account.betaCandidate === true,
+                    betaCandidateSince: account.betaCandidateSince ? new Date(account.betaCandidateSince).toISOString() : null,
+                    betaActivation: {
+                        workOrdersCreated: account.betaActivation?.workOrdersCreated ?? 0,
+                        invoicesCreated: account.betaActivation?.invoicesCreated ?? 0,
+                    },
+                };
+            }
         }
         
         return res.json(response);

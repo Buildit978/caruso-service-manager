@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { User } from "../models/user.model";
 import { Account } from "../models/account.model";
 import { requireRole } from "../middleware/requireRole";
+import { requireBillingActive } from "../middleware/requireBillingActive";
 import { sendEmail } from "../utils/email";
 import { generateTempPassword } from "../utils/password";
 
@@ -31,6 +32,7 @@ function getTenantLoginUrl(): string {
  */
 router.post(
   "/",
+  requireBillingActive,
   requireRole(["owner"]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -304,6 +306,7 @@ router.patch("/me", async (req: Request, res: Response, next: NextFunction) => {
  */
 router.patch(
   "/:id/deactivate",
+  requireBillingActive,
   requireRole(["owner"]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -494,6 +497,7 @@ router.post(
  */
 router.post(
   "/:id/reactivate",
+  requireBillingActive,
   requireRole(["owner"]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -622,6 +626,7 @@ router.post(
  */
 router.patch(
   "/:id/role",
+  requireBillingActive,
   requireRole(["owner"]),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

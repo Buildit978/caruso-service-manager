@@ -11,6 +11,7 @@ import {
   type User,
 } from "../api/users";
 import type { HttpError } from "../api/http";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
 import TempPasswordModal from "../components/modals/TempPasswordModal";
 
 function formatName(u: User) {
@@ -30,6 +31,10 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [teamView, setTeamView] = useState<"active" | "inactive" | "all">("active");
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -87,7 +92,7 @@ export default function TeamPage() {
         if (e?.status === 403) {
           setError("Access restricted. Only owners can manage the team.");
         } else {
-          setError(e?.message || "Failed to load team.");
+          setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : e?.message || "Failed to load team.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -174,7 +179,7 @@ export default function TeamPage() {
       });
     } catch (err) {
       const e = err as HttpError;
-      setError((e?.data as any)?.message || e?.message || "Failed to create user.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to create user.");
     } finally {
       setSaving(false);
     }
@@ -191,7 +196,7 @@ export default function TeamPage() {
       // Keep current filter selected
     } catch (err) {
       const e = err as HttpError;
-      setError((e?.data as any)?.message || e?.message || "Failed to deactivate user.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to deactivate user.");
     }
   }
 
@@ -208,7 +213,7 @@ export default function TeamPage() {
       setModalExpiresAt(resp.expiresAt ?? null);
     } catch (err) {
       const e = err as HttpError;
-      setError((e?.data as any)?.message || e?.message || "Failed to reset password.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to reset password.");
     }
   }
 
@@ -230,7 +235,7 @@ export default function TeamPage() {
       // Keep current filter selected
     } catch (err) {
       const e = err as HttpError;
-      setError((e?.data as any)?.message || e?.message || "Failed to reactivate user.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to reactivate user.");
     }
   }
 
@@ -292,7 +297,7 @@ export default function TeamPage() {
           },
         };
       });
-      setError((e?.data as any)?.message || e?.message || "Failed to update role.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to update role.");
     }
   }
 
@@ -384,7 +389,7 @@ export default function TeamPage() {
               </select>
             </label>
 
-            <button type="submit" disabled={saving}>
+            <button type="submit" disabled={saving || billingLocked}>
               {saving ? "Creating…" : "Create User"}
             </button>
           </form>
@@ -402,14 +407,14 @@ export default function TeamPage() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
             <h2 style={{ marginTop: 0, marginBottom: 0, color: "#e5e7eb" }}>Team Members</h2>
-            <button type="button" onClick={async () => {
+            <button type="button" disabled={billingLocked} onClick={async () => {
               try {
                 setLoading(true);
                 const refreshed = await listUsers();
                 setUsers(refreshed.users || []);
               } catch (err) {
                 const e = err as HttpError;
-                setError((e?.data as any)?.message || e?.message || "Failed to refresh.");
+                setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : (e?.data as any)?.message || e?.message || "Failed to refresh.");
               } finally {
                 setLoading(false);
               }
@@ -550,6 +555,7 @@ export default function TeamPage() {
                             type="button"
                             onClick={() => handleUpdateRole(u, ru?.selectedRole || u.role)}
                             disabled={
+                              billingLocked ||
                               ru?.updating ||
                               (ru?.selectedRole || u.role) === u.role
                             }
@@ -559,16 +565,19 @@ export default function TeamPage() {
                               borderRadius: "0.375rem",
                               border: "1px solid #374151",
                               background:
+                                billingLocked ||
                                 ru?.updating ||
                                 (ru?.selectedRole || u.role) === u.role
                                   ? "#1f2937"
                                   : "#3b82f6",
                               color:
+                                billingLocked ||
                                 ru?.updating ||
                                 (ru?.selectedRole || u.role) === u.role
                                   ? "#6b7280"
                                   : "#ffffff",
                               cursor:
+                                billingLocked ||
                                 ru?.updating ||
                                 (ru?.selectedRole || u.role) === u.role
                                   ? "not-allowed"
@@ -615,7 +624,7 @@ export default function TeamPage() {
                           <button
                             type="button"
                             onClick={() => handleResetPassword(u)}
-                            disabled={u.role === "owner"}
+                            disabled={billingLocked || u.role === "owner"}
                             style={{
                               padding: "0.4rem 0.75rem",
                               fontSize: "0.85rem",
@@ -631,7 +640,7 @@ export default function TeamPage() {
                           <button
                             type="button"
                             onClick={() => handleDeactivate(u)}
-                            disabled={u.role === "owner"}
+                            disabled={billingLocked || u.role === "owner"}
                             style={{
                               padding: "0.4rem 0.75rem",
                               fontSize: "0.85rem",
@@ -649,7 +658,7 @@ export default function TeamPage() {
                         <button
                           type="button"
                           onClick={() => handleReactivate(u)}
-                          disabled={u.role === "owner"}
+                          disabled={billingLocked || u.role === "owner"}
                           style={{
                             padding: "0.4rem 0.75rem",
                             fontSize: "0.85rem",

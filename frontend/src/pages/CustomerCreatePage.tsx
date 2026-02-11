@@ -1,12 +1,14 @@
 // src/pages/CustomerCreatePage.tsx
 import {
   useState,
+  useEffect,
   type FormEvent,
   type ChangeEvent,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createCustomer } from "../api/customers";
 import { createVehicle, type NewVehiclePayload } from "../api/vehicles";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
 
 type CustomerForm = {
   firstName: string;
@@ -30,6 +32,10 @@ export default function CustomerCreatePage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
 
   const [showVehicleForm, setShowVehicleForm] = useState(false);
 
@@ -111,7 +117,7 @@ export default function CustomerCreatePage() {
       }
     } catch (err: any) {
       console.error("[New Customer] Failed to save", err);
-      setError(err.message || "Could not save customer.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Could not save customer.");
     } finally {
       setSaving(false);
     }
@@ -622,7 +628,7 @@ export default function CustomerCreatePage() {
             >
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || billingLocked}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",
@@ -631,8 +637,8 @@ export default function CustomerCreatePage() {
                   color: "#fff",
                   fontWeight: 500,
                   fontSize: "0.95rem",
-                  opacity: saving ? 0.6 : 1,
-                  cursor: saving ? "default" : "pointer",
+                  opacity: saving || billingLocked ? 0.6 : 1,
+                  cursor: saving || billingLocked ? "default" : "pointer",
                 }}
               >
                 {saving ? "Saving…" : "Save Customer"}

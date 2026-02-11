@@ -10,6 +10,7 @@ import {
     type Vehicle,
 } from "../api/vehicles";
 import type { HttpError } from "../api/http";
+import { isBillingLockedError } from "../state/billingLock";
 
 interface CustomerVehiclesSectionProps {
     customerId: string;
@@ -138,7 +139,7 @@ export default function CustomerVehiclesSection({
             if (httpError?.status === 403) {
                 setError("You don't have permission to delete vehicle details.");
             } else {
-                setError("Could not delete vehicle.");
+                setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : "Could not delete vehicle.");
             }
         }
     };
@@ -195,7 +196,7 @@ export default function CustomerVehiclesSection({
             if (httpError?.status === 403) {
                 setError("You don't have permission to edit vehicle details.");
             } else {
-                setError("Could not save vehicle.");
+                setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : "Could not save vehicle.");
             }
         } finally {
             setSaving(false);

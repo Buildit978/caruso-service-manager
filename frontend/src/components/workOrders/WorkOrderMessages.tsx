@@ -6,6 +6,7 @@ import {
 } from "../../api/workOrderMessages";
 import type { WorkOrderMessage } from "../../types/workOrderMessage";
 import type { HttpError } from "../../api/http";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../../state/billingLock";
 
 interface WorkOrderMessagesProps {
   workOrderId: string;
@@ -43,6 +44,10 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
   const [newMessageBody, setNewMessageBody] = useState("");
   const [activeTab, setActiveTab] = useState<MessageTab>("internal");
   const [canPostCustomer, setCanPostCustomer] = useState<boolean | null>(null); // null = unknown
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
 
   async function loadMessages() {
     try {
@@ -56,7 +61,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
       setMessages(sorted);
     } catch (err: any) {
       console.error("[WorkOrderMessages] Failed to load messages", err);
-      setError(err?.data?.message || err?.message || "Failed to load messages");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.data?.message || err?.message || "Failed to load messages");
     } finally {
       setLoading(false);
     }
@@ -107,7 +112,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
         setCanPostCustomer(false);
         setError("You don't have permission to post customer-facing messages.");
       } else {
-        setError(err?.data?.message || err?.message || "Failed to post message");
+        setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.data?.message || err?.message || "Failed to post message");
       }
     } finally {
       setPosting(false);
@@ -349,16 +354,16 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                 <button
                   type="button"
                   onClick={handlePostMessage}
-                  disabled={posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost)}
+                  disabled={posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost)}
                   style={{
                     padding: "0.5rem 1rem",
                     borderRadius: "0.375rem",
                     border: "1px solid #1d4ed8",
-                    background: posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "#9ca3af" : "#1d4ed8",
+                    background: posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "#9ca3af" : "#1d4ed8",
                     color: "#ffffff",
                     fontSize: "0.9rem",
                     fontWeight: 600,
-                    cursor: posting || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "default" : "pointer",
+                    cursor: posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "default" : "pointer",
                   }}
                 >
                   {posting ? "Posting..." : "Post Message"}

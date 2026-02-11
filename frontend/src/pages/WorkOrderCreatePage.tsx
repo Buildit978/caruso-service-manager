@@ -6,6 +6,7 @@ import { fetchVehicleById } from "../api/vehicles"; // <-- add this
 import { fetchCustomers } from "../api/customers";
 import { createWorkOrder } from "../api/workOrders";
 import type { Customer } from "../types/customer";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
 
 // If this already exists elsewhere in the file, keep that one and remove this.
 // I'm adding it here in case it was missing.
@@ -32,6 +33,10 @@ export default function WorkOrderCreatePage() {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
+  }, []);
 
   const [form, setForm] = useState<NewWorkOrderForm>({
     customerId: "",
@@ -381,7 +386,7 @@ export default function WorkOrderCreatePage() {
       navigate(`/work-orders/${created._id}`);
     } catch (err: any) {
       console.error("[Create WO] Failed to save work order", err);
-      setError(err.message || "Something went wrong saving the work order.");
+      setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Something went wrong saving the work order.");
     } finally {
       setSaving(false);
     }
@@ -819,7 +824,7 @@ export default function WorkOrderCreatePage() {
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
               <button
                 type="submit"
-                disabled={saving || loadingCustomers}
+                disabled={saving || loadingCustomers || billingLocked}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",

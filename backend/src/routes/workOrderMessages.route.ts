@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 import { WorkOrder } from "../models/workOrder.model";
 import { WorkOrderMessageModel } from "../models/workOrderMessage.model";
 import { User } from "../models/user.model";
+import { requireBillingActive } from "../middleware/requireBillingActive";
 
 const router = Router({ mergeParams: true });
 
@@ -91,7 +92,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post("/", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", requireBillingActive, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = (req as any).accountId;
     const actor = (req as any).actor;

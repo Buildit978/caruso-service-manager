@@ -18,6 +18,7 @@ import RoleSwitcher from "../components/auth/RoleSwitcher";
 import { useSettingsAccess } from "../contexts/SettingsAccessContext";
 import { useMe } from "../auth/useMe";
 import type { HttpError } from "../api/http";
+import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
 import { exportCustomers, importCustomers, type ImportSummary } from "../api/customers";
 import { updateMe } from "../api/users";
 import { clearToken } from "../api/http";
@@ -59,6 +60,10 @@ export default function SettingsPage() {
     const [deactivateError, setDeactivateError] = useState<string | null>(null);
     const [shopCode, setShopCode] = useState<string | null>(null);
     const [regeneratingShopCode, setRegeneratingShopCode] = useState(false);
+    const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked);
+    useEffect(() => {
+        return subscribe((s) => setBillingLocked(s.billingLocked));
+    }, []);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -170,7 +175,7 @@ export default function SettingsPage() {
             setSaved(true);
         } catch (err) {
             console.error("Failed to save settings", err);
-            setError("Unable to save settings. Please try again.");
+            setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : "Unable to save settings. Please try again.");
         } finally {
             setSaving(false);
         }
@@ -196,7 +201,7 @@ export default function SettingsPage() {
             setTimeout(() => setSaved(false), 2000);
         } catch (err) {
             console.error("Failed to save role access", err);
-            setError("Unable to save role access. Please try again.");
+            setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : "Unable to save role access. Please try again.");
         } finally {
             setSavingRoleAccess(false);
         }
@@ -214,7 +219,7 @@ export default function SettingsPage() {
             setTimeout(() => setSaved(false), 2000);
         } catch (err) {
             console.error("Failed to save invoice profile", err);
-            setError("Unable to save invoice profile. Please try again.");
+            setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : "Unable to save invoice profile. Please try again.");
         } finally {
             setSavingInvoiceProfile(false);
         }
@@ -357,7 +362,7 @@ export default function SettingsPage() {
                                     setSaved(true);
                                     setTimeout(() => setSaved(false), 2000);
                                 } catch (err: any) {
-                                    setError(err?.message ?? "Failed to save display name");
+                                    setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.message ?? "Failed to save display name");
                                 } finally {
                                     setSavingDisplayName(false);
                                 }
@@ -505,7 +510,7 @@ export default function SettingsPage() {
                                         if (err?.status === 429) {
                                             setError("Shop Code was recently regenerated. Please wait a few minutes before trying again.");
                                         } else {
-                                            setError(err?.message || "Failed to regenerate shop code");
+                                            setError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err?.message || "Failed to regenerate shop code");
                                         }
                                     } finally {
                                         setRegeneratingShopCode(false);
@@ -767,6 +772,45 @@ export default function SettingsPage() {
             </form>
                 </div>
 
+            {/* Beta Status — owner/manager only, read-only */}
+            {(me?.role === "owner" || me?.role === "manager") && settings?.betaStatus && (
+                <div className="settings-card" style={{ margin: 0 }}>
+                    <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                        Beta Status
+                    </h2>
+                    {settings.betaStatus.isBetaTester ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.95rem" }}>
+                            <div style={{ fontWeight: 600, color: "#e5e7eb" }}>Beta Tester</div>
+                            {settings.betaStatus.trialEndsAt && (
+                                <div style={{ color: "#9ca3af" }}>
+                                    Trial ends: {new Date(settings.betaStatus.trialEndsAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                                </div>
+                            )}
+                        </div>
+                    ) : settings.betaStatus.betaCandidate ? (
+                        (() => {
+                            const since = settings.betaStatus.betaCandidateSince ? new Date(settings.betaStatus.betaCandidateSince) : null;
+                            const windowEndMs = since ? since.getTime() + 7 * 24 * 60 * 60 * 1000 : 0;
+                            const remainingMs = windowEndMs - Date.now();
+                            const daysLeft = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+                            const wo = settings.betaStatus.betaActivation.workOrdersCreated;
+                            const inv = settings.betaStatus.betaActivation.invoicesCreated;
+                            return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.95rem" }}>
+                                    <div style={{ fontWeight: 600, color: "#e5e7eb" }}>Beta qualification in progress</div>
+                                    <div style={{ color: "#9ca3af" }}>
+                                        Work orders: {wo} / 3 · Invoices: {inv} / 3
+                                    </div>
+                                    <div style={{ color: "#9ca3af" }}>
+                                        {daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining in qualification window
+                                    </div>
+                                </div>
+                            );
+                        })()
+                    ) : null}
+                </div>
+            )}
+
             {/* Role Access Section (Owner Only) */}
             {isOwner && roleAccess && (
                 <div className="settings-card"
@@ -926,17 +970,17 @@ export default function SettingsPage() {
                                     URL.revokeObjectURL(blobUrl);
                                 } catch (err: any) {
                                     console.error("Failed to export customers", err);
-                                    setExportError(err.message || "Failed to export customers");
+                                    setExportError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Failed to export customers");
                                 } finally {
                                     setExporting(false);
                                 }
                             }}
-                            disabled={exporting}
+                            disabled={exporting || billingLocked}
                             style={{
                                 padding: "0.55rem 0.9rem",
                                 borderRadius: "0.5rem",
                                 border: "none",
-                                background: exporting ? "#4b5563" : "#1d4ed8",
+                                background: exporting || billingLocked ? "#4b5563" : "#1d4ed8",
                                 color: "#e5e7eb",
                                 fontWeight: 600,
                                 cursor: exporting ? "default" : "pointer",
@@ -1021,20 +1065,20 @@ export default function SettingsPage() {
                                         }
                                     } catch (err: any) {
                                         console.error("Failed to import customers", err);
-                                        setImportError(err.message || "Failed to import customers");
+                                        setImportError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Failed to import customers");
                                     } finally {
                                         setImporting(false);
                                     }
                                 }}
-                                disabled={importing || !importFile}
+                                disabled={importing || !importFile || billingLocked}
                                 style={{
                                     padding: "0.55rem 0.9rem",
                                     borderRadius: "0.5rem",
                                     border: "none",
-                                    background: importing || !importFile ? "#4b5563" : "#1d4ed8",
+                                    background: importing || !importFile || billingLocked ? "#4b5563" : "#1d4ed8",
                                     color: "#e5e7eb",
                                     fontWeight: 600,
-                                    cursor: importing || !importFile ? "default" : "pointer",
+                                    cursor: importing || !importFile || billingLocked ? "default" : "pointer",
                                 }}
                             >
                                 {importing ? "Importing…" : "Import CSV"}
@@ -1155,7 +1199,7 @@ export default function SettingsPage() {
                                     // Show message (could use a toast/notification system if available)
                                 } catch (err: any) {
                                     console.error("Failed to deactivate account", err);
-                                    setDeactivateError(err.message || "Failed to deactivate account");
+                                    setDeactivateError(isBillingLockedError(err) ? "Billing is inactive. Update billing to continue." : err.message || "Failed to deactivate account");
                                     setDeactivating(false);
                                 }
                             }}
@@ -1167,7 +1211,7 @@ export default function SettingsPage() {
                                 background: deactivating || deactivateConfirm !== "DEACTIVATE" ? "#4b5563" : "#dc2626",
                                 color: "#ffffff",
                                 fontWeight: 600,
-                                cursor: deactivating || deactivateConfirm !== "DEACTIVATE" ? "not-allowed" : "pointer",
+                                cursor: deactivating || deactivateConfirm !== "DEACTIVATE" || billingLocked ? "not-allowed" : "pointer",
                             }}
                         >
                             {deactivating ? "Deactivating…" : "Deactivate Shop"}

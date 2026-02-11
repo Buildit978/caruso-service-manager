@@ -22,6 +22,14 @@ export type RoleAccess = {
     techniciansEnabled: boolean;
 };
 
+export type BetaStatus = {
+    isBetaTester: boolean;
+    trialEndsAt: string | null;
+    betaCandidate: boolean;
+    betaCandidateSince: string | null;
+    betaActivation: { workOrdersCreated: number; invoicesCreated: number };
+};
+
 export type SettingsResponse = {
     _id: string;
     shopName: string;
@@ -31,6 +39,7 @@ export type SettingsResponse = {
     permissions: Permissions; // Deprecated but kept for migration
     roleAccess: RoleAccess; // V1 role kill-switch
     shopCode?: string | null; // Account.slug (owner only)
+    betaStatus?: BetaStatus; // Owner/manager only, when account is beta tester or candidate
 };
 
 export type UpdateSettingsPayload = {

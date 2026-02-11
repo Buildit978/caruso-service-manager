@@ -56,11 +56,12 @@ function isValidEmail(email: string): boolean {
  */
 export async function handleRegister(req: Request, res: Response, next: NextFunction) {
   try {
-    const { shopName, ownerName, email, password }: {
+    const { shopName, ownerName, email, password, betaCode }: {
       shopName?: string;
       ownerName?: string;
       email?: string;
       password?: string;
+      betaCode?: string;
     } = req.body;
 
     // Validate required fields
@@ -87,10 +88,19 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
       return res.status(409).json({ message: "Email already registered" });
     }
 
-    // Create Account
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const betaInviteCode = process.env.BETA_INVITE_CODE;
+    const codeMatch = typeof betaCode === "string" && betaInviteCode && betaCode.trim() === betaInviteCode.trim();
+    const betaCandidate = !!codeMatch;
+    const betaCandidateSince = codeMatch ? now : undefined;
+
     const account = await Account.create({
       name: String(shopName).trim(),
       isActive: true,
+      trialEndsAt,
+      isBetaTester: false,
+      ...(betaCandidate ? { betaCandidate: true, betaCandidateSince } : { betaCandidate: false }),
     });
 
     // Hash password

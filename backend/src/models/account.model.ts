@@ -26,6 +26,13 @@ export interface IAccount extends Document {
   billingStatus?: BillingStatus;
   currentPeriodEnd?: Date;
   graceEndsAt?: Date;
+  // Trial
+  trialEndsAt?: Date;
+  isBetaTester?: boolean;
+  betaCandidate?: boolean;
+  betaCandidateSince?: Date;
+  betaActivatedAt?: Date;
+  betaActivation?: { workOrdersCreated?: number; invoicesCreated?: number };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +60,16 @@ const accountSchema = new Schema<IAccount>(
     billingStatus: { type: String, enum: ["active", "past_due", "canceled"], required: false },
     currentPeriodEnd: Date,
     graceEndsAt: Date,
+    // Trial
+    trialEndsAt: Date,
+    isBetaTester: Boolean,
+    betaCandidate: Boolean,
+    betaCandidateSince: Date,
+    betaActivatedAt: Date,
+    betaActivation: {
+      workOrdersCreated: Number,
+      invoicesCreated: Number,
+    },
   },
   {
     timestamps: true,

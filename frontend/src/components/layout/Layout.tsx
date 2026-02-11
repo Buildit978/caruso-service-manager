@@ -8,6 +8,7 @@ import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 import BillingLockBanner from "../common/BillingLockBanner";
 import { getBillingLockState, subscribe as subscribeBillingLock } from "../../state/billingLock";
+import { createCheckoutSession, createPortalSession } from "../../api/billing";
 
 function Layout() {
   const location = useLocation()
@@ -24,8 +25,8 @@ function Layout() {
   // ✅ NEW: fetch server-truth identity (role/account) using x-auth-token
   const { me, loading: meLoading } = useMe()
 
-  // Fetch settings for shop name (technicians may get 403, use fallback)
-  const { shopName, betaStatus } = useSettings()
+  // Fetch settings for shop name and billing (technicians may get 403, use fallback)
+  const { shopName, betaStatus, billingStatus, stripeSubscriptionId } = useSettings()
 
   // Route guard: redirect to /change-password if mustChangePassword is true
   useEffect(() => {
@@ -44,6 +45,24 @@ function Layout() {
   }
 
   const closeDrawer = () => setDrawerOpen(false)
+
+  const hasSubscription =
+    Boolean(stripeSubscriptionId) ||
+    billingStatus === "active" ||
+    billingStatus === "past_due";
+
+  const billingButtonLabel = hasSubscription ? "Manage billing" : "Start subscription";
+
+  async function handleBillingClick() {
+    closeDrawer();
+    if (hasSubscription) {
+      const { url } = await createPortalSession();
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      const { url } = await createCheckoutSession();
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
 
   // ✅ Optional: avoid UI flicker before role is known
   if (meLoading) {
@@ -103,6 +122,8 @@ function Layout() {
     daysLeft !== null &&
     daysLeft > 0;
 
+  const canShowUpgradeButton = !billingLock.billingLocked && isOwner;
+
   const trialTone =
     daysLeft !== null && daysLeft <= 3 ? "urgent" :
     daysLeft !== null && daysLeft <= 7 ? "warning" :
@@ -150,7 +171,7 @@ function Layout() {
           }}>
             Shop Service Manager
           </h1>
-          {shouldShowTrial && (
+          {(shouldShowTrial || canShowUpgradeButton) && (
             <div
               style={{
                 marginTop: "0.5rem",
@@ -165,17 +186,40 @@ function Layout() {
                 gap: "0.6rem",
               }}
             >
-              <div
-                style={{
-                  fontSize: "0.9rem",
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                }}
-              >
-                {daysLeft === 0
-                  ? "Trial ends today"
-                  : `Trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
-              </div>
+              {shouldShowTrial && (
+                <div
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {daysLeft === 0
+                    ? "Trial ends today"
+                    : `Trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
+                </div>
+              )}
+              {canShowUpgradeButton && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleBillingClick();
+                  }}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "#fff",
+                    background: "#1d4ed8",
+                    border: "none",
+                    borderRadius: "0.375rem",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {billingButtonLabel}
+                </button>
+              )}
             </div>
           )}
           {shopName && (

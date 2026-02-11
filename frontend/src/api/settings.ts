@@ -40,6 +40,12 @@ export type SettingsResponse = {
     roleAccess: RoleAccess; // V1 role kill-switch
     shopCode?: string | null; // Account.slug (owner only)
     betaStatus?: BetaStatus; // Owner/manager only, when account is beta tester or candidate
+    billingStatus?: string | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    currentPeriodEnd?: string | null;
+    graceEndsAt?: string | null;
+    trialEndsAt?: string | null;
 };
 
 export type UpdateSettingsPayload = {

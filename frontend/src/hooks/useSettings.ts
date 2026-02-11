@@ -7,6 +7,9 @@ import type { HttpError } from "../api/http";
 export function useSettings() {
   const [shopName, setShopName] = useState<string | null>(null);
   const [betaStatus, setBetaStatus] = useState<BetaStatus | null>(null);
+  const [billingStatus, setBillingStatus] = useState<string | null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
+  const [stripeSubscriptionId, setStripeSubscriptionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,6 +21,9 @@ export function useSettings() {
         if (!isMounted) return;
         setShopName(data.shopName || null);
         setBetaStatus(data.betaStatus ?? null);
+        setBillingStatus(data.billingStatus ?? null);
+        setStripeCustomerId(data.stripeCustomerId ?? null);
+        setStripeSubscriptionId(data.stripeSubscriptionId ?? null);
       } catch (err) {
         // Technicians get 403, others may get network errors
         // Silently fall back to default (no crash)
@@ -29,6 +35,9 @@ export function useSettings() {
           }
           setShopName(null);
           setBetaStatus(null);
+          setBillingStatus(null);
+          setStripeCustomerId(null);
+          setStripeSubscriptionId(null);
         }
       } finally {
         if (isMounted) {
@@ -44,5 +53,5 @@ export function useSettings() {
     };
   }, []);
 
-  return { shopName, betaStatus, loading };
+  return { shopName, betaStatus, billingStatus, stripeCustomerId, stripeSubscriptionId, loading };
 }

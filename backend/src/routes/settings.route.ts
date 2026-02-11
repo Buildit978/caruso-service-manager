@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
         const response: any = settings.toObject();
         if (actor?.role === "owner" || actor?.role === "manager") {
             const account = await Account.findById(accountId)
-                .select("slug isBetaTester trialEndsAt betaCandidate betaCandidateSince betaActivation")
+                .select("slug isBetaTester trialEndsAt betaCandidate betaCandidateSince betaActivation billingStatus stripeCustomerId stripeSubscriptionId currentPeriodEnd graceEndsAt")
                 .lean();
             if (actor?.role === "owner") {
                 response.shopCode = account?.slug ?? null;
@@ -60,6 +60,21 @@ router.get("/", async (req, res) => {
                         invoicesCreated: account.betaActivation?.invoicesCreated ?? 0,
                     },
                 };
+            }
+
+            if (account) {
+                response.billingStatus = account.billingStatus ?? null;
+                response.stripeCustomerId = account.stripeCustomerId ?? null;
+                response.stripeSubscriptionId = account.stripeSubscriptionId ?? null;
+                response.currentPeriodEnd = account.currentPeriodEnd
+                    ? new Date(account.currentPeriodEnd).toISOString()
+                    : null;
+                response.graceEndsAt = account.graceEndsAt
+                    ? new Date(account.graceEndsAt).toISOString()
+                    : null;
+                response.trialEndsAt = account.trialEndsAt
+                    ? new Date(account.trialEndsAt).toISOString()
+                    : null;
             }
         }
         

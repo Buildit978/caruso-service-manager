@@ -7,6 +7,7 @@ import { useMe } from "../../auth/useMe";
 import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 import BillingLockBanner from "../common/BillingLockBanner";
+import { getBillingLockState, subscribe as subscribeBillingLock } from "../../state/billingLock";
 
 function Layout() {
   const location = useLocation()
@@ -14,12 +15,17 @@ function Layout() {
   const { hasAccess } = useSettingsAccess()
   const { customersAccess, vehiclesAccess } = useAccess()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [billingLock, setBillingLock] = useState(getBillingLockState)
+
+  useEffect(() => {
+    return subscribeBillingLock(setBillingLock);
+  }, []);
 
   // ✅ NEW: fetch server-truth identity (role/account) using x-auth-token
   const { me, loading: meLoading } = useMe()
 
   // Fetch settings for shop name (technicians may get 403, use fallback)
-  const { shopName } = useSettings()
+  const { shopName, betaStatus } = useSettings()
 
   // Route guard: redirect to /change-password if mustChangePassword is true
   useEffect(() => {
@@ -67,6 +73,50 @@ function Layout() {
     background: location.pathname === path ? '#1f74d4' : 'transparent',
   })
 
+  function daysLeftFrom(trialEndsAt?: string | null): number | null {
+    if (!trialEndsAt) return null;
+
+    const end = new Date(trialEndsAt);
+    if (Number.isNaN(end.getTime())) return null;
+
+    const now = new Date();
+
+    // Compare by UTC calendar day to avoid timezone jitter
+    const utcToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const utcEndDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+
+    const diffDays = Math.ceil((utcEndDay - utcToday) / (1000 * 60 * 60 * 24));
+
+    // If it’s ended (or ends today), treat as 0 (banner/lock handles expired)
+    return diffDays > 0 ? diffDays : 0;
+  }
+
+  const isOwner = me?.role === "owner";
+  const isManager = me?.role === "manager";
+
+  const trialEndsAt = betaStatus?.trialEndsAt ?? null;
+  const daysLeft = daysLeftFrom(trialEndsAt);
+
+  const shouldShowTrial =
+    !billingLock.billingLocked &&
+    (isOwner || isManager) &&
+    daysLeft !== null &&
+    daysLeft > 0;
+
+  const trialTone =
+    daysLeft !== null && daysLeft <= 3 ? "urgent" :
+    daysLeft !== null && daysLeft <= 7 ? "warning" :
+    "neutral";
+
+  const toneColor =
+    trialTone === "urgent" ? "#fecaca" :
+    trialTone === "warning" ? "#fde68a" :
+    "#e5e7eb";
+
+  const toneBg =
+    trialTone === "urgent" ? "#7f1d1d" :
+    trialTone === "warning" ? "#78350f" :
+    "#111827";
 
   return (
     <div className={`layout-root${drawerOpen ? ' is-drawer-open' : ''}`}>
@@ -100,6 +150,34 @@ function Layout() {
           }}>
             Shop Service Manager
           </h1>
+          {shouldShowTrial && (
+            <div
+              style={{
+                marginTop: "0.5rem",
+                marginBottom: "0.75rem",
+                padding: "0.6rem 0.75rem",
+                borderRadius: "0.375rem",
+                background: "#0f172a",
+                border: "1px solid #4b5563",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.6rem",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                }}
+              >
+                {daysLeft === 0
+                  ? "Trial ends today"
+                  : `Trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
+              </div>
+            </div>
+          )}
           {shopName && (
             <div style={{
               fontSize: '0.75rem',

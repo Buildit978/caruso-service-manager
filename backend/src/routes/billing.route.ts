@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Stripe from "stripe";
 
 import { Account } from "../models/account.model";
@@ -74,6 +75,46 @@ router.post("/checkout-session", async (req: any, res) => {
   }
 });
 
+router.post("/portal-session", async (req: any, res) => {
+  try {
+    const accountId = (req as any).accountId;
+    const actor = (req as any).actor;
+    const appUrl = process.env.APP_URL!;
+
+    if (!accountId || !actor?._id || !actor?.role) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (actor.role !== "owner") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    if (!appUrl) {
+      return res.status(500).json({ message: "Billing not configured (missing APP_URL)" });
+    }
+
+    const account = await Account.findById(accountId).select("stripeCustomerId");
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const stripeCustomerId = account.stripeCustomerId;
+    if (!stripeCustomerId) {
+      return res.status(400).json({ message: "No Stripe customer on file" });
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: `${appUrl}/settings/billing`,
+    });
+
+    return res.json({ url: session.url });
+  } catch (err: any) {
+    console.error("portal-session error", err);
+    return res.status(500).json({ message: "Failed to create billing portal session" });
+  }
+});
+
 function sevenDaysFromNow() {
   const now = new Date();
   now.setDate(now.getDate() + 7);
@@ -99,18 +140,24 @@ async function resolveAccountForSubscription(subscription: {
   customer?: string | { id?: string } | null;
 }): Promise<InstanceType<typeof Account> | null> {
   const raw = subscription as any;
+  const subId = String(subscription.id || "").trim();
+  const customerId =
+    typeof raw.customer === "string"
+      ? raw.customer.trim()
+      : raw.customer?.id
+        ? String(raw.customer.id).trim()
+        : undefined;
+
   const accountId = raw.metadata?.accountId;
   if (accountId) {
     const byId = await Account.findById(accountId);
     if (byId) return byId;
   }
-  const bySub = await Account.findOne({ stripeSubscriptionId: subscription.id });
+  const bySub = await Account.findOne({ stripeSubscriptionId: subId });
   if (bySub) return bySub;
-  const customerId =
-    typeof raw.customer === "string" ? raw.customer : raw.customer?.id;
   if (customerId) {
-    const byCustomer = await Account.findOne({ stripeCustomerId: customerId });
-    if (byCustomer) return byCustomer;
+    const byCustomerDoc = await Account.findOne({ stripeCustomerId: customerId });
+    if (byCustomerDoc) return byCustomerDoc;
   }
   return null;
 }
@@ -118,7 +165,15 @@ async function resolveAccountForSubscription(subscription: {
 async function applyActiveBillingFromSubscription(subscriptionId: string) {
   const subscription = await getSubscriptionById(subscriptionId);
   const account = await resolveAccountForSubscription(subscription);
-  if (!account) return;
+  if (!account) {
+    console.log("[billing] APPLY ACTIVE FAILED: account not resolved", {
+      subscriptionIdParam: subscriptionId,
+      subscriptionIdFromStripe: subscription.id,
+      customer: (subscription as any).customer,
+      metaAccountId: (subscription as any).metadata?.accountId
+    });
+    return;
+  }
 
   const raw = subscription as any;
   account.billingStatus = "active";
@@ -130,6 +185,34 @@ async function applyActiveBillingFromSubscription(subscriptionId: string) {
   if (raw.customer) {
     const customerId = typeof raw.customer === "string" ? raw.customer : raw.customer?.id;
     if (customerId) account.stripeCustomerId = customerId;
+  }
+
+  await account.save();
+}
+
+async function applyActiveBillingFromInvoice(invoice: Stripe.Invoice) {
+  const raw = invoice as any;
+
+  const customerId = typeof raw.customer === "string" ? raw.customer : raw.customer?.id;
+  if (!customerId) return;
+
+  // Resolve account by customer ID
+  const account = await Account.findOne({ stripeCustomerId: String(customerId).trim() });
+  if (!account) {
+    console.log("[billing] APPLY ACTIVE INVOICE FAILED: account not found by customer", { customerId });
+    return;
+  }
+
+  // Determine period end (prefer lines period end, fallback to invoice period_end)
+  const periodEndSec =
+    raw?.lines?.data?.[0]?.period?.end ??
+    raw?.period_end;
+
+  account.billingStatus = "active";
+  account.graceEndsAt = undefined;
+
+  if (periodEndSec) {
+    account.currentPeriodEnd = new Date(periodEndSec * 1000);
   }
 
   await account.save();
@@ -207,7 +290,7 @@ export const billingWebhookHandler = async (req: express.Request, res: express.R
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const accountId = session.metadata?.accountId;
+        const accountId = session.metadata?.accountId || session.client_reference_id;
         if (accountId) {
           const account = await Account.findById(accountId);
           if (account) {
@@ -222,6 +305,9 @@ export const billingWebhookHandler = async (req: express.Request, res: express.R
               account.stripeSubscriptionId = subscriptionId;
             }
             await account.save();
+            if (subscriptionId) {
+              await applyActiveBillingFromSubscription(subscriptionId);
+            }
           }
         }
         break;
@@ -229,10 +315,7 @@ export const billingWebhookHandler = async (req: express.Request, res: express.R
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = getSubscriptionIdFromInvoice(invoice);
-        if (subscriptionId) {
-          await applyActiveBillingFromSubscription(subscriptionId);
-        }
+        await applyActiveBillingFromInvoice(invoice);
         break;
       }
 

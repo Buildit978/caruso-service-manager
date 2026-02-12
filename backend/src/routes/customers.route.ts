@@ -6,7 +6,7 @@ import { Customer } from '../models/customer.model';  // 👈 named import
 import { Vehicle } from '../models/vehicle.model';
 import { WorkOrder } from '../models/workOrder.model';
 import { requireRole } from '../middleware/requireRole';
-import { requireBillingActive } from '../middleware/requireBillingActive';
+import { requireActiveBilling } from '../middleware/requireBillingActive';
 import { sanitizeCustomerForActor, sanitizeCustomersForActor } from '../utils/customerRedaction';
 import { trackEvent } from '../utils/trackEvent';
 
@@ -196,7 +196,7 @@ router.get(
 // POST /api/customers/import (owner only)
 router.post(
   "/import",
-  requireBillingActive,
+  requireActiveBilling,
   requireRole(["owner"]),
   upload.single("file"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -469,7 +469,7 @@ router.post(
 
 
 // POST /api/customers (owner/manager only)
-router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', requireActiveBilling, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
     try {
 
          const accountId = req.accountId;
@@ -491,7 +491,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 
         trackEvent({
           req,
-          type: "customer_created",
+          type: "customer.created",
           entity: { kind: "customer", id: customer._id },
         });
 
@@ -505,7 +505,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 // POST /api/customers/:id/vehicles (owner/manager only)
             router.post(
             "/:id/vehicles",
-            requireBillingActive,
+            requireActiveBilling,
             requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
@@ -548,7 +548,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 // PATCH /api/customers/:customerId/vehicles/:vehicleId (owner/manager only)
             router.patch(
             "/:customerId/vehicles/:vehicleId",
-            requireBillingActive,
+            requireActiveBilling,
             requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
@@ -585,7 +585,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 // DELETE /api/customers/:customerId/vehicles/:vehicleId (owner/manager only)
             router.delete(
             "/:customerId/vehicles/:vehicleId",
-            requireBillingActive,
+            requireActiveBilling,
             requireRole(["owner", "manager"]),
             async (req: Request, res: Response, next: NextFunction) => {
                 try {
@@ -616,7 +616,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 
 
 // PUT /api/customers/:id (owner/manager only)
-            router.put("/:id", requireBillingActive, requireRole(["owner", "manager"]), async (req, res, next) => {
+            router.put("/:id", requireActiveBilling, requireRole(["owner", "manager"]), async (req, res, next) => {
             try {
                 const accountId = req.accountId;
                 if (!accountId) {
@@ -643,7 +643,7 @@ router.post('/', requireBillingActive, requireRole(["owner", "manager"]), async 
 
 
 // DELETE /api/customers/:id (owner/manager only)
-            router.delete("/:id", requireBillingActive, requireRole(["owner", "manager"]), async (req, res, next) => {
+            router.delete("/:id", requireActiveBilling, requireRole(["owner", "manager"]), async (req, res, next) => {
             try {
                 const accountId = req.accountId;
                 if (!accountId) {

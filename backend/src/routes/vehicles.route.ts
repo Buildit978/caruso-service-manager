@@ -5,7 +5,8 @@ import { Vehicle } from "../models/vehicle.model";
 import { Types } from "mongoose";
 import { Customer } from "../models/customer.model";
 import { requireRole } from "../middleware/requireRole";
-import { requireBillingActive } from "../middleware/requireBillingActive";
+import { requireActiveBilling } from "../middleware/requireBillingActive";
+import { trackEvent } from "../utils/trackEvent";
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.get("/", requireRole(["owner", "manager"]), async (req: Request, res: Res
  * POST /api/vehicles (owner/manager only)
  * Creates a new vehicle for a customer
  */
-router.post("/", requireBillingActive, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", requireActiveBilling, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = getAccountId(req);
     if (!accountId) {
@@ -128,6 +129,13 @@ router.post("/", requireBillingActive, requireRole(["owner", "manager"]), async 
       currentOdometer,
     });
 
+    trackEvent({
+      req,
+      type: "vehicle.created",
+      entity: { kind: "customer", id: customerId },
+      meta: { vehicleId: vehicle._id },
+    });
+
     console.log("[POST /api/vehicles] created", vehicle._id);
 
     return res.status(201).json(vehicle);
@@ -165,7 +173,7 @@ router.get("/:id", requireRole(["owner", "manager"]), async (req: Request, res: 
  * PATCH /api/vehicles/:id  (owner/manager only)
  * Updates an existing vehicle (whitelisted fields only)
  */
-router.patch("/:id", requireBillingActive, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:id", requireActiveBilling, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
     if (!accountId) {
@@ -239,7 +247,7 @@ router.patch("/:id", requireBillingActive, requireRole(["owner", "manager"]), as
  * DELETE /api/vehicles/:id  (owner/manager only)
  * Deletes a vehicle scoped to the account
  */
-router.delete("/:id", requireBillingActive, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/:id", requireActiveBilling, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const accountId = req.accountId;
     if (!accountId) {

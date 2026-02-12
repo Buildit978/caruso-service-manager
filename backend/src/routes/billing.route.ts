@@ -9,6 +9,109 @@ const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+// GET /api/billing/status
+router.get("/status", async (req: any, res) => {
+  try {
+    const accountId = (req as any).accountId;
+    if (!accountId) {
+      return res.status(400).json({ message: "Missing accountId" });
+    }
+
+    const account = await Account.findById(accountId)
+      .select("billingStatus currentPeriodEnd graceEndsAt trialEndsAt")
+      .lean();
+
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const now = new Date();
+
+    const billingStatus = account.billingStatus ?? null;
+    const trialEndsAtDate = account.trialEndsAt
+      ? new Date(account.trialEndsAt)
+      : null;
+    const graceEndsAtDate = account.graceEndsAt
+      ? new Date(account.graceEndsAt)
+      : null;
+    const currentPeriodEndDate = account.currentPeriodEnd
+      ? new Date(account.currentPeriodEnd)
+      : null;
+
+    let locked = false;
+    let reason: "active" | "trial" | "grace" | "locked" = "locked";
+    let lockDate: Date | null = null;
+
+    // 1) Active and safely within current period → fully unlocked
+    if (
+      billingStatus === "active" &&
+      currentPeriodEndDate &&
+      currentPeriodEndDate > now
+    ) {
+      locked = false;
+      reason = "active";
+      lockDate = null;
+    } else {
+      // 2) Trial window
+      if (trialEndsAtDate && trialEndsAtDate > now) {
+        locked = false;
+        reason = "trial";
+        lockDate = trialEndsAtDate;
+      }
+      // 3) Past-due grace window
+      else if (
+        billingStatus === "past_due" &&
+        graceEndsAtDate &&
+        graceEndsAtDate > now
+      ) {
+        locked = false;
+        reason = "grace";
+        lockDate = graceEndsAtDate;
+      } else {
+        // 4) Fully locked
+        locked = true;
+        reason = "locked";
+        lockDate = null;
+      }
+    }
+
+    let daysUntilLock: number | null = null;
+    if (lockDate) {
+      const msDiff = lockDate.getTime() - now.getTime();
+      daysUntilLock = Math.ceil(msDiff / 86_400_000);
+    }
+
+    let warning: "7_day" | "3_day" | null = null;
+    if (!locked && daysUntilLock !== null) {
+      if (daysUntilLock <= 3) {
+        warning = "3_day";
+      } else if (daysUntilLock <= 7) {
+        warning = "7_day";
+      }
+    }
+
+    const showBillingCta = locked || warning !== null;
+
+    return res.json({
+      locked,
+      reason,
+      lockDate: lockDate ? lockDate.toISOString() : null,
+      daysUntilLock,
+      warning,
+      showBillingCta,
+      billingStatus,
+      trialEndsAt: trialEndsAtDate ? trialEndsAtDate.toISOString() : null,
+      graceEndsAt: graceEndsAtDate ? graceEndsAtDate.toISOString() : null,
+      currentPeriodEnd: currentPeriodEndDate
+        ? currentPeriodEndDate.toISOString()
+        : null,
+    });
+  } catch (err: any) {
+    console.error("[GET /api/billing/status] error", err);
+    return res.status(500).json({ message: "Failed to compute billing status" });
+  }
+});
+
 router.post("/checkout-session", async (req: any, res) => {
   try {
     const priceId = process.env.STRIPE_PRICE_ID!;

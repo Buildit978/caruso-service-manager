@@ -10,7 +10,7 @@ import workOrderMessagesRouter from "./workOrderMessages.route";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
 import { trackEvent } from "../utils/trackEvent";
 import { requireRole } from "../middleware/requireRole";
-import { requireBillingActive } from "../middleware/requireBillingActive";
+import { requireActiveBilling } from "../middleware/requireBillingActive";
 import { trackBetaWorkOrderCreated } from "../domain/billing/tryPromoteBetaCandidate";
 
 
@@ -377,7 +377,7 @@ return res.json(result);
 
 
     // POST /api/work-orders
-    router.post("/", requireBillingActive, async (req: Request, res: Response, next: NextFunction) => {
+    router.post("/", requireActiveBilling, async (req: Request, res: Response, next: NextFunction) => {
       try {
         const accountId = req.accountId;
         if (!accountId) return res.status(400).json({ message: "Missing accountId" });
@@ -456,7 +456,7 @@ return res.json(result);
 
         trackEvent({
           req,
-          type: "work_order_created",
+          type: "workorder.created",
           entity: { kind: "work_order", id: workOrder._id },
           meta: { status: workOrder.status },
         });
@@ -474,7 +474,7 @@ return res.json(result);
     // PUT /api/work-orders/:id
     router.put(
       "/:id",
-      requireBillingActive,
+      requireActiveBilling,
       async (req: Request, res: Response, next: NextFunction) => {
         try {
           const accountId = req.accountId;
@@ -553,6 +553,14 @@ return res.json(result);
 
           // 6) Save and return the full work order
           const saved = await workOrder.save();
+
+          trackEvent({
+            req,
+            type: "workorder.updated",
+            entity: { kind: "work_order", id: saved._id },
+            meta: { status: saved.status },
+          });
+
           res.json(saved);
         } catch (err) {
           next(err);
@@ -567,7 +575,7 @@ return res.json(result);
      */
     // PATCH /api/work-orders/:id
     // Safe patch: whitelist + lifecycle + totals recalculation + runs schema hooks via save()
-    router.patch("/:id", requireBillingActive, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
+    router.patch("/:id", requireActiveBilling, requireRole(["owner", "manager"]), async (req: Request, res: Response, next: NextFunction) => {
       try {
         const accountId = req.accountId;
         if (!accountId) return res.status(400).json({ message: "Missing accountId" });
@@ -663,6 +671,13 @@ return res.json(result);
 
         await workOrder.save();
 
+        trackEvent({
+          req,
+          type: "workorder.updated",
+          entity: { kind: "work_order", id: workOrder._id },
+          meta: { status: workOrder.status },
+        });
+
         const nextStatus = workOrder.status;
 
         // ----------------------------
@@ -707,7 +722,7 @@ return res.json(result);
      */
     router.patch(
       "/:id/status",
-      requireBillingActive,
+      requireActiveBilling,
       async (req: Request, res: Response, next: NextFunction) => {
         try {
           const accountId = req.accountId;
@@ -837,7 +852,7 @@ return res.json(result);
     // DELETE /api/work-orders/:id (owner/manager only)
     router.delete(
       "/:id",
-      requireBillingActive,
+      requireActiveBilling,
       requireRole(["owner", "manager"]),
       async (req: Request, res: Response, next: NextFunction) => {
         try {

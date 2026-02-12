@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
-import { getBillingLockState, subscribe } from "../../state/billingLock";
 import { useMe } from "../../auth/useMe";
-import { createCheckoutSession, createPortalSession } from "../../api/billing";
+import {
+  createCheckoutSession,
+  createPortalSession,
+  getBillingStatus,
+  type BillingStatusResponse,
+} from "../../api/billing";
 
 function formatGraceEndsAt(graceEndsAt: string | null | undefined): string {
   if (!graceEndsAt) return "";
@@ -13,56 +17,66 @@ function formatGraceEndsAt(graceEndsAt: string | null | undefined): string {
   }
 }
 
-function isGraceInFuture(graceEndsAt: string | null | undefined): boolean {
-  if (!graceEndsAt) return false;
-  try {
-    const d = new Date(graceEndsAt);
-    return !Number.isNaN(d.getTime()) && d.getTime() > Date.now();
-  } catch {
-    return false;
-  }
-}
-
 export default function BillingLockBanner() {
-  const [state, setState] = useState(getBillingLockState);
+  const [status, setStatus] = useState<BillingStatusResponse | null>(null);
   const { me } = useMe();
 
   useEffect(() => {
-    return subscribe(setState);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const s = await getBillingStatus();
+        if (!cancelled) {
+          setStatus(s);
+        }
+      } catch {
+        if (!cancelled) {
+          setStatus(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (!state.billingLocked) return null;
+  if (!status) return null;
+  if (!status.locked && !status.warning) return null;
 
   const isOwner = me?.role === "owner";
-  const { details } = state;
-  const graceEndsAt = details.graceEndsAt ?? undefined;
-  const inGrace = isGraceInFuture(graceEndsAt);
-  const formattedDate = formatGraceEndsAt(graceEndsAt);
-  const trialEndsAtRaw = (details as any).trialEndsAt as string | null | undefined;
-  let trialEnded = false;
-  if (trialEndsAtRaw) {
-    try {
-      const d = new Date(trialEndsAtRaw);
-      if (!Number.isNaN(d.getTime())) {
-        const now = new Date();
-        const utcToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-        const utcEndDay = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-        trialEnded = utcEndDay <= utcToday;
-      }
-    } catch {
-      trialEnded = false;
-    }
-  }
+  const formattedLockDate = formatGraceEndsAt(status.lockDate);
 
-  const message = isOwner
-    ? trialEnded
-      ? "Your trial has ended. Activate a plan to continue."
-      : inGrace && formattedDate
-        ? `Payment failed. You have until ${formattedDate} to update billing to avoid interruption.`
-        : "Billing is inactive. Update billing to continue."
-    : trialEnded
-      ? "Trial has ended. Please contact the account owner to activate billing."
-      : "Billing is inactive. Please contact the account owner.";
+  let message: string;
+  if (status.locked) {
+    if (isOwner) {
+      message =
+        status.reason === "trial"
+          ? "Your trial has ended. Activate a plan to continue."
+          : "Billing is inactive. Update billing to continue.";
+    } else {
+      message =
+        status.reason === "trial"
+          ? "Trial has ended. Please contact the account owner to activate billing."
+          : "Billing is inactive. Please contact the account owner.";
+    }
+  } else if (status.warning) {
+    const base =
+      status.warning === "3_day"
+        ? "Your billing will lock soon."
+        : "Your billing will lock in the coming days.";
+    if (isOwner) {
+      message =
+        formattedLockDate && status.daysUntilLock != null
+          ? `${base} You have until ${formattedLockDate} (${status.daysUntilLock} days) to update billing to avoid interruption.`
+          : `${base} Update billing to avoid interruption.`;
+    } else {
+      message =
+        base +
+        " Please contact the account owner to ensure billing is updated to avoid interruption.";
+    }
+  } else {
+    return null;
+  }
 
   async function handleBillingClick() {
     try {
@@ -96,7 +110,7 @@ export default function BillingLockBanner() {
       }}
     >
       <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>{message}</span>
-      {isOwner && (
+      {isOwner && status.showBillingCta && (
         <button
           type="button"
           onClick={() => {

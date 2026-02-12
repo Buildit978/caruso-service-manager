@@ -8,4 +8,22 @@ export async function createPortalSession(): Promise<{ url: string }> {
   return http<{ url: string }>("/billing/portal-session", { method: "POST" });
 }
 
+export type BillingStatusWarning = "7_day" | "3_day" | null;
+
+export interface BillingStatusResponse {
+  locked: boolean;
+  reason: "active" | "trial" | "grace" | "locked";
+  lockDate: string | null;
+  daysUntilLock: number | null;
+  warning: BillingStatusWarning;
+  showBillingCta: boolean;
+  billingStatus: string | null;
+  trialEndsAt: string | null;
+  graceEndsAt: string | null;
+  currentPeriodEnd: string | null;
+}
+
+export async function getBillingStatus(): Promise<BillingStatusResponse> {
+  return http<BillingStatusResponse>("/billing/status", { method: "GET" });
+}
 

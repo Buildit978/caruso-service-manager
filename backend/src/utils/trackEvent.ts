@@ -16,6 +16,11 @@ export interface TrackEventParams {
   meta?: Record<string, any>;
 }
 
+/**
+ * Fail-open event tracking utility.
+ * Never throws - logs errors but allows app flow to continue.
+ * Uses accountId scoping and actor user id when available.
+ */
 export async function trackEvent({
   req,
   type,
@@ -48,7 +53,13 @@ export async function trackEvent({
       entity,
       meta,
     });
-  } catch {
-    // Swallow; analytics must not block app flows.
+  } catch (err) {
+    // Fail-open: log but never throw - analytics must not block app flows.
+    console.error("[trackEvent] Failed to track event:", {
+      type,
+      accountId: (req as any).accountId,
+      actorId: (req as any).actor?._id,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

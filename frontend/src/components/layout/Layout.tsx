@@ -7,8 +7,7 @@ import { useMe } from "../../auth/useMe";
 import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 import BillingLockBanner from "../common/BillingLockBanner";
-import { getBillingLockState, subscribe as subscribeBillingLock } from "../../state/billingLock";
-import { createCheckoutSession, createPortalSession } from "../../api/billing";
+import { createCheckoutSession, createPortalSession, getBillingStatus, type BillingStatusResponse } from "../../api/billing";
 
 function Layout() {
   const location = useLocation()
@@ -16,17 +15,32 @@ function Layout() {
   const { hasAccess } = useSettingsAccess()
   const { customersAccess, vehiclesAccess } = useAccess()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [billingLock, setBillingLock] = useState(getBillingLockState)
+  const [billingStatusInfo, setBillingStatusInfo] = useState<BillingStatusResponse | null>(null)
 
   useEffect(() => {
-    return subscribeBillingLock(setBillingLock);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const s = await getBillingStatus();
+        if (!cancelled) {
+          setBillingStatusInfo(s);
+        }
+      } catch {
+        if (!cancelled) {
+          setBillingStatusInfo(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ✅ NEW: fetch server-truth identity (role/account) using x-auth-token
   const { me, loading: meLoading } = useMe()
 
-  // Fetch settings for shop name and billing (technicians may get 403, use fallback)
-  const { shopName, betaStatus, billingStatus, stripeSubscriptionId } = useSettings()
+  // Fetch settings for shop name and subscription flags (technicians may get 403, use fallback)
+  const { shopName, billingStatus: settingsBillingStatus, stripeSubscriptionId } = useSettings()
 
   // Route guard: redirect to /change-password if mustChangePassword is true
   useEffect(() => {
@@ -48,8 +62,8 @@ function Layout() {
 
   const hasSubscription =
     Boolean(stripeSubscriptionId) ||
-    billingStatus === "active" ||
-    billingStatus === "past_due";
+    settingsBillingStatus === "active" ||
+    settingsBillingStatus === "past_due";
 
   const billingButtonLabel = hasSubscription ? "Manage billing" : "Start subscription";
 
@@ -92,37 +106,20 @@ function Layout() {
     background: location.pathname === path ? '#1f74d4' : 'transparent',
   })
 
-  function daysLeftFrom(trialEndsAt?: string | null): number | null {
-    if (!trialEndsAt) return null;
-
-    const end = new Date(trialEndsAt);
-    if (Number.isNaN(end.getTime())) return null;
-
-    const now = new Date();
-
-    // Compare by UTC calendar day to avoid timezone jitter
-    const utcToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const utcEndDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
-
-    const diffDays = Math.ceil((utcEndDay - utcToday) / (1000 * 60 * 60 * 24));
-
-    // If it’s ended (or ends today), treat as 0 (banner/lock handles expired)
-    return diffDays > 0 ? diffDays : 0;
-  }
-
   const isOwner = me?.role === "owner";
   const isManager = me?.role === "manager";
 
-  const trialEndsAt = betaStatus?.trialEndsAt ?? null;
-  const daysLeft = daysLeftFrom(trialEndsAt);
+  const daysLeft = billingStatusInfo?.daysUntilLock ?? null;
+  const inTrial = billingStatusInfo?.reason === "trial";
 
   const shouldShowTrial =
-    !billingLock.billingLocked &&
+    !billingStatusInfo?.locked &&
+    inTrial &&
     (isOwner || isManager) &&
     daysLeft !== null &&
     daysLeft > 0;
 
-  const canShowUpgradeButton = !billingLock.billingLocked && isOwner;
+  const canShowUpgradeButton = Boolean(billingStatusInfo?.showBillingCta) && isOwner;
 
   return (
     <div className={`layout-root${drawerOpen ? ' is-drawer-open' : ''}`}>

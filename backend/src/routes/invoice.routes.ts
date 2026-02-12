@@ -14,7 +14,7 @@ import { requireRole } from "../middleware/requireRole";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
 import { trackEvent } from "../utils/trackEvent";
 import { Settings } from "../models/settings.model";
-import { requireBillingActive } from "../middleware/requireBillingActive";
+import { requireActiveBilling } from "../middleware/requireBillingActive";
 import { trackBetaInvoiceCreated } from "../domain/billing/tryPromoteBetaCandidate";
 
 const router = Router();
@@ -351,7 +351,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/invoices/from-work-order/:workOrderId
 router.post(
   "/from-work-order/:workOrderId",
-  requireBillingActive,
+  requireActiveBilling,
   async (req: Request, res: Response) => {
     try {
       const accountId = req.accountId;
@@ -561,7 +561,7 @@ router.post(
 
       trackEvent({
         req,
-        type: "invoice_created",
+        type: "invoice.created",
         entity: { kind: "invoice", id: invoice._id },
         meta: { fromWorkOrder: workOrder._id },
       });
@@ -601,7 +601,7 @@ router.post(
 // POST /api/invoices/:id/send
 router.post(
   "/:id/send",
-  requireBillingActive,
+  requireActiveBilling,
   requireInvoiceNotPaid,
   async (req, res, next) => {
   try {
@@ -625,7 +625,7 @@ router.post(
 
     trackEvent({
       req,
-      type: "invoice_marked_sent",
+      type: "invoice.sent",
       entity: { kind: "invoice", id: invoice._id },
     });
 
@@ -640,7 +640,7 @@ router.post(
 
 
 // POST /api/invoices/:id/pay
-router.post("/:id/pay", requireBillingActive, async (req, res, next) => {
+router.post("/:id/pay", requireActiveBilling, async (req, res, next) => {
   try {
     const accountId = req.accountId;
     const { id } = req.params;
@@ -735,7 +735,7 @@ router.post("/:id/pay", requireBillingActive, async (req, res, next) => {
 // POST /api/invoices/:id/void
 router.post(
   "/:id/void",
-  requireBillingActive,
+  requireActiveBilling,
   requireInvoiceNotPaid,
   async (req, res, next) => {
   try {
@@ -785,7 +785,7 @@ router.post(
 
 
 // POST /api/invoices/:id/email
-router.post("/:id/email", requireBillingActive, async (req, res) => {
+router.post("/:id/email", requireActiveBilling, async (req, res) => {
   let stage = "start";
   try {
     const accountId = req.accountId;
@@ -975,7 +975,7 @@ router.get("/:id/pdf", async (req, res, next) => {
 // PATCH /api/invoices/:id
 router.patch(
   "/:id",
-  requireBillingActive,
+  requireActiveBilling,
   requireInvoiceEditable,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -1056,7 +1056,7 @@ router.patch(
 // PATCH /api/invoices/:id/status
 router.patch(
   "/:id/status",
-  requireBillingActive,
+  requireActiveBilling,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const accountId = req.accountId;

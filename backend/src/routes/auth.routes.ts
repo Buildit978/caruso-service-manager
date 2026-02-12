@@ -89,11 +89,18 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
     }
 
     const now = new Date();
-    const trialEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const betaInviteCode = process.env.BETA_INVITE_CODE;
-    const codeMatch = typeof betaCode === "string" && betaInviteCode && betaCode.trim() === betaInviteCode.trim();
+    const codeMatch =
+      typeof betaCode === "string" &&
+      betaInviteCode &&
+      betaCode.trim() === betaInviteCode.trim();
     const betaCandidate = !!codeMatch;
     const betaCandidateSince = codeMatch ? now : undefined;
+
+    const trialDays = betaCandidate ? 60 : 30;
+    const trialEndsAt = new Date(
+      now.getTime() + trialDays * 24 * 60 * 60 * 1000
+    );
 
     const account = await Account.create({
       name: String(shopName).trim(),

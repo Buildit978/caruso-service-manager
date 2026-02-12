@@ -68,3 +68,16 @@ export async function requireBillingActive(
     trialEndsAt: trialEndsAt ? new Date(trialEndsAt).toISOString() : null,
   });
 }
+
+/**
+ * Alias for requireBillingActive.
+ * V1 keeps behavior identical while giving routes a clearer name.
+ */
+export async function requireActiveBilling(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  return requireBillingActive(req, res, next);
+}
+

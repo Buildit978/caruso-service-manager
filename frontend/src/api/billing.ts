@@ -10,6 +10,8 @@ export async function createPortalSession(): Promise<{ url: string }> {
 
 export type BillingStatusWarning = "7_day" | "3_day" | null;
 
+export type BillingLockedContext = "trial_ended" | "payment_required" | "past_due_ended";
+
 export interface BillingStatusResponse {
   locked: boolean;
   reason: "active" | "trial" | "grace" | "locked";
@@ -17,6 +19,7 @@ export interface BillingStatusResponse {
   daysUntilLock: number | null;
   warning: BillingStatusWarning;
   showBillingCta: boolean;
+  lockedContext: BillingLockedContext | null;
   billingStatus: string | null;
   trialEndsAt: string | null;
   graceEndsAt: string | null;

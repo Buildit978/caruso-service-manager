@@ -90,7 +90,21 @@ router.get("/status", async (req: any, res) => {
       }
     }
 
-    const showBillingCta = locked || warning !== null;
+    // Compute lockedContext ONLY when locked === true
+    let lockedContext: "trial_ended" | "payment_required" | "past_due_ended" | null = null;
+    if (locked) {
+      if (trialEndsAtDate && trialEndsAtDate <= now) {
+        lockedContext = "trial_ended";
+      } else if (billingStatus === "past_due") {
+        lockedContext = "past_due_ended";
+      } else if (billingStatus === "active") {
+        lockedContext = "payment_required";
+      } else {
+        lockedContext = "payment_required";
+      }
+    }
+
+    const showBillingCta = locked || warning !== null || reason === "grace";
 
     return res.json({
       locked,
@@ -99,6 +113,7 @@ router.get("/status", async (req: any, res) => {
       daysUntilLock,
       warning,
       showBillingCta,
+      lockedContext,
       billingStatus,
       trialEndsAt: trialEndsAtDate ? trialEndsAtDate.toISOString() : null,
       graceEndsAt: graceEndsAtDate ? graceEndsAtDate.toISOString() : null,

@@ -23,6 +23,7 @@ import { exportCustomers, importCustomers, type ImportSummary } from "../api/cus
 import { updateMe } from "../api/users";
 import { clearToken } from "../api/http";
 import { useNavigate } from "react-router-dom";
+import { getBillingStatus, createCheckoutSession, createPortalSession, type BillingStatusResponse } from "../api/billing";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -65,6 +66,10 @@ export default function SettingsPage() {
         return subscribe((s) => setBillingLocked(s.billingLocked));
     }, []);
     const navigate = useNavigate();
+
+    // Billing status state
+    const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
+    const [loadingBillingStatus, setLoadingBillingStatus] = useState(true);
 
     useEffect(() => {
         if (me) setDisplayNameDraft(me.displayName ?? "");
@@ -146,6 +151,34 @@ export default function SettingsPage() {
             isMounted = false;
         };
     }, []);
+
+    // Load billing status
+    useEffect(() => {
+        let isMounted = true;
+        async function loadBillingStatus() {
+            try {
+                const status = await getBillingStatus();
+                if (isMounted) {
+                    setBillingStatus(status);
+                }
+            } catch (err) {
+                console.error("Failed to load billing status", err);
+                if (isMounted) {
+                    setBillingStatus(null);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoadingBillingStatus(false);
+                }
+            }
+        }
+        if ((me?.role === "owner" || me?.role === "manager")) {
+            loadBillingStatus();
+        }
+        return () => {
+            isMounted = false;
+        };
+    }, [me?.role]);
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
@@ -772,42 +805,117 @@ export default function SettingsPage() {
             </form>
                 </div>
 
-            {/* Beta Status — owner/manager only, read-only */}
-            {(me?.role === "owner" || me?.role === "manager") && settings?.betaStatus && (
+            {/* Payment — owner/manager only */}
+            {(me?.role === "owner" || me?.role === "manager") && (
                 <div className="settings-card" style={{ margin: 0 }}>
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
-                        Beta Status
+                        Payment
                     </h2>
-                    {settings.betaStatus.isBetaTester ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.95rem" }}>
-                            <div style={{ fontWeight: 600, color: "#e5e7eb" }}>Beta Tester</div>
-                            {settings.betaStatus.trialEndsAt && (
-                                <div style={{ color: "#9ca3af" }}>
-                                    Trial ends: {new Date(settings.betaStatus.trialEndsAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                    {loadingBillingStatus ? (
+                        <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Loading billing status…</div>
+                    ) : billingStatus ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                            {/* Status message */}
+                            {billingStatus.locked ? (
+                                <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#451a1a", border: "1px solid #7f1d1d" }}>
+                                    <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
+                                        Billing is inactive
+                                    </div>
+                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                        {billingStatus.lockedContext === "trial_ended"
+                                            ? "Your trial has ended. Update billing to continue."
+                                            : "Update billing to continue."}
+                                    </div>
                                 </div>
+                            ) : billingStatus.warning ? (
+                                <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#451a1a", border: "1px solid #7f1d1d" }}>
+                                    <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
+                                        {billingStatus.warning === "3_day" ? "Billing will lock soon" : "Billing will lock in the coming days"}
+                                    </div>
+                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                        {billingStatus.daysUntilLock !== null 
+                                            ? `You have ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} to update billing to avoid interruption.`
+                                            : "Update billing to avoid interruption."}
+                                    </div>
+                                </div>
+                            ) : billingStatus.reason === "active" ? (
+                                <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#1a451a", border: "1px solid #1d7f1d" }}>
+                                    <div style={{ fontWeight: 600, color: "#cafeca", marginBottom: "0.5rem" }}>
+                                        Billing is active
+                                    </div>
+                                    <div style={{ fontSize: "0.9rem", color: "#cafeca" }}>
+                                        Your subscription is active and up to date.
+                                    </div>
+                                </div>
+                            ) : billingStatus.reason === "trial" ? (
+                                <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#1a451a", border: "1px solid #1d7f1d" }}>
+                                    <div style={{ fontWeight: 600, color: "#cafeca", marginBottom: "0.5rem" }}>
+                                        Trial active
+                                    </div>
+                                    <div style={{ fontSize: "0.9rem", color: "#cafeca" }}>
+                                        {billingStatus.daysUntilLock !== null 
+                                            ? `Your trial has ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} remaining.`
+                                            : "Your trial is active."}
+                                    </div>
+                                </div>
+                            ) : billingStatus.reason === "grace" ? (
+                                <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#451a1a", border: "1px solid #7f1d1d" }}>
+                                    <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
+                                        Grace period active
+                                    </div>
+                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                        {billingStatus.daysUntilLock !== null 
+                                            ? `You have ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} remaining in your grace period.`
+                                            : "Your subscription is past due. Update billing to continue."}
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {/* Billing CTA button */}
+                            {billingStatus.showBillingCta && isOwner && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const { url } = await createPortalSession();
+                                            if (url) {
+                                                window.open(url, "_blank", "noopener,noreferrer");
+                                            }
+                                        } catch (err: any) {
+                                            if (err?.status === 400) {
+                                                try {
+                                                    const { url } = await createCheckoutSession();
+                                                    if (url) {
+                                                        window.open(url, "_blank", "noopener,noreferrer");
+                                                    }
+                                                } catch (checkoutErr) {
+                                                    console.error("Failed to create checkout session", checkoutErr);
+                                                    setError("Could not open billing. Please try again.");
+                                                }
+                                            } else {
+                                                console.error("Failed to create portal session", err);
+                                                setError("Could not open billing. Please try again.");
+                                            }
+                                        }
+                                    }}
+                                    style={{
+                                        alignSelf: "flex-start",
+                                        padding: "0.55rem 0.9rem",
+                                        borderRadius: "0.5rem",
+                                        border: "none",
+                                        background: "#1d4ed8",
+                                        color: "#e5e7eb",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Update billing
+                                </button>
                             )}
                         </div>
-                    ) : settings.betaStatus.betaCandidate ? (
-                        (() => {
-                            const since = settings.betaStatus.betaCandidateSince ? new Date(settings.betaStatus.betaCandidateSince) : null;
-                            const windowEndMs = since ? since.getTime() + 7 * 24 * 60 * 60 * 1000 : 0;
-                            const remainingMs = windowEndMs - Date.now();
-                            const daysLeft = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
-                            const wo = settings.betaStatus.betaActivation.workOrdersCreated;
-                            const inv = settings.betaStatus.betaActivation.invoicesCreated;
-                            return (
-                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.95rem" }}>
-                                    <div style={{ fontWeight: 600, color: "#e5e7eb" }}>Beta qualification in progress</div>
-                                    <div style={{ color: "#9ca3af" }}>
-                                        Work orders: {wo} / 3 · Invoices: {inv} / 3
-                                    </div>
-                                    <div style={{ color: "#9ca3af" }}>
-                                        {daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining in qualification window
-                                    </div>
-                                </div>
-                            );
-                        })()
-                    ) : null}
+                    ) : (
+                        <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Unable to load billing status.</div>
+                    )}
                 </div>
             )}
 

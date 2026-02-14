@@ -300,14 +300,18 @@ async function applyActiveBillingFromSubscription(subscriptionId: string) {
       : typeof raw.customer === "string"
         ? raw.customer
         : raw.customer?.id;
-  const periodEndDate = raw.current_period_end ? new Date(raw.current_period_end * 1000) : undefined;
+  const periodEndSec =
+    raw.current_period_end ??
+    raw.items?.data?.[0]?.current_period_end ??
+    raw.items?.data?.[0]?.period?.end;
+  const periodEnd = periodEndSec ? new Date(periodEndSec * 1000) : null;
 
   const set: Record<string, unknown> = {
     billingStatus: "active",
     stripeSubscriptionId: subscription.id,
   };
   if (customerId) set.stripeCustomerId = String(customerId).trim();
-  if (periodEndDate) set.currentPeriodEnd = periodEndDate;
+  if (periodEnd) set.currentPeriodEnd = periodEnd;
 
   const unset: Record<string, 1> = { trialEndsAt: 1, graceEndsAt: 1 };
 
@@ -316,7 +320,7 @@ async function applyActiveBillingFromSubscription(subscriptionId: string) {
   console.log("[billing] applyActiveBillingFromSubscription", {
     accountId: account._id.toString(),
     subscriptionId,
-    currentPeriodEnd: periodEndDate ? periodEndDate.toISOString() : null,
+    currentPeriodEnd: periodEnd ? periodEnd.toISOString() : null,
   });
 }
 

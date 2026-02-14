@@ -33,6 +33,8 @@ export interface IAccount extends Document {
   billingExemptReason?: BillingExemptReason;
   billingExemptSetAt?: Date;
   billingExemptSetBy?: string;
+  // Account tags (demo, sales, internal, etc.) — normalized lowercase/trim/unique
+  accountTags: string[];
   // Trial
   trialEndsAt?: Date;
   isBetaTester?: boolean;
@@ -71,6 +73,7 @@ const accountSchema = new Schema<IAccount>(
     billingExemptReason: { type: String, enum: ["demo", "internal", "sales"] },
     billingExemptSetAt: Date,
     billingExemptSetBy: String,
+    accountTags: { type: [String], default: () => [] },
     // Trial
     trialEndsAt: Date,
     isBetaTester: Boolean,
@@ -87,4 +90,21 @@ const accountSchema = new Schema<IAccount>(
   }
 );
 
+function normalizeAccountTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+  return [...new Set(
+    tags
+      .map((t) => (typeof t === "string" ? t.trim().toLowerCase() : ""))
+      .filter((t) => t.length > 0)
+  )];
+}
+
+accountSchema.pre("save", function (next) {
+  if (this.isModified("accountTags") && Array.isArray(this.accountTags)) {
+    this.accountTags = normalizeAccountTags(this.accountTags);
+  }
+  next();
+});
+
+export { normalizeAccountTags };
 export const Account = model<IAccount>("Account", accountSchema);

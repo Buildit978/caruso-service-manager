@@ -271,7 +271,11 @@ router.get("/accounts", async (req: Request, res: Response) => {
 
     const items = accounts.map((a) => {
       const id = String(a._id);
-      const acc = a as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
+      const acc = a as {
+        name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date;
+        accountTags?: string[]; billingExempt?: boolean; billingExemptReason?: string; billingStatus?: string;
+        currentPeriodEnd?: Date; graceEndsAt?: Date;
+      };
       const createdAtDate = acc.createdAt as Date | undefined;
       const isNew = !!createdAtDate && new Date(createdAtDate).getTime() >= newSince.getTime();
       return {
@@ -284,6 +288,12 @@ router.get("/accounts", async (req: Request, res: Response) => {
         lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
         isNew,
         primaryOwnerDisplayName: primaryOwnerDisplayByAcc.get(id) ?? "—",
+        accountTags: Array.isArray(acc.accountTags) ? acc.accountTags : [],
+        billingExempt: acc.billingExempt === true,
+        billingExemptReason: acc.billingExemptReason ?? undefined,
+        billingStatus: acc.billingStatus ?? undefined,
+        currentPeriodEnd: acc.currentPeriodEnd ? (acc.currentPeriodEnd as Date).toISOString() : undefined,
+        graceEndsAt: acc.graceEndsAt ? (acc.graceEndsAt as Date).toISOString() : undefined,
         counts: {
           workOrders: woMap.get(id) ?? 0,
           invoices: invMap.get(id) ?? 0,
@@ -334,7 +344,11 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
     ]);
 
     const id = String(account._id);
-    const acc = account as { name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date };
+    const acc = account as {
+      name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date;
+      accountTags?: string[]; billingExempt?: boolean; billingExemptReason?: string; billingStatus?: string;
+      currentPeriodEnd?: Date; graceEndsAt?: Date;
+    };
     const owner = primaryOwnerUser as { name?: string; email?: string; firstName?: string; lastName?: string; phone?: string } | null;
     const shopName = (settings as { shopName?: string } | null)?.shopName ?? acc.name ?? undefined;
     const invoiceProfile = (settings as { invoiceProfile?: { address?: string } } | null)?.invoiceProfile;
@@ -367,6 +381,12 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       isActive: acc.isActive ?? true,
       createdAt: (acc.createdAt as Date).toISOString(),
       lastActiveAt: acc.lastActiveAt ? (acc.lastActiveAt as Date).toISOString() : undefined,
+      accountTags: Array.isArray(acc.accountTags) ? acc.accountTags : [],
+      billingExempt: acc.billingExempt === true,
+      billingExemptReason: acc.billingExemptReason ?? undefined,
+      billingStatus: acc.billingStatus ?? undefined,
+      currentPeriodEnd: acc.currentPeriodEnd ? (acc.currentPeriodEnd as Date).toISOString() : undefined,
+      graceEndsAt: acc.graceEndsAt ? (acc.graceEndsAt as Date).toISOString() : undefined,
       primaryOwner,
       address,
       seats: {

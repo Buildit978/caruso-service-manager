@@ -9,6 +9,8 @@ import {
   postThrottle,
   deleteThrottle,
   postForceLogout,
+  patchBillingExempt,
+  patchAccountTags,
   getAdminRole,
   type AdminAccountItem,
   type AdminAccountUser,
@@ -59,6 +61,10 @@ export default function AdminAccountDetailPage() {
   const [userSearch, setUserSearch] = useState("");
   const [userSearchApplied, setUserSearchApplied] = useState("");
 
+  const [tagsInput, setTagsInput] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
+  const [billingExemptSaving, setBillingExemptSaving] = useState(false);
+
   const loadAccount = useCallback(() => {
     if (!accountId) return;
     setError(null);
@@ -108,6 +114,58 @@ export default function AdminAccountDetailPage() {
     const t = setTimeout(() => setSuccessMessage(null), 4000);
     return () => clearTimeout(t);
   }, [successMessage]);
+
+  useEffect(() => {
+    if (account?.accountTags) setTagsInput(account.accountTags.join(", "));
+    else setTagsInput("");
+  }, [account?.accountId, account?.accountTags]);
+
+  const tagsIncludeExemptKind = (tags: string[] | undefined) => {
+    if (!tags?.length) return false;
+    const lower = tags.map((t) => t.toLowerCase());
+    return lower.includes("demo") || lower.includes("sales") || lower.includes("internal");
+  };
+
+  function handleBillingExemptToggle() {
+    if (!accountId || !account) return;
+    const next = !account.billingExempt;
+    if (!next && tagsIncludeExemptKind(account.accountTags)) {
+      const ok = window.confirm(
+        "This account has tags demo, sales, or internal. Turning off Billing Exempt may conflict with that. Continue anyway?"
+      );
+      if (!ok) return;
+    }
+    setBillingExemptSaving(true);
+    setActionError(null);
+    patchBillingExempt(accountId, {
+      billingExempt: next,
+      billingExemptReason: next ? (account.billingExemptReason ?? "demo") : undefined,
+    })
+      .then(() => {
+        setSuccessMessage(next ? "Billing exempt enabled." : "Billing exempt disabled.");
+        loadAccount();
+      })
+      .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
+      .finally(() => setBillingExemptSaving(false));
+  }
+
+  function handleTagsSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!accountId) return;
+    const tags = tagsInput
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    setTagsSaving(true);
+    setActionError(null);
+    patchAccountTags(accountId, { tags })
+      .then((updated) => {
+        setAccount(updated);
+        setSuccessMessage("Tags updated.");
+      })
+      .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
+      .finally(() => setTagsSaving(false));
+  }
 
   function closeSheet() {
     setSheet(null);
@@ -299,6 +357,18 @@ export default function AdminAccountDetailPage() {
               <dd>{account.region || "—"}</dd>
               <dt>Status</dt>
               <dd>{account.isActive ? "Active" : "Inactive"}</dd>
+              <dt>Billing status</dt>
+              <dd>
+                {account.billingExempt ? (
+                  <span className="admin-badge admin-badge-exempt">Exempt</span>
+                ) : account.billingStatus ? (
+                  <span className={`admin-badge admin-badge-billing admin-badge-billing-${account.billingStatus}`}>
+                    {account.billingStatus === "past_due" ? "Past due" : account.billingStatus === "canceled" ? "Canceled" : "Active"}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </dd>
               <dt>Created</dt>
               <dd>{formatDate(account.createdAt)}</dd>
               <dt>Last Active</dt>
@@ -307,6 +377,43 @@ export default function AdminAccountDetailPage() {
               <dd className="admin-detail-id">{accountId}</dd>
             </dl>
           </div>
+
+          {isSuperAdmin && (
+            <>
+              <div className="admin-detail-section">
+                <h3>Billing Exempt (Demo)</h3>
+                <p className="admin-detail-muted">Superadmin only. When on, account is not billed.</p>
+                <button
+                  type="button"
+                  className={`admin-btn ${account.billingExempt ? "admin-btn-secondary" : "admin-btn-primary"}`}
+                  onClick={handleBillingExemptToggle}
+                  disabled={billingExemptSaving}
+                >
+                  {billingExemptSaving ? "…" : account.billingExempt ? "Turn off Billing Exempt" : "Turn on Billing Exempt (Demo)"}
+                </button>
+              </div>
+              <div className="admin-detail-section">
+                <h3>Tags</h3>
+                <p className="admin-detail-muted">Comma-separated. demo, sales, internal will force Billing Exempt on save.</p>
+                <form onSubmit={handleTagsSave} className="admin-detail-tags-form">
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={tagsInput}
+                    onChange={(e) => setTagsInput(e.target.value)}
+                    placeholder="e.g. demo, sales"
+                    aria-label="Account tags"
+                  />
+                  <button type="submit" className="admin-btn admin-btn-primary" disabled={tagsSaving}>
+                    {tagsSaving ? "…" : "Save tags"}
+                  </button>
+                </form>
+                {account.accountTags?.length ? (
+                  <p className="admin-detail-muted">Current: {account.accountTags.join(", ")}</p>
+                ) : null}
+              </div>
+            </>
+          )}
           <div className="admin-detail-section">
             <h3>Seats</h3>
             <dl className="admin-detail-dl admin-detail-counts">

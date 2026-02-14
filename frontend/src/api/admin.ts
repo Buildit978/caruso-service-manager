@@ -141,6 +141,12 @@ export interface AdminAccountItem {
   primaryOwnerDisplayName?: string;
   primaryOwner?: { name: string; email?: string; phone?: string };
   address?: string;
+  accountTags?: string[];
+  billingExempt?: boolean;
+  billingExemptReason?: "demo" | "internal" | "sales";
+  billingStatus?: "active" | "past_due" | "canceled";
+  currentPeriodEnd?: string;
+  graceEndsAt?: string;
   seats?: {
     owner: number;
     manager: number;
@@ -279,6 +285,25 @@ export function postForceLogout(accountId: string, body?: { note?: string }): Pr
     `/accounts/${accountId}/security/force-logout`,
     { method: "POST", body: body ? JSON.stringify(body) : undefined }
   );
+}
+
+/** PATCH /api/admin/accounts/:accountId/billing-exempt — superadmin only. */
+export function patchBillingExempt(
+  accountId: string,
+  body: { billingExempt: boolean; billingExemptReason?: "demo" | "internal" | "sales" }
+): Promise<{ ok: boolean; accountId: string; billingExempt: boolean; billingExemptReason?: string; billingExemptSetAt?: string; billingExemptSetBy?: string }> {
+  return adminFetch(`/accounts/${accountId}/billing-exempt`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/admin/accounts/:accountId/tags — superadmin only. Returns updated account fields for admin list. */
+export function patchAccountTags(accountId: string, body: { tags: string[] }): Promise<AdminAccountItem> {
+  return adminFetch<AdminAccountItem>(`/accounts/${accountId}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }
 
 // --- Admin users (governance, superadmin-only) ---

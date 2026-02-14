@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { Types } from "mongoose";
-import { Account, type BillingExemptReason } from "../../models/account.model";
+import { Account, normalizeAccountTags, type BillingExemptReason } from "../../models/account.model";
 import { User } from "../../models/user.model";
 import { trackAdminAudit } from "../../utils/trackAdminAudit";
 import { getAccountAudits } from "../../utils/getAccountAudits";
@@ -83,6 +83,23 @@ router.patch("/:accountId/billing-exempt", async (req: Request, res: Response) =
     const account = await Account.findById(accountId).lean();
     if (!account) return res.status(404).json({ message: "Account not found" });
 
+    const rawTags = Array.isArray((account as any).accountTags) ? (account as any).accountTags : [];
+    const tags = rawTags.map((t: string) => String(t).toLowerCase());
+    const protectedTags = new Set(["demo", "sales", "internal"]);
+
+const hasExemptTag = tags.some(
+  (t: string) => protectedTags.has(String(t).toLowerCase())
+);
+
+
+    if (hasExemptTag && billingExempt === false) {
+      return res.status(400).json({
+        code: "DEMO_TAG_REQUIRES_EXEMPT",
+        message: "This account is tagged demo/sales/internal and must remain billing-exempt. Remove the tag(s) first.",
+        accountTags: tags,
+      });
+    }
+
     const now = new Date();
     const setBy = String(adminActor._id);
 
@@ -128,6 +145,104 @@ router.patch("/:accountId/billing-exempt", async (req: Request, res: Response) =
     });
   } catch (err) {
     console.error("[admin] PATCH /accounts/:accountId/billing-exempt error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+const TAGS_BILLING_EXEMPT = ["demo", "sales", "internal"] as const;
+
+function accountTagsIncludeBillingExempt(tags: string[]): boolean {
+  return TAGS_BILLING_EXEMPT.some((t) => tags.includes(t));
+}
+
+function firstBillingExemptReasonFromTags(tags: string[]): BillingExemptReason {
+  for (const r of TAGS_BILLING_EXEMPT) {
+    if (tags.includes(r)) return r;
+  }
+  return "demo";
+}
+
+/** Build admin-list shape for an account document (used by PATCH tags response). */
+function adminListAccountFields(acc: Record<string, unknown>, id: string): Record<string, unknown> {
+  return {
+    accountId: id,
+    name: acc.name,
+    slug: acc.slug,
+    region: acc.region,
+    isActive: acc.isActive ?? true,
+    createdAt: (acc.createdAt as Date)?.toISOString?.(),
+    lastActiveAt: (acc.lastActiveAt as Date)?.toISOString?.(),
+    accountTags: Array.isArray(acc.accountTags) ? acc.accountTags : [],
+    billingExempt: acc.billingExempt === true,
+    billingExemptReason: acc.billingExemptReason ?? undefined,
+    billingStatus: acc.billingStatus ?? undefined,
+    currentPeriodEnd: (acc.currentPeriodEnd as Date)?.toISOString?.(),
+    graceEndsAt: (acc.graceEndsAt as Date)?.toISOString?.(),
+  };
+}
+
+/*
+ * PATCH /api/admin/accounts/:accountId/tags
+ * Superadmin only. Body: { tags: string[] }. Normalizes (lowercase/trim/unique). If tags include demo/sales/internal,
+ * forces billingExempt=true and sets billingExemptReason; writes audit. Returns updated account fields for admin list.
+ */
+router.patch("/:accountId/tags", async (req: Request, res: Response) => {
+  try {
+    const accountId = parseAccountId(req.params.accountId);
+    if (!accountId) return res.status(400).json({ message: "Invalid accountId" });
+
+    const adminActor = (req as any).adminActor;
+    if (!adminActor?._id) return res.status(401).json({ message: "Unauthorized" });
+
+    const rawTags = req.body?.tags;
+    const tags = normalizeAccountTags(Array.isArray(rawTags) ? rawTags : []);
+
+    const account = await Account.findById(accountId).lean();
+    if (!account) return res.status(404).json({ message: "Account not found" });
+
+    const acc = account as Record<string, unknown>;
+    const beforeTags = Array.isArray(acc.accountTags) ? [...(acc.accountTags as string[])] : [];
+    const beforeBillingExempt = acc.billingExempt === true;
+    const beforeBillingExemptReason = acc.billingExemptReason;
+
+    const now = new Date();
+    const setBy = String(adminActor._id);
+    const update: Record<string, unknown> = { accountTags: tags };
+
+    if (accountTagsIncludeBillingExempt(tags)) {
+      const reason = firstBillingExemptReasonFromTags(tags);
+      Object.assign(update, {
+        billingExempt: true,
+        billingExemptReason: reason,
+        billingExemptSetAt: now,
+        billingExemptSetBy: setBy,
+      });
+    }
+
+    await Account.updateOne({ _id: accountId }, { $set: update });
+    const updated = await Account.findById(accountId).lean();
+    const afterAcc = (updated ?? account) as Record<string, unknown>;
+
+    await trackAdminAudit({
+      adminId: adminActor._id,
+      action: "account.tags.update",
+      targetAccountId: accountId,
+      before: { accountTags: beforeTags, billingExempt: beforeBillingExempt, billingExemptReason: beforeBillingExemptReason },
+      after: {
+        accountTags: afterAcc.accountTags,
+        billingExempt: afterAcc.billingExempt,
+        billingExemptReason: afterAcc.billingExemptReason,
+      },
+      note: accountTagsIncludeBillingExempt(tags)
+        ? "billingExempt set to true because accountTags include demo/sales/internal"
+        : undefined,
+      ip: (req as any).auditContext?.ip,
+      userAgent: (req as any).auditContext?.userAgent,
+    });
+
+    return res.status(200).json(adminListAccountFields(afterAcc, accountId.toString()));
+  } catch (err) {
+    console.error("[admin] PATCH /accounts/:accountId/tags error:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

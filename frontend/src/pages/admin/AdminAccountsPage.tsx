@@ -20,6 +20,36 @@ function formatDateTime(iso: string | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
+const TAG_BADGE_KINDS = ["demo", "sales", "internal"] as const;
+
+function TagBadges({ tags }: { tags: string[] | undefined }) {
+  if (!tags?.length) return null;
+  const show = tags.filter((t) => TAG_BADGE_KINDS.includes(t.toLowerCase() as (typeof TAG_BADGE_KINDS)[number]));
+  if (show.length === 0) return null;
+  return (
+    <span className="admin-tag-badges">
+      {show.map((t) => (
+        <span key={t} className={`admin-badge admin-badge-tag admin-badge-tag-${t.toLowerCase()}`}>
+          {t.toUpperCase()}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function BillingStatusBadge({ item }: { item: AdminAccountItem }) {
+  if (item.billingExempt) {
+    return <span className="admin-badge admin-badge-exempt">Exempt</span>;
+  }
+  const status = item.billingStatus;
+  if (!status) return null;
+  return (
+    <span className={`admin-badge admin-badge-billing admin-badge-billing-${status}`}>
+      {status === "past_due" ? "Past due" : status === "canceled" ? "Canceled" : "Active"}
+    </span>
+  );
+}
+
 function UsageCounts({ counts }: { counts: AdminAccountItem["counts"] }) {
   return (
     <span className="admin-usage-counts">
@@ -192,6 +222,7 @@ export default function AdminAccountsPage() {
                       <span className="admin-account-card-value">
                         {a.name || a.slug || a.accountId}
                         {a.isNew && <span className="admin-badge admin-badge-new">New</span>}
+                        <TagBadges tags={a.accountTags} />
                       </span>
                     </div>
                     <div className="admin-account-card-row">
@@ -214,7 +245,10 @@ export default function AdminAccountsPage() {
                     </div>
                     <div className="admin-account-card-row">
                       <span className="admin-account-card-label">Status</span>
-                      <span className="admin-account-card-value">{a.isActive ? "Active" : "Inactive"}</span>
+                      <span className="admin-account-card-value">
+                        {a.isActive ? "Active" : "Inactive"}
+                        <BillingStatusBadge item={a} />
+                      </span>
                     </div>
                     <span className="admin-account-card-cta">View & actions →</span>
                   </button>
@@ -233,6 +267,7 @@ export default function AdminAccountsPage() {
                       <th>Last Active</th>
                       <th>Usage</th>
                       <th>Status</th>
+                      <th>Billing</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -254,6 +289,7 @@ export default function AdminAccountsPage() {
                         <td>
                           {a.name || a.slug || a.accountId}
                           {a.isNew && <span className="admin-badge admin-badge-new">New</span>}
+                          <TagBadges tags={a.accountTags} />
                         </td>
                         <td title={a.primaryOwnerDisplayName ?? "—"}>
                           {(a.primaryOwnerDisplayName ?? "—").length > 24
@@ -267,6 +303,7 @@ export default function AdminAccountsPage() {
                           <UsageCounts counts={a.counts} />
                         </td>
                         <td>{a.isActive ? "Active" : "Inactive"}</td>
+                        <td><BillingStatusBadge item={a} /></td>
                       </tr>
                     ))}
                   </tbody>

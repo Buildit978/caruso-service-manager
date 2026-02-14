@@ -5,6 +5,7 @@ import { Account } from "../models/account.model";
  * Requires account billing to be active, in trial, or within grace.
  * Uses req.accountId (set by requireAuth). Does not assume req.account exists.
  * Allow (in order):
+ *   0. billingExempt === true (demo/internal/sales)
  *   1. billingStatus === "active"
  *   2. trialEndsAt exists AND trialEndsAt > now
  *   3. billingStatus === "past_due" AND graceEndsAt > now
@@ -23,11 +24,16 @@ export async function requireBillingActive(
   }
 
   const account = await Account.findById(accountId)
-    .select("billingStatus graceEndsAt currentPeriodEnd trialEndsAt")
+    .select("billingStatus graceEndsAt currentPeriodEnd trialEndsAt billingExempt")
     .lean();
 
   if (!account) {
     res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  if (account.billingExempt === true) {
+    next();
     return;
   }
 

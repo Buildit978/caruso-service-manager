@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { Types } from "mongoose";
-import { Account } from "../../models/account.model";
+import { Account, type BillingExemptReason } from "../../models/account.model";
 import { User } from "../../models/user.model";
 import { trackAdminAudit } from "../../utils/trackAdminAudit";
 import { getAccountAudits } from "../../utils/getAccountAudits";
@@ -58,6 +58,79 @@ function securitySubset(account: Record<string, unknown>): Record<string, unknow
 }
 
 const TENANT_ROLES = ["owner", "manager", "technician"];
+
+const BILLING_EXEMPT_REASONS: BillingExemptReason[] = ["demo", "internal", "sales"];
+
+/*
+ * PATCH /api/admin/accounts/:accountId/billing-exempt
+ * Superadmin only. Body: { billingExempt: boolean, billingExemptReason?: "demo" | "internal" | "sales" }.
+ * When true: sets billingExemptReason (required), billingExemptSetAt, billingExemptSetBy.
+ * When false: unsets reason and audit fields.
+ */
+router.patch("/:accountId/billing-exempt", async (req: Request, res: Response) => {
+  try {
+    const accountId = parseAccountId(req.params.accountId);
+    if (!accountId) return res.status(400).json({ message: "Invalid accountId" });
+
+    const adminActor = (req as any).adminActor;
+    if (!adminActor?._id) return res.status(401).json({ message: "Unauthorized" });
+
+    const billingExempt = req.body?.billingExempt;
+    if (typeof billingExempt !== "boolean") {
+      return res.status(400).json({ message: "billingExempt must be a boolean" });
+    }
+
+    const account = await Account.findById(accountId).lean();
+    if (!account) return res.status(404).json({ message: "Account not found" });
+
+    const now = new Date();
+    const setBy = String(adminActor._id);
+
+    if (billingExempt === true) {
+      const rawReason = req.body?.billingExemptReason;
+      const billingExemptReason = BILLING_EXEMPT_REASONS.includes(rawReason) ? rawReason : "demo";
+      await Account.updateOne(
+        { _id: accountId },
+        {
+          $set: {
+            billingExempt: true,
+            billingExemptReason,
+            billingExemptSetAt: now,
+            billingExemptSetBy: setBy,
+          },
+        }
+      );
+      return res.status(200).json({
+        ok: true,
+        accountId: accountId.toString(),
+        billingExempt: true,
+        billingExemptReason,
+        billingExemptSetAt: now.toISOString(),
+        billingExemptSetBy: setBy,
+      });
+    }
+
+    await Account.updateOne(
+      { _id: accountId },
+      {
+        $set: { billingExempt: false },
+        $unset: {
+          billingExemptReason: "",
+          billingExemptSetAt: "",
+          billingExemptSetBy: "",
+        },
+      }
+    );
+    return res.status(200).json({
+      ok: true,
+      accountId: accountId.toString(),
+      billingExempt: false,
+    });
+  } catch (err) {
+    console.error("[admin] PATCH /accounts/:accountId/billing-exempt error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 /*
  * GET /api/admin/accounts/:accountId/users?role=&isActive=&search=

@@ -4,6 +4,8 @@ export type AccountRegion = "Canada" | "TT";
 
 export type BillingStatus = "active" | "past_due" | "canceled";
 
+export type BillingExemptReason = "demo" | "internal" | "sales";
+
 export interface IAccount extends Document {
   name: string;
   slug?: string;          // e.g. "carusos-service-center"
@@ -26,6 +28,11 @@ export interface IAccount extends Document {
   billingStatus?: BillingStatus;
   currentPeriodEnd?: Date;
   graceEndsAt?: Date;
+  // Billing exempt (demo / internal / sales)
+  billingExempt?: boolean;
+  billingExemptReason?: BillingExemptReason;
+  billingExemptSetAt?: Date;
+  billingExemptSetBy?: string;
   // Trial
   trialEndsAt?: Date;
   isBetaTester?: boolean;
@@ -60,6 +67,10 @@ const accountSchema = new Schema<IAccount>(
     billingStatus: { type: String, enum: ["active", "past_due", "canceled"], required: false },
     currentPeriodEnd: Date,
     graceEndsAt: Date,
+    billingExempt: { type: Boolean, default: false },
+    billingExemptReason: { type: String, enum: ["demo", "internal", "sales"] },
+    billingExemptSetAt: Date,
+    billingExemptSetBy: String,
     // Trial
     trialEndsAt: Date,
     isBetaTester: Boolean,

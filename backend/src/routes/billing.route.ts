@@ -18,11 +18,27 @@ router.get("/status", async (req: any, res) => {
     }
 
     const account = await Account.findById(accountId)
-      .select("billingStatus currentPeriodEnd graceEndsAt trialEndsAt")
+      .select("billingStatus currentPeriodEnd graceEndsAt trialEndsAt billingExempt billingExemptReason")
       .lean();
 
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
+    }
+
+    if (account.billingExempt === true) {
+      return res.json({
+        locked: false,
+        reason: account.billingExemptReason ?? "demo",
+        lockDate: null,
+        daysUntilLock: null,
+        warning: null,
+        showBillingCta: false,
+        lockedContext: null,
+        billingStatus: "exempt",
+        trialEndsAt: null,
+        graceEndsAt: null,
+        currentPeriodEnd: null,
+      });
     }
 
     const now = new Date();
@@ -147,11 +163,20 @@ router.post("/checkout-session", async (req: any, res) => {
     const userId = actor._id;
     const email = String(actor.email);
 
-    const account = await Account.findById(accountId);
+    const account = await Account.findById(accountId).select("stripeCustomerId billingExempt").lean();
     if (!account) return res.status(404).json({ message: "Account not found" });
 
-    // Create or reuse Stripe Customer
-    let customerId = account.stripeCustomerId;
+    if (account.billingExempt === true) {
+      return res.status(403).json({
+        code: "BILLING_EXEMPT",
+        message: "This account is on a demo plan and cannot subscribe.",
+      });
+    }
+
+    // Create or reuse Stripe Customer (reload full document for save)
+    const accountDoc = await Account.findById(accountId);
+    if (!accountDoc) return res.status(404).json({ message: "Account not found" });
+    let customerId = accountDoc.stripeCustomerId;
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -161,8 +186,8 @@ router.post("/checkout-session", async (req: any, res) => {
         },
       });
       customerId = customer.id;
-      account.stripeCustomerId = customerId;
-      await account.save();
+      accountDoc.stripeCustomerId = customerId;
+      await accountDoc.save();
     }
 
     // Create Checkout Session for subscription

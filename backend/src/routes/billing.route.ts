@@ -294,41 +294,55 @@ async function applyActiveBillingFromSubscription(subscriptionId: string) {
   }
 
   const raw = subscription as any;
-  account.billingStatus = "active";
-  account.stripeSubscriptionId = subscription.id;
-  if (raw.current_period_end) {
-    account.currentPeriodEnd = new Date(raw.current_period_end * 1000);
-  }
-  account.graceEndsAt = undefined;
-  if (raw.customer) {
-    const customerId = typeof raw.customer === "string" ? raw.customer : raw.customer?.id;
-    if (customerId) account.stripeCustomerId = customerId;
-  }
+  const customerId: string | undefined =
+    raw.customer == null
+      ? undefined
+      : typeof raw.customer === "string"
+        ? raw.customer
+        : raw.customer?.id;
+  const periodEndDate = raw.current_period_end ? new Date(raw.current_period_end * 1000) : undefined;
 
-  await account.save();
+  const set: Record<string, unknown> = {
+    billingStatus: "active",
+    stripeSubscriptionId: subscription.id,
+  };
+  if (customerId) set.stripeCustomerId = String(customerId).trim();
+  if (periodEndDate) set.currentPeriodEnd = periodEndDate;
+
+  const unset: Record<string, 1> = { trialEndsAt: 1, graceEndsAt: 1 };
+
+  await Account.updateOne({ _id: account._id }, { $set: set, $unset: unset });
+
+  console.log("[billing] applyActiveBillingFromSubscription", {
+    accountId: account._id.toString(),
+    subscriptionId,
+    currentPeriodEnd: periodEndDate ? periodEndDate.toISOString() : null,
+  });
 }
 
 async function applyActiveBillingFromInvoice(invoice: Stripe.Invoice) {
-  const raw = invoice as any;
+  const subscriptionId = getSubscriptionIdFromInvoice(invoice);
+  if (subscriptionId) {
+    await applyActiveBillingFromSubscription(subscriptionId);
+    return;
+  }
 
+  const raw = invoice as any;
   const customerId = typeof raw.customer === "string" ? raw.customer : raw.customer?.id;
   if (!customerId) return;
 
-  // Resolve account by customer ID
   const account = await Account.findOne({ stripeCustomerId: String(customerId).trim() });
   if (!account) {
     console.log("[billing] APPLY ACTIVE INVOICE FAILED: account not found by customer", { customerId });
     return;
   }
 
-  // Determine period end (prefer lines period end, fallback to invoice period_end)
   const periodEndSec =
     raw?.lines?.data?.[0]?.period?.end ??
     raw?.period_end;
 
   account.billingStatus = "active";
   account.graceEndsAt = undefined;
-
   if (periodEndSec) {
     account.currentPeriodEnd = new Date(periodEndSec * 1000);
   }
@@ -446,6 +460,16 @@ export const billingWebhookHandler = async (req: express.Request, res: express.R
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         await applyCanceledFromSubscription(subscription);
+        break;
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const status = (subscription as any).status;
+        if (status === "active" || status === "trialing") {
+          await applyActiveBillingFromSubscription(subscription.id);
+        }
         break;
       }
 

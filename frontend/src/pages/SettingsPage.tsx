@@ -815,6 +815,29 @@ export default function SettingsPage() {
                         <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Loading billing status…</div>
                     ) : billingStatus ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                            {(() => {
+                                const isExemptOrDemo =
+                                    billingStatus.billingStatus === "exempt" ||
+                                    (billingStatus as { reason?: string }).reason === "demo";
+                                const isLocked = billingStatus.locked === true || billingLocked;
+                                const hasSubscription =
+                                    billingStatus.billingStatus === "active" || billingStatus.billingStatus === "past_due";
+                                const billingButtonLabel = isLocked
+                                    ? "Fix billing"
+                                    : hasSubscription
+                                        ? "Manage billing"
+                                        : "Start subscription";
+
+                                if (isExemptOrDemo) {
+                                    return (
+                                        <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#1e3a5f", border: "1px solid #3b82f6", fontSize: "0.9rem", color: "#93c5fd" }}>
+                                            Demo plan / billing exempt
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <>
                             {/* Status message */}
                             {billingStatus.locked ? (
                                 <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#451a1a", border: "1px solid #7f1d1d" }}>
@@ -871,31 +894,37 @@ export default function SettingsPage() {
                                 </div>
                             ) : null}
 
-                            {/* Billing CTA button */}
-                            {billingStatus.showBillingCta && isOwner && (
+                            {/* Billing CTA button — owners only, label by locked/subscribed state */}
+                            {isOwner && (
                                 <button
                                     type="button"
                                     onClick={async () => {
+                                        setError(null);
                                         try {
-                                            const { url } = await createPortalSession();
-                                            if (url) {
-                                                window.open(url, "_blank", "noopener,noreferrer");
-                                            }
-                                        } catch (err: any) {
-                                            if (err?.status === 400) {
+                                            if (isLocked) {
                                                 try {
-                                                    const { url } = await createCheckoutSession();
-                                                    if (url) {
-                                                        window.open(url, "_blank", "noopener,noreferrer");
+                                                    const { url } = await createPortalSession();
+                                                    if (url) window.location.href = url;
+                                                } catch (err) {
+                                                    const e = err as HttpError;
+                                                    if (e?.status === 400 && (e?.data as { message?: string })?.message === "No Stripe customer on file") {
+                                                        const { url } = await createCheckoutSession();
+                                                        if (url) window.location.href = url;
+                                                        return;
                                                     }
-                                                } catch (checkoutErr) {
-                                                    console.error("Failed to create checkout session", checkoutErr);
-                                                    setError("Could not open billing. Please try again.");
+                                                    throw err;
                                                 }
-                                            } else {
-                                                console.error("Failed to create portal session", err);
-                                                setError("Could not open billing. Please try again.");
+                                                return;
                                             }
+                                            if (hasSubscription) {
+                                                const { url } = await createPortalSession();
+                                                if (url) window.location.href = url;
+                                            } else {
+                                                const { url } = await createCheckoutSession();
+                                                if (url) window.location.href = url;
+                                            }
+                                        } catch (err) {
+                                            setError((err as HttpError)?.message ?? "Could not open billing. Please try again.");
                                         }
                                     }}
                                     style={{
@@ -909,9 +938,12 @@ export default function SettingsPage() {
                                         cursor: "pointer",
                                     }}
                                 >
-                                    Update billing
+                                    {billingButtonLabel}
                                 </button>
                             )}
+                                    </>
+                                );
+                            })()}
                         </div>
                     ) : (
                         <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Unable to load billing status.</div>

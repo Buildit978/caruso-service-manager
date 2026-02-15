@@ -151,7 +151,7 @@ export default function AdminAccountDetailPage() {
 
   function handleTagsSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!accountId) return;
+    if (!accountId || !account) return;
     const tags = tagsInput
       .split(/[\s,]+/)
       .map((t) => t.trim())
@@ -160,10 +160,10 @@ export default function AdminAccountDetailPage() {
     setActionError(null);
     patchAccountTags(accountId, { tags })
       .then((updated) => {
-        setAccount(updated);
+        setAccount((prev) => (prev ? { ...prev, ...updated } : updated));
         setSuccessMessage("Tags updated.");
       })
-      .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
+      .catch((err) => setActionError((err as HttpError).message ?? "Failed to save tags."))
       .finally(() => setTagsSaving(false));
   }
 
@@ -403,10 +403,12 @@ export default function AdminAccountDetailPage() {
                     onChange={(e) => setTagsInput(e.target.value)}
                     placeholder="e.g. demo, sales"
                     aria-label="Account tags"
+                    disabled={tagsSaving}
                   />
                   <button type="submit" className="admin-btn admin-btn-primary" disabled={tagsSaving}>
                     {tagsSaving ? "…" : "Save tags"}
                   </button>
+                  {tagsSaving && <span className="admin-detail-muted">Saving…</span>}
                 </form>
                 {account.accountTags?.length ? (
                   <p className="admin-detail-muted">Current: {account.accountTags.join(", ")}</p>

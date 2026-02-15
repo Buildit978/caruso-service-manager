@@ -236,9 +236,16 @@ router.post("/portal-session", async (req: any, res) => {
       return res.status(500).json({ message: "Billing not configured (missing APP_URL)" });
     }
 
-    const account = await Account.findById(accountId).select("stripeCustomerId");
+    const account = await Account.findById(accountId).select("stripeCustomerId billingExempt").lean();
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
+    }
+
+    if (account.billingExempt === true) {
+      return res.status(403).json({
+        code: "BILLING_EXEMPT",
+        message: "This account is on a demo plan and cannot manage billing.",
+      });
     }
 
     const stripeCustomerId = account.stripeCustomerId;

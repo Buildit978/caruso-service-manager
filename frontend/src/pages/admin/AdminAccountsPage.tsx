@@ -73,6 +73,43 @@ export default function AdminAccountsPage() {
   const [newFilter, setNewFilter] = useState<"all" | "new">("all");
   const newDays = 7;
 
+  const [demoOnly, setDemoOnly] = useState(false);
+  const [tagFilter, setTagFilter] = useState<"all" | "demo" | "sales" | "internal">("all");
+  const [sortBy, setSortBy] = useState<"created" | "lastActive" | "name" | "billingStatus">("created");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const isDemoAccount = (a: AdminAccountItem) =>
+    a.billingExempt === true || (a.accountTags ?? []).map((t) => t.toLowerCase()).includes("demo");
+
+  const filteredItems = items.filter((a) => {
+    if (demoOnly && !isDemoAccount(a)) return false;
+    if (tagFilter !== "all") {
+      const tags = (a.accountTags ?? []).map((t) => t.toLowerCase());
+      if (!tags.includes(tagFilter)) return false;
+    }
+    return true;
+  });
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === "created") {
+      cmp = (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } else if (sortBy === "lastActive") {
+      const ta = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+      const tb = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+      cmp = ta - tb;
+    } else if (sortBy === "name") {
+      const na = (a.name || a.slug || a.accountId).toLowerCase();
+      const nb = (b.name || b.slug || b.accountId).toLowerCase();
+      cmp = na.localeCompare(nb);
+    } else {
+      const rank = (x: AdminAccountItem) =>
+        x.billingExempt ? 0 : x.billingStatus === "active" ? 1 : x.billingStatus === "past_due" ? 2 : x.billingStatus === "canceled" ? 3 : 4;
+      cmp = rank(a) - rank(b);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
@@ -199,18 +236,72 @@ export default function AdminAccountsPage() {
         </button>
       </div>
 
+      {/* Client-side filter + sort bar */}
+      {!loading && !error && items.length > 0 && (
+        <div className="admin-accounts-filter-sort-bar">
+          <label className="admin-filter-label admin-filter-checkbox">
+            <input
+              type="checkbox"
+              checked={demoOnly}
+              onChange={(e) => setDemoOnly(e.target.checked)}
+              aria-label="Demo only"
+            />
+            Demo only
+          </label>
+          <label className="admin-filter-label">
+            Tag
+            <select
+              className="admin-filter-select"
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value as typeof tagFilter)}
+              aria-label="Tag filter"
+            >
+              <option value="all">All</option>
+              <option value="demo">demo</option>
+              <option value="sales">sales</option>
+              <option value="internal">internal</option>
+            </select>
+          </label>
+          <label className="admin-filter-label">
+            Sort by
+            <select
+              className="admin-filter-select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              aria-label="Sort by"
+            >
+              <option value="created">Created (newest)</option>
+              <option value="lastActive">Last Active</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="billingStatus">Billing Status</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="admin-btn admin-btn-secondary admin-sort-dir-btn"
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label={`Sort ${sortDir === "asc" ? "ascending" : "descending"}`}
+            title={sortDir === "asc" ? "Ascending" : "Descending"}
+          >
+            {sortDir === "asc" ? "↑ Asc" : "↓ Desc"}
+          </button>
+        </div>
+      )}
+
       {loading && <p className="admin-accounts-loading">Loading accounts…</p>}
       {error && <p className="admin-gate-error admin-accounts-error">{error}</p>}
 
       {!loading && !error && (
         <>
-          {items.length === 0 ? (
-            <p className="admin-accounts-empty">No accounts match the current filters.</p>
+          {sortedItems.length === 0 ? (
+            <p className="admin-accounts-empty">
+              {items.length === 0 ? "No accounts match the current filters." : "No accounts match the demo/tag filters."}
+            </p>
           ) : (
             <>
               {/* Mobile: cards (clickable) */}
               <div className="admin-accounts-cards">
-                {items.map((a) => (
+                {sortedItems.map((a) => (
                   <button
                     type="button"
                     key={a.accountId}
@@ -271,7 +362,7 @@ export default function AdminAccountsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((a) => (
+                    {sortedItems.map((a) => (
                       <tr
                         key={a.accountId}
                         className="admin-accounts-table-row-clickable"
@@ -312,7 +403,9 @@ export default function AdminAccountsPage() {
 
               {paging && paging.total > 0 && (
                 <p className="admin-accounts-paging">
-                  Showing {paging.returned} of {paging.total} account{paging.total !== 1 ? "s" : ""}.
+                  Showing {sortedItems.length} of {paging.returned} loaded
+                  {filteredItems.length < items.length && ` (${items.length} total)`}
+                  {" · "}{paging.total} total account{paging.total !== 1 ? "s" : ""}.
                 </p>
               )}
             </>

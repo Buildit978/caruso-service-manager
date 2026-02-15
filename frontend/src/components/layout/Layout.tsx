@@ -8,6 +8,8 @@ import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 import BillingLockBanner from "../common/BillingLockBanner";
 import { createCheckoutSession, createPortalSession, getBillingStatus, type BillingStatusResponse } from "../../api/billing";
+import { getBillingLockState, subscribe } from "../../state/billingLock";
+import type { HttpError } from "../../api/http";
 
 function Layout() {
   const location = useLocation()
@@ -16,6 +18,8 @@ function Layout() {
   const { customersAccess, vehiclesAccess } = useAccess()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [billingStatusInfo, setBillingStatusInfo] = useState<BillingStatusResponse | null>(null)
+  const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked)
+  const [billingError, setBillingError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +38,10 @@ function Layout() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    return subscribe((s) => setBillingLocked(s.billingLocked));
   }, []);
 
   // ✅ NEW: fetch server-truth identity (role/account) using x-auth-token
@@ -63,18 +71,49 @@ function Layout() {
   const hasSubscription =
     Boolean(stripeSubscriptionId) ||
     settingsBillingStatus === "active" ||
-    settingsBillingStatus === "past_due";
+    settingsBillingStatus === "past_due" ||
+    billingStatusInfo?.billingStatus === "active";
 
-  const billingButtonLabel = hasSubscription ? "Manage billing" : "Start subscription";
+  const isExemptOrDemo =
+    billingStatusInfo?.billingStatus === "exempt" ||
+    (billingStatusInfo as { reason?: string })?.reason === "demo";
+  const isLocked = billingStatusInfo?.locked === true || billingLocked;
+
+  const billingButtonLabel = isLocked
+    ? "Fix billing"
+    : hasSubscription
+      ? "Manage billing"
+      : "Start subscription";
 
   async function handleBillingClick() {
     closeDrawer();
-    if (hasSubscription) {
-      const { url } = await createPortalSession();
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      const { url } = await createCheckoutSession();
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    setBillingError(null);
+    try {
+      if (isLocked) {
+        try {
+          const { url } = await createPortalSession();
+          if (url) window.location.href = url;
+        } catch (err) {
+          const e = err as HttpError;
+          if (e?.status === 400 && (e?.data as { message?: string })?.message === "No Stripe customer on file") {
+            const { url } = await createCheckoutSession();
+            if (url) window.location.href = url;
+            return;
+          }
+          throw err;
+        }
+        return;
+      }
+      if (hasSubscription) {
+        const { url } = await createPortalSession();
+        if (url) window.location.href = url;
+      } else {
+        const { url } = await createCheckoutSession();
+        if (url) window.location.href = url;
+      }
+    } catch (err) {
+      const msg = (err as HttpError)?.message ?? (err as Error)?.message ?? "Something went wrong. Please try again.";
+      setBillingError(msg);
     }
   }
 
@@ -119,7 +158,7 @@ function Layout() {
     daysLeft !== null &&
     daysLeft > 0;
 
-  const canShowUpgradeButton = Boolean(billingStatusInfo?.showBillingCta) && isOwner;
+  const canShowUpgradeButton = isOwner && !isExemptOrDemo;
 
   return (
     <div className={`layout-root${drawerOpen ? ' is-drawer-open' : ''}`}>
@@ -182,25 +221,30 @@ function Layout() {
                 </div>
               )}
               {canShowUpgradeButton && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleBillingClick();
-                  }}
-                  style={{
-                    padding: "0.35rem 0.75rem",
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
-                    color: "#fff",
-                    background: "#1d4ed8",
-                    border: "none",
-                    borderRadius: "0.375rem",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {billingButtonLabel}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleBillingClick();
+                    }}
+                    style={{
+                      padding: "0.35rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "#fff",
+                      background: "#1d4ed8",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {billingButtonLabel}
+                  </button>
+                  {billingError && (
+                    <span style={{ fontSize: "0.8rem", color: "#fca5a5" }}>{billingError}</span>
+                  )}
+                </>
               )}
             </div>
           )}

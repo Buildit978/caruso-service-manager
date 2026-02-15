@@ -105,6 +105,36 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
+
+.admin-accounts-filter-sort-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--admin-border, #334155);
+}
+
+.admin-accounts-filter-sort-bar .admin-filter-label {
+  margin-bottom: 0;
+}
+
+.admin-filter-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-filter-checkbox input {
+  margin: 0;
+}
+
+.admin-sort-dir-btn {
+  min-width: auto;
+  padding: 0 0.75rem;
+}
+
 .admin-filter-label {
   display: flex;
   flex-direction: column;
@@ -636,23 +666,27 @@
   margin-left: 0.35rem;
 }
 
+/* Base: default/unknown tags — white text on solid background for readability */
 .admin-badge-tag {
   text-transform: uppercase;
+  color: #fff;
+  background: #475569;
+  font-weight: 600;
 }
 
 .admin-badge-tag-demo {
-  background: rgba(59, 130, 246, 0.25);
-  color: #93c5fd;
+  background: #2563eb;
+  color: #fff;
 }
 
 .admin-badge-tag-sales {
-  background: rgba(168, 85, 247, 0.25);
-  color: #c4b5fd;
+  background: #7c3aed;
+  color: #fff;
 }
 
 .admin-badge-tag-internal {
-  background: rgba(100, 116, 139, 0.35);
-  color: #cbd5e1;
+  background: #475569;
+  color: #fff;
 }
 
 .admin-badge-exempt {

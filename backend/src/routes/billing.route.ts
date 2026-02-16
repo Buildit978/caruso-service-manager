@@ -173,10 +173,18 @@ router.get("/status", async (req: any, res) => {
 
 router.post("/checkout-session", async (req: any, res) => {
   try {
-    const priceId = process.env.STRIPE_PRICE_ID!;
+    const priceId =
+      process.env.NODE_ENV === "production"
+        ? process.env.STRIPE_PRICE_ID_LIVE
+        : process.env.STRIPE_PRICE_ID_TEST;
+
+    if (!priceId) {
+      throw new Error("Missing Stripe price id for this environment");
+    }
+
     const appUrl = process.env.APP_URL!;
 
-    if (!priceId || !appUrl) {
+    if (!appUrl) {
       return res.status(500).json({ message: "Billing not configured (missing env vars)" });
     }
 
@@ -449,11 +457,13 @@ async function applyCanceledFromSubscription(subscription: Stripe.Subscription) 
 
 export const billingWebhookHandler = async (req: express.Request, res: express.Response) => {
   const sig = req.headers["stripe-signature"];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret =
+    process.env.NODE_ENV === "production"
+      ? process.env.STRIPE_WEBHOOK_SECRET_LIVE
+      : process.env.STRIPE_WEBHOOK_SECRET_TEST;
 
   if (!webhookSecret) {
-    console.error("Missing STRIPE_WEBHOOK_SECRET");
-    return res.status(500).send("Webhook not configured");
+    throw new Error("Missing Stripe webhook secret for this environment");
   }
 
   if (!sig || typeof sig !== "string") {

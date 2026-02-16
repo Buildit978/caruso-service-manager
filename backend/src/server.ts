@@ -20,7 +20,12 @@ import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
 import billingRouter, { billingWebhookHandler } from "./routes/billing.route";
+import { assertStripeEnvIsolation } from "./utils/envGuard";
 
+assertStripeEnvIsolation();
+console.log("🚦 Boot: Stripe env guard ran | NODE_ENV=", process.env.NODE_ENV);
+
+const BOOT_GUARD = "stripe-env-guard-v1";
 const app = express();
 
 app.set("trust proxy", 1); // ✅ required on Render/Cloudflare for correct IP + rate-limit
@@ -59,6 +64,7 @@ app.get("/__build", (_req, res) => {
     ok: true,
     env: process.env.NODE_ENV,
     commit: process.env.RENDER_GIT_COMMIT || null,
+    guard: BOOT_GUARD,
     time: new Date().toISOString(),
   });
 });

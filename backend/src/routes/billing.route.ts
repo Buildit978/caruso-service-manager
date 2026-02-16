@@ -31,6 +31,7 @@ router.get("/status", async (req: any, res) => {
         reason: account.billingExemptReason ?? "demo",
         lockDate: null,
         daysUntilLock: null,
+        daysRemaining: null,
         warning: null,
         showBillingCta: false,
         lockedContext: null,
@@ -97,12 +98,29 @@ router.get("/status", async (req: any, res) => {
       daysUntilLock = Math.ceil(msDiff / 86_400_000);
     }
 
-    let warning: "7_day" | "3_day" | null = null;
-    if (!locked && daysUntilLock !== null) {
-      if (daysUntilLock <= 3) {
-        warning = "3_day";
-      } else if (daysUntilLock <= 7) {
-        warning = "7_day";
+    let warning: "grace" | "urgent" | "warning" | null = null;
+    if (!locked) {
+      // Highest priority: in grace window
+      if (graceEndsAtDate && graceEndsAtDate > now) {
+        warning = "grace";
+      } else {
+        let daysLeft: number | null = null;
+        if (reason === "active" && currentPeriodEndDate && currentPeriodEndDate > now) {
+          daysLeft = Math.ceil(
+            (currentPeriodEndDate.getTime() - now.getTime()) / 86_400_000
+          );
+        } else if (reason === "trial" && trialEndsAtDate && trialEndsAtDate > now) {
+          daysLeft = Math.ceil(
+            (trialEndsAtDate.getTime() - now.getTime()) / 86_400_000
+          );
+        }
+        if (daysLeft !== null && daysLeft >= 0) {
+          if (daysLeft <= 3) {
+            warning = "urgent";
+          } else if (daysLeft <= 7) {
+            warning = "warning";
+          }
+        }
       }
     }
 
@@ -122,11 +140,21 @@ router.get("/status", async (req: any, res) => {
 
     const showBillingCta = locked || warning !== null || reason === "grace";
 
+    let daysRemaining: number | null = null;
+    if (graceEndsAtDate && graceEndsAtDate > now) {
+      daysRemaining = Math.ceil((graceEndsAtDate.getTime() - now.getTime()) / 86_400_000);
+    } else if (trialEndsAtDate && trialEndsAtDate > now) {
+      daysRemaining = Math.ceil((trialEndsAtDate.getTime() - now.getTime()) / 86_400_000);
+    } else if (currentPeriodEndDate && currentPeriodEndDate > now) {
+      daysRemaining = Math.ceil((currentPeriodEndDate.getTime() - now.getTime()) / 86_400_000);
+    }
+
     return res.json({
       locked,
       reason,
       lockDate: lockDate ? lockDate.toISOString() : null,
       daysUntilLock,
+      daysRemaining,
       warning,
       showBillingCta,
       lockedContext,
@@ -265,10 +293,11 @@ router.post("/portal-session", async (req: any, res) => {
   }
 });
 
-function sevenDaysFromNow() {
-  const now = new Date();
-  now.setDate(now.getDate() + 7);
-  return now;
+const GRACE_PERIOD_DAYS = 5;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function gracePeriodEndFromNow(): Date {
+  return new Date(Date.now() + GRACE_PERIOD_DAYS * MS_PER_DAY);
 }
 
 async function getSubscriptionById(subscriptionId: string) {
@@ -395,7 +424,7 @@ async function applyPastDueFromInvoice(invoice: Stripe.Invoice) {
   if (!account) return;
 
   account.billingStatus = "past_due";
-  const proposedGrace = sevenDaysFromNow();
+  const proposedGrace = gracePeriodEndFromNow();
   if (!account.graceEndsAt || account.graceEndsAt < proposedGrace) {
     account.graceEndsAt = proposedGrace;
   }

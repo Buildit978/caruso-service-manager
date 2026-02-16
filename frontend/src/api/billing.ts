@@ -8,7 +8,7 @@ export async function createPortalSession(): Promise<{ url: string }> {
   return http<{ url: string }>("/billing/portal-session", { method: "POST" });
 }
 
-export type BillingStatusWarning = "7_day" | "3_day" | null;
+export type BillingStatusWarning = "grace" | "urgent" | "warning" | null;
 
 export type BillingLockedContext = "trial_ended" | "payment_required" | "past_due_ended";
 
@@ -17,6 +17,7 @@ export interface BillingStatusResponse {
   reason: "active" | "trial" | "grace" | "locked";
   lockDate: string | null;
   daysUntilLock: number | null;
+  daysRemaining: number | null;
   warning: BillingStatusWarning;
   showBillingCta: boolean;
   lockedContext: BillingLockedContext | null;

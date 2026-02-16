@@ -61,18 +61,31 @@ export default function BillingLockBanner() {
     }
   } else if (status.warning) {
     const base =
-      status.warning === "3_day"
-        ? "Your billing will lock soon."
-        : "Your billing will lock in the coming days.";
+      status.warning === "grace"
+        ? "You're in a grace period. Update billing to avoid interruption."
+        : status.warning === "urgent"
+          ? "Your billing will lock soon."
+          : "Your billing will lock in the coming days.";
+    const countdown =
+      typeof status.daysRemaining === "number"
+        ? status.warning === "grace"
+          ? ` Grace ends in ${status.daysRemaining} day${status.daysRemaining !== 1 ? "s" : ""}.`
+          : ` Renews in ${status.daysRemaining} day${status.daysRemaining !== 1 ? "s" : ""}.`
+        : "";
     if (isOwner) {
       message =
         formattedLockDate && status.daysUntilLock != null
           ? `${base} You have until ${formattedLockDate} (${status.daysUntilLock} days) to update billing to avoid interruption.`
-          : `${base} Update billing to avoid interruption.`;
+          : status.warning === "grace"
+            ? base
+            : `${base} Update billing to avoid interruption.`;
+      message = message + countdown;
     } else {
       message =
-        base +
-        " Please contact the account owner to ensure billing is updated to avoid interruption.";
+        status.warning === "grace"
+          ? "Account is in a grace period. Please contact the account owner to update billing."
+          : base + " Please contact the account owner to ensure billing is updated to avoid interruption.";
+      message = message + countdown;
     }
   } else {
     return null;

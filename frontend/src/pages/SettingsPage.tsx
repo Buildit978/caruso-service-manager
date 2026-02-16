@@ -853,12 +853,20 @@ export default function SettingsPage() {
                             ) : billingStatus.warning ? (
                                 <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#451a1a", border: "1px solid #7f1d1d" }}>
                                     <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
-                                        {billingStatus.warning === "3_day" ? "Billing will lock soon" : "Billing will lock in the coming days"}
+                                        {billingStatus.warning === "grace"
+                                            ? "Grace period active"
+                                            : billingStatus.warning === "urgent"
+                                                ? "Your billing will lock soon"
+                                                : "Billing will lock in the coming days"}
                                     </div>
                                     <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
-                                        {billingStatus.daysUntilLock !== null 
-                                            ? `You have ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} to update billing to avoid interruption.`
-                                            : "Update billing to avoid interruption."}
+                                        {billingStatus.warning === "grace"
+                                            ? (typeof billingStatus.daysRemaining === "number"
+                                                ? `Grace ends in ${billingStatus.daysRemaining} day${billingStatus.daysRemaining !== 1 ? "s" : ""}. Update billing to continue.`
+                                                : "Your subscription is past due. Update billing to continue.")
+                                            : (typeof billingStatus.daysRemaining === "number"
+                                                ? `Renews in ${billingStatus.daysRemaining} day${billingStatus.daysRemaining !== 1 ? "s" : ""}. Update billing to avoid interruption.`
+                                                : "Update billing to avoid interruption.")}
                                     </div>
                                 </div>
                             ) : billingStatus.reason === "active" ? (

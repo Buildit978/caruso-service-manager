@@ -65,7 +65,21 @@ const BILLING_EXEMPT_REASONS: BillingExemptReason[] = ["demo", "internal", "sale
  * PATCH /api/admin/accounts/:accountId/billing-exempt
  * Superadmin only. Body: { billingExempt: boolean, billingExemptReason?: "demo" | "internal" | "sales" }.
  * When true: sets billingExemptReason (required), billingExemptSetAt, billingExemptSetBy.
- * When false: unsets reason and audit fields.
+ * When false: unsets reason and audit fields. Rejects 409 if accountTags includes demo/sales/internal.
+ *
+ * Verification checklist (set ADMIN_TOKEN, ACCOUNT_ID; BASE=http://localhost:4000/api/admin/accounts):
+ *   1. Tags include demo, billingExempt=true:
+ *        curl -s -X PATCH -H "Content-Type: application/json" -H "x-auth-token: $ADMIN_TOKEN" "$BASE/$ACCOUNT_ID/tags" -d '{"tags":["demo"]}'
+ *        → expect 200, body.billingExempt === true
+ *   2. Attempt billingExempt=false → 409 with blockingTags:
+ *        curl -s -X PATCH -H "Content-Type: application/json" -H "x-auth-token: $ADMIN_TOKEN" "$BASE/$ACCOUNT_ID/billing-exempt" -d '{"billingExempt":false}'
+ *        → expect 409, body.code === "BILLING_EXEMPT_TAG_BLOCK", body.blockingTags includes "demo"
+ *   3. Remove demo tag via tags endpoint:
+ *        curl -s -X PATCH -H "Content-Type: application/json" -H "x-auth-token: $ADMIN_TOKEN" "$BASE/$ACCOUNT_ID/tags" -d '{"tags":[]}'
+ *        → expect 200
+ *   4. Retry billingExempt=false → 200:
+ *        curl -s -X PATCH -H "Content-Type: application/json" -H "x-auth-token: $ADMIN_TOKEN" "$BASE/$ACCOUNT_ID/billing-exempt" -d '{"billingExempt":false}'
+ *        → expect 200, body.billingExempt === false
  */
 router.patch("/:accountId/billing-exempt", async (req: Request, res: Response) => {
   try {
@@ -93,10 +107,11 @@ const hasExemptTag = tags.some(
 
 
     if (hasExemptTag && billingExempt === false) {
-      return res.status(400).json({
-        code: "DEMO_TAG_REQUIRES_EXEMPT",
-        message: "This account is tagged demo/sales/internal and must remain billing-exempt. Remove the tag(s) first.",
-        accountTags: tags,
+      const blockingTags = tags.filter((t: string) => protectedTags.has(String(t).toLowerCase()));
+      return res.status(409).json({
+        code: "BILLING_EXEMPT_TAG_BLOCK",
+        message: "Remove demo/sales/internal tag(s) first.",
+        blockingTags,
       });
     }
 
@@ -117,14 +132,9 @@ const hasExemptTag = tags.some(
           },
         }
       );
-      return res.status(200).json({
-        ok: true,
-        accountId: accountId.toString(),
-        billingExempt: true,
-        billingExemptReason,
-        billingExemptSetAt: now.toISOString(),
-        billingExemptSetBy: setBy,
-      });
+      const updated = await Account.findById(accountId).lean();
+      const afterAcc = (updated ?? account) as Record<string, unknown>;
+      return res.status(200).json(adminListAccountFields(afterAcc, accountId.toString()));
     }
 
     await Account.updateOne(
@@ -138,11 +148,9 @@ const hasExemptTag = tags.some(
         },
       }
     );
-    return res.status(200).json({
-      ok: true,
-      accountId: accountId.toString(),
-      billingExempt: false,
-    });
+    const updated = await Account.findById(accountId).lean();
+    const afterAcc = (updated ?? account) as Record<string, unknown>;
+    return res.status(200).json(adminListAccountFields(afterAcc, accountId.toString()));
   } catch (err) {
     console.error("[admin] PATCH /accounts/:accountId/billing-exempt error:", err);
     return res.status(500).json({ message: "Internal server error" });

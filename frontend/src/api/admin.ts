@@ -93,23 +93,31 @@ async function adminFetch<T>(
   const response = await fetch(url, { ...options, headers });
   if (response.status === 401 || response.status === 403) {
     clearAdminToken();
-    const error: HttpError = new Error(response.status === 401 ? "Unauthorized" : "Forbidden") as HttpError;
-    error.status = response.status;
+    let data: unknown;
     try {
-      error.data = await response.json();
+      data = await response.json();
     } catch {
-      // ignore
+      data = undefined;
     }
+    const error: HttpError = new Error(
+      (data as { message?: string })?.message ?? (response.status === 401 ? "Unauthorized" : "Forbidden")
+    ) as HttpError;
+    error.status = response.status;
+    error.data = data;
     throw error;
   }
   if (!response.ok) {
-    const error: HttpError = new Error(`HTTP ${response.status}`) as HttpError;
-    error.status = response.status;
+    let data: unknown;
     try {
-      error.data = await response.json();
+      data = await response.json();
     } catch {
-      // ignore
+      data = undefined;
     }
+    const error: HttpError = new Error(
+      (data as { message?: string })?.message ?? `HTTP ${response.status}`
+    ) as HttpError;
+    error.status = response.status;
+    error.data = data;
     throw error;
   }
   const contentType = response.headers.get("content-type");
@@ -287,12 +295,12 @@ export function postForceLogout(accountId: string, body?: { note?: string }): Pr
   );
 }
 
-/** PATCH /api/admin/accounts/:accountId/billing-exempt — superadmin only. */
+/** PATCH /api/admin/accounts/:accountId/billing-exempt — superadmin only. Returns updated account (admin list shape). */
 export function patchBillingExempt(
   accountId: string,
   body: { billingExempt: boolean; billingExemptReason?: "demo" | "internal" | "sales" }
-): Promise<{ ok: boolean; accountId: string; billingExempt: boolean; billingExemptReason?: string; billingExemptSetAt?: string; billingExemptSetBy?: string }> {
-  return adminFetch(`/accounts/${accountId}/billing-exempt`, {
+): Promise<AdminAccountItem> {
+  return adminFetch<AdminAccountItem>(`/accounts/${accountId}/billing-exempt`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });

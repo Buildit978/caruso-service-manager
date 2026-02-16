@@ -126,15 +126,26 @@ export default function AdminAccountDetailPage() {
     return lower.includes("demo") || lower.includes("sales") || lower.includes("internal");
   };
 
+  // DEV_DEBUG: temporary logs to trace billingExempt toggle flow; remove when done.
+  const DEV_DEBUG = import.meta.env.DEV;
+
   function handleBillingExemptToggle() {
-    if (!accountId || !account) return;
+    if (DEV_DEBUG) console.log("[billingExempt] 1. handler fired");
+    if (!accountId || !account) {
+      if (DEV_DEBUG) console.log("[billingExempt] 1b. early return: no accountId or account");
+      return;
+    }
     const next = !account.billingExempt;
     if (!next && tagsIncludeExemptKind(account.accountTags)) {
       const ok = window.confirm(
         "This account has tags demo, sales, or internal. Turning off Billing Exempt may conflict with that. Continue anyway?"
       );
-      if (!ok) return;
+      if (!ok) {
+        if (DEV_DEBUG) console.log("[billingExempt] 1c. early return: user cancelled confirm");
+        return;
+      }
     }
+    if (DEV_DEBUG) console.log("[billingExempt] 2. calling patchBillingExempt, next=", next);
     setBillingExemptSaving(true);
     setActionError(null);
     patchBillingExempt(accountId, {
@@ -142,10 +153,21 @@ export default function AdminAccountDetailPage() {
       billingExemptReason: next ? (account.billingExemptReason ?? "demo") : undefined,
     })
       .then(() => {
+        if (DEV_DEBUG) console.log("[billingExempt] 3. success: setSuccessMessage + loadAccount");
+        setActionError(null);
         setSuccessMessage(next ? "Billing exempt enabled." : "Billing exempt disabled.");
         loadAccount();
       })
-      .catch((err) => setActionError((err as HttpError).message ?? "Failed"))
+      .catch((err) => {
+        if (DEV_DEBUG) console.log("[billingExempt] 4. catch: error displayed", err);
+        const httpErr = err as HttpError;
+        const data = httpErr.data as { code?: string; message?: string; blockingTags?: string[] } | undefined;
+        const msg =
+          httpErr.status === 409 && data?.code === "BILLING_EXEMPT_TAG_BLOCK" && Array.isArray(data.blockingTags)
+            ? `Remove demo/sales/internal tag(s) first: ${data.blockingTags.join(", ")}`
+            : httpErr.message ?? "Failed";
+        setActionError(msg);
+      })
       .finally(() => setBillingExemptSaving(false));
   }
 
@@ -160,6 +182,7 @@ export default function AdminAccountDetailPage() {
     setActionError(null);
     patchAccountTags(accountId, { tags })
       .then((updated) => {
+        setActionError(null);
         setAccount((prev) => (prev ? { ...prev, ...updated } : updated));
         setSuccessMessage("Tags updated.");
       })
@@ -245,6 +268,7 @@ export default function AdminAccountDetailPage() {
     setSuccessMessage(null);
     postForceLogout(accountId)
       .then(() => {
+        setActionError(null);
         setSuccessMessage("All users signed out.");
         loadAccount();
       })
@@ -391,6 +415,7 @@ export default function AdminAccountDetailPage() {
                 >
                   {billingExemptSaving ? "…" : account.billingExempt ? "Turn off Billing Exempt" : "Turn on Billing Exempt (Demo)"}
                 </button>
+                {actionError && <p className="admin-gate-error admin-detail-action-error">{actionError}</p>}
               </div>
               <div className="admin-detail-section">
                 <h3>Tags</h3>

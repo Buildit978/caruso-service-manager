@@ -1,5 +1,7 @@
 # Caruso Service Manager
 
+// Note: A reconnect after a Vercel mix up.
+
 ## Frontend API + Auth (v1)
 
 All frontend network calls are centralized in:

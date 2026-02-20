@@ -39,7 +39,7 @@ export default function AdminGatePage() {
       const res = await adminLogin({ email: normalizeEmail(email), password });
       const role = res.adminUser?.role;
       if (!role || !isAllowedRole(role)) {
-        setError("Access denied. Admin or Superadmin role required.");
+        setError("Access restricted.");
         setLoading(false);
         return;
       }
@@ -50,10 +50,10 @@ export default function AdminGatePage() {
       setLoading(false);
       if (err && typeof err === "object" && "status" in err) {
         const he = err as HttpError;
-        if (he.status === 401) setError("Invalid email or password.");
-        else setError(he.message || "Login failed.");
+        if (he.status === 401) setError("Access restricted.");
+        else setError(he.message || "Access restricted.");
       } else {
-        setError("Login failed.");
+        setError("Access restricted.");
       }
     }
   }
@@ -63,7 +63,7 @@ export default function AdminGatePage() {
     setError(null);
     const t = token.trim();
     if (!t) {
-      setError("Enter a token");
+      setError("Access restricted.");
       return;
     }
     setLoading(true);
@@ -74,7 +74,7 @@ export default function AdminGatePage() {
       if (!role || !isAllowedRole(role)) {
         clearAdminToken();
         setLoading(false);
-        setError("Access denied. Admin or Superadmin role required.");
+        setError("Access restricted.");
         return;
       }
       setAdminRole(role);
@@ -84,9 +84,9 @@ export default function AdminGatePage() {
       setLoading(false);
       if (err && typeof err === "object" && "status" in err) {
         const he = err as HttpError;
-        setError(he.status === 401 ? "Invalid or expired token." : "Token not authorized.");
+        setError("Access restricted.");
       } else {
-        setError("Token validation failed.");
+        setError("Access restricted.");
       }
     }
   }
@@ -94,9 +94,12 @@ export default function AdminGatePage() {
   return (
     <div className="admin-root">
       <header className="admin-topbar">
-        <h1 className="admin-topbar-title">Admin</h1>
+        <h1 className="admin-topbar-title">Admin Access</h1>
       </header>
       <main className="admin-main">
+        <p className="admin-gate-message" style={{ color: "var(--admin-muted, #94a3b8)", marginBottom: "1rem", fontSize: "0.95rem" }}>
+          Sign in to continue.
+        </p>
         <form className="admin-gate-form" onSubmit={handleLoginSubmit}>
           <div className="admin-form-group">
             <label htmlFor="admin-email">Email</label>
@@ -156,23 +159,23 @@ export default function AdminGatePage() {
             onClick={() => setTokenSectionOpen((o) => !o)}
             aria-expanded={tokenSectionOpen}
           >
-            {tokenSectionOpen ? "▼" : "▶"} Use token instead
+            {tokenSectionOpen ? "▼" : "▶"} Alternate sign-in
           </button>
           {tokenSectionOpen && (
             <form className="admin-gate-form admin-gate-token-form" onSubmit={handleTokenSubmit}>
               <div className="admin-form-group">
-                <label htmlFor="admin-token">Admin token (emergency)</label>
+                <label htmlFor="admin-token">Access credentials</label>
                 <input
                   id="admin-token"
                   type="password"
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
-                  placeholder="Paste JWT token"
+                  placeholder="Enter credentials"
                   autoComplete="off"
                 />
               </div>
               <button type="submit" className="admin-btn admin-btn-secondary" style={{ width: "100%" }} disabled={loading}>
-                Validate token & continue
+                Continue
               </button>
             </form>
           )}

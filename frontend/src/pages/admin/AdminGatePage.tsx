@@ -83,7 +83,6 @@ export default function AdminGatePage() {
       clearAdminToken();
       setLoading(false);
       if (err && typeof err === "object" && "status" in err) {
-        const he = err as HttpError;
         setError("Access restricted.");
       } else {
         setError("Access restricted.");

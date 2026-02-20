@@ -106,7 +106,7 @@ useEffect(() => {
       
       // Friendly permission-aware error messages
       if (httpError.status === 401) {
-        setError("Not signed in. Add a token in Settings (Dev) to continue.");
+        setError("Please sign in or create your shop to continue.");
       } else if (httpError.status === 403) {
         setError(null); // Don't show generic error, we'll render the Access Restricted card
       } else {

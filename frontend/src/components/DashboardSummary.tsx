@@ -201,10 +201,10 @@ useEffect(() => {
                     }}
                 >
                     <h2 style={{ marginTop: 0, color: "#e5e7eb", fontSize: "1.2rem" }}>
-                        Not Signed In
+                        Start Your Free 30-Day Trial
                     </h2>
                     <p style={{ color: "#e5e7eb", lineHeight: 1.6, marginBottom: "1rem" }}>
-                        {error || "Please sign in to access the dashboard."}
+                        No credit card required. Create your shop to begin — or sign in if you already have one.
                     </p>
                     <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
                         <button

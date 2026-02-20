@@ -20,7 +20,6 @@ function Layout() {
   const [billingStatusInfo, setBillingStatusInfo] = useState<BillingStatusResponse | null>(null)
   const [billingLocked, setBillingLocked] = useState(() => getBillingLockState().billingLocked)
   const [billingError, setBillingError] = useState<string | null>(null)
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -293,34 +292,66 @@ function Layout() {
           )}
         </nav>
 
-        {/* Logout button */}
+        {/* Logout / Sign in button */}
         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #1f2937' }}>
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              width: '100%',
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              color: '#e5e7eb',
-              background: 'transparent',
-              border: '1px solid #4b5563',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1f2937';
-              e.currentTarget.style.borderColor = '#6b7280';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = '#4b5563';
-            }}
-          >
-            Logout
-          </button>
+          {me ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                color: '#e5e7eb',
+                background: 'transparent',
+                border: '1px solid #4b5563',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1f2937';
+                e.currentTarget.style.borderColor = '#6b7280';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#4b5563';
+              }}
+            >
+              Logout
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              onClick={closeDrawer}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                color: '#e5e7eb',
+                background: 'transparent',
+                border: '1px solid #4b5563',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                textDecoration: 'none',
+                textAlign: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1f2937';
+                e.currentTarget.style.borderColor = '#6b7280';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#4b5563';
+              }}
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </aside>
 

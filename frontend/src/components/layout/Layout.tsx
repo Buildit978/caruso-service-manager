@@ -275,6 +275,10 @@ function Layout() {
           <Link to="/" style={linkStyle('/')} onClick={closeDrawer}>Dashboard</Link>
           <Link to="/work-orders" style={linkStyle('/work-orders')} onClick={closeDrawer}>Work Orders</Link>
 
+          {(isOwner || isManager) && (
+            <Link to="/estimates" style={linkStyle('/estimates')} onClick={closeDrawer}>Estimates</Link>
+          )}
+
           {me?.role === "owner" && (
             <Link to="/team" style={linkStyle('/team')} onClick={closeDrawer}>Team</Link>
           )}

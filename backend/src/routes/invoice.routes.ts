@@ -10,6 +10,7 @@ import { sendEmail } from "../utils/email";
 import { assertCanEditInvoice, assertValidInvoiceTransition, } from "../domain/invoices/invoiceLifecycle";
 import { requireInvoiceEditable, requireInvoiceNotPaid, } from "../middleware/invoiceLocks";
 import { applyInvoiceFinancials, computeInvoiceFinancials } from "../utils/invoiceFinancials";
+import { normalizeTaxRatePercent } from "../utils/normalizeTaxRate";
 import { requireRole } from "../middleware/requireRole";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
 import { trackEvent } from "../utils/trackEvent";
@@ -1003,10 +1004,10 @@ router.patch(
         (invoice as any).notes = String(notes);
 
       if (typeof taxRate !== "undefined") {
-        const n = Number(taxRate);
-        if (Number.isNaN(n) || n < 0)
-          return res.status(400).json({ message: "taxRate must be >= 0" });
-        (invoice as any).taxRate = n;
+        const normalized = normalizeTaxRatePercent(taxRate);
+        if (normalized === null)
+          return res.status(400).json({ message: "taxRate must be a valid number >= 0" });
+        (invoice as any).taxRate = normalized;
       }
 
       if (typeof lineItems !== "undefined") {
@@ -1026,11 +1027,13 @@ router.patch(
         0
       );
 
-      const rate = Number((invoice as any).taxRate ?? 0);
-      const taxAmount = subtotal * rate;
+      const taxRatePercent =
+        normalizeTaxRatePercent((invoice as any).taxRate) ?? 13;
+      const taxAmount = subtotal * (taxRatePercent / 100);
       const total = subtotal + taxAmount;
 
       (invoice as any).subtotal = Math.max(0, subtotal);
+      (invoice as any).taxRate = taxRatePercent;
       (invoice as any).taxAmount = Math.max(0, taxAmount);
       (invoice as any).total = Math.max(0, total);
 

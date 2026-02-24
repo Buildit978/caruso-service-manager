@@ -19,6 +19,8 @@ import RevenueReportPage from "./pages/RevenueReportPage";
 import LoginPage from "./pages/LoginPage";
 import StartPage from "./pages/StartPage";
 import TeamPage from "./pages/TeamPage";
+import EstimatesPage from "./pages/EstimatesPage";
+import EstimateDetailPage from "./pages/EstimateDetailPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import AdminGatePage from "./pages/admin/AdminGatePage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
@@ -41,6 +43,8 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="work-orders" element={<WorkOrdersPage />} />
+        <Route path="estimates" element={<EstimatesPage />} />
+        <Route path="estimates/:id" element={<EstimateDetailPage />} />
         <Route path="work-orders/new" element={<WorkOrderCreatePage />} />
         <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
         <Route path="work-orders/:id/edit" element={<WorkOrderEditPage />} />

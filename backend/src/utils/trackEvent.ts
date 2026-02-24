@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { Types } from "mongoose";
 import { Event } from "../models/event.model";
 
-type EventEntityKind = "account" | "customer" | "work_order" | "invoice" | "user";
+type EventEntityKind = "account" | "customer" | "work_order" | "invoice" | "estimate" | "user";
 
 export interface TrackEventEntity {
   kind: EventEntityKind;

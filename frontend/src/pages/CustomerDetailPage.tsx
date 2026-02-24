@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import CustomerVehiclesSection from "../components/CustomerVehiclesSection";
+import CustomerEstimatesSection from "../components/CustomerEstimatesSection";
 import type { Customer } from "../types/customer";
 import { fetchCustomer } from "../api/customers";
+import { createEstimate } from "../api/estimates";
 
 
 export default function CustomerDetailPage() {
@@ -11,7 +13,23 @@ export default function CustomerDetailPage() {
     const [customer, setCustomer] = useState<Customer | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [estimateError, setEstimateError] = useState<string | null>(null);
+    const [creating, setCreating] = useState(false);
     const navigate = useNavigate();
+
+    async function handleNewEstimate() {
+        if (!customer?._id) return;
+        setCreating(true);
+        setEstimateError(null);
+        try {
+            const estimate = await createEstimate({ customerId: customer._id });
+            navigate(`/estimates/${estimate._id}`);
+        } catch (err) {
+            setEstimateError((err as Error)?.message ?? "Could not create estimate.");
+        } finally {
+            setCreating(false);
+        }
+    }
 
     useEffect(() => {
         if (!id) {
@@ -89,26 +107,48 @@ export default function CustomerDetailPage() {
                     </h2>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() =>
-                        navigate(
-                            `/customers/${customer._id}/edit?returnTo=/customers/${customer._id}`
-                        )
-                    }
-                    style={{
-                        fontSize: "0.9rem",
-                        padding: "0.4rem 0.9rem",
-                        borderRadius: "0.4rem",
-                        border: "1px solid #cbd5e1",
-                        background: "#0f172a",
-                        color: "#e5e7eb",
-                        cursor: "pointer",
-                    }}
-                >
-                    Edit Customer
-                </button>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <button
+                        type="button"
+                        onClick={handleNewEstimate}
+                        disabled={creating}
+                        style={{
+                            fontSize: "0.9rem",
+                            padding: "0.4rem 0.9rem",
+                            borderRadius: "0.4rem",
+                            border: "1px solid #cbd5e1",
+                            background: "#1d4ed8",
+                            color: "#e5e7eb",
+                            cursor: creating ? "not-allowed" : "pointer",
+                        }}
+                    >
+                        {creating ? "Creating…" : "New Estimate"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            navigate(
+                                `/customers/${customer._id}/edit?returnTo=/customers/${customer._id}`
+                            )
+                        }
+                        style={{
+                            fontSize: "0.9rem",
+                            padding: "0.4rem 0.9rem",
+                            borderRadius: "0.4rem",
+                            border: "1px solid #cbd5e1",
+                            background: "#0f172a",
+                            color: "#e5e7eb",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Edit Customer
+                    </button>
+                </div>
             </div>
+
+            {estimateError && (
+                <p style={{ color: "red", marginBottom: "1rem" }}>{estimateError}</p>
+            )}
 
             {/* Contact info */}
             <div style={{ marginBottom: "1rem" }}>
@@ -120,6 +160,9 @@ export default function CustomerDetailPage() {
 
             {/* Vehicles for this customer */}
             <CustomerVehiclesSection customerId={customer._id} />
+
+            {/* Estimates for this customer */}
+            <CustomerEstimatesSection customerId={customer._id} />
         </div>
     );
 }

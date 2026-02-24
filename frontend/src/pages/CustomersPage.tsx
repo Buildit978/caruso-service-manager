@@ -13,10 +13,16 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [sort, setSort] = useState<
     "name-asc" | "name-desc" | "createdAt-desc" | "createdAt-asc"
   >("name-asc");
   const { setCustomersAccess, customersAccess } = useAccess();
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchDraft), 300);
+    return () => clearTimeout(t);
+  }, [searchDraft]);
 
   useEffect(() => {
     const load = async () => {
@@ -73,14 +79,6 @@ export default function CustomersPage() {
 
     load();
   }, [search, sort]);
-
-  if (loading) {
-    return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <p>Loading customers…</p>
-      </div>
-    );
-  }
 
   // Server confirmed access denied (403)
   if (customersAccess === false) {
@@ -149,8 +147,8 @@ export default function CustomersPage() {
             <input
               type="text"
               placeholder="Search customers…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
               style={{
                 height: "32px",
                 padding: "0 10px",
@@ -223,7 +221,14 @@ export default function CustomersPage() {
           </thead>
 
           <tbody>
-            {customers.map((c) => (
+            {loading ? (
+              <tr>
+                <td colSpan={5} style={{ padding: "1.5rem", textAlign: "center", color: "#9ca3af" }}>
+                  Loading customers…
+                </td>
+              </tr>
+            ) : (
+            customers.map((c) => (
               <tr key={c._id}>
                 <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                   {c.fullName || `${c.firstName} ${c.lastName}`}
@@ -235,7 +240,8 @@ export default function CustomersPage() {
                   <Link to={`/customers/${c._id}`}>View</Link>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

@@ -1,11 +1,13 @@
 // frontend/src/pages/EstimateDetailPage.tsx
 import { useEffect, useState, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   fetchEstimate,
   updateEstimate,
   sendEstimate,
   resendEstimate,
+  approveEstimate,
+  convertEstimateToWorkOrder,
   type Estimate,
   type EstimateLineItem,
 } from "../api/estimates";
@@ -36,6 +38,10 @@ function formatVehicleSummary(v: Estimate["vehicleId"]): string | null {
   return o.licensePlate ? `${base} (${o.licensePlate})` : base;
 }
 
+/** Sanitize phone input: allow only digits, spaces, +, (), -, . */
+const sanitizePhoneInput = (raw: string): string =>
+  raw.replace(/[^\d\s+\-().]/g, "");
+
 /** Parse "H:MM" or decimal to hours (e.g. "1:25" → 1.416…). */
 const parseQuantityInput = (raw: string): number => {
   const trimmed = raw.trim();
@@ -51,6 +57,7 @@ const parseQuantityInput = (raw: string): number => {
 
 export default function EstimateDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +69,11 @@ export default function EstimateDetailPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [dirty, setDirty] = useState(false);
 
@@ -195,9 +207,11 @@ export default function EstimateDetailPage() {
   }, [customerNotes, internalNotes, vehicleId, nonClientName, nonClientLastName, nonClientPhone, nonClientEmail, nonClientYear, nonClientMake, nonClientModel, items, estimate]);
 
   const isNonClient = (estimate as any)?.kind === "non_client";
+  const nonClientPhoneDigits = (nonClientPhone ?? "").replace(/\D/g, "");
   const nonClientComplete =
     nonClientName.trim() &&
-    nonClientPhone.trim() &&
+    nonClientLastName.trim() &&
+    nonClientPhoneDigits.length >= 7 &&
     nonClientYear.trim() &&
     nonClientMake.trim() &&
     nonClientModel.trim();
@@ -207,7 +221,7 @@ export default function EstimateDetailPage() {
     if (isNonClient ? !nonClientComplete : !vehicleId) {
       setSaveError(
         isNonClient
-          ? "Name, phone, and vehicle (year, make, model) are required for non-client estimates."
+          ? "Name, last name, phone, and vehicle (year, make, model) are required for non-client estimates."
           : "Vehicle Year, Make, and Model are required. Please select a vehicle."
       );
       return;
@@ -224,7 +238,7 @@ export default function EstimateDetailPage() {
       if (isNonClient) {
         payload.nonClient = {
           name: nonClientName.trim(),
-          lastName: nonClientLastName.trim() || undefined,
+          lastName: nonClientLastName.trim(),
           phone: nonClientPhone.trim(),
           email: nonClientEmail.trim() || undefined,
           vehicle: {
@@ -435,6 +449,57 @@ export default function EstimateDetailPage() {
     }
   };
 
+  const handleApprove = async () => {
+    if (!id || (estimate?.status !== "sent" && estimate?.status !== "accepted")) return;
+    setApproving(true);
+    setApproveError(null);
+    setApproveSuccess(null);
+    try {
+      const { estimate: updated } = await approveEstimate(id);
+      setEstimate(updated);
+      setApproveSuccess("Estimate approved.");
+    } catch (err) {
+      const httpErr = err as HttpError;
+      const apiMessage =
+        httpErr?.data &&
+        typeof httpErr.data === "object" &&
+        "message" in httpErr.data &&
+        typeof (httpErr.data as { message?: unknown }).message === "string"
+          ? (httpErr.data as { message: string }).message
+          : undefined;
+      setApproveError(apiMessage ?? (httpErr as Error).message ?? "Failed to approve.");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleConvert = async () => {
+    if (!id) return;
+    setConverting(true);
+    setConvertError(null);
+    try {
+      const { workOrder } = await convertEstimateToWorkOrder(id);
+      const woId = workOrder?._id != null ? String(workOrder._id) : null;
+      if (woId) {
+        navigate(`/work-orders/${woId}`);
+      } else {
+        setConvertError("Conversion succeeded but work order ID missing.");
+      }
+    } catch (err) {
+      const httpErr = err as HttpError;
+      const apiMessage =
+        httpErr?.data &&
+        typeof httpErr.data === "object" &&
+        "message" in httpErr.data &&
+        typeof (httpErr.data as { message?: unknown }).message === "string"
+          ? (httpErr.data as { message: string }).message
+          : undefined;
+      setConvertError(apiMessage ?? (httpErr as Error).message ?? "Failed to convert.");
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const handleItemChange = (
     index: number,
     field: keyof EstimateLineItem,
@@ -522,6 +587,16 @@ export default function EstimateDetailPage() {
 
   const isDraft = estimate.status === "draft";
   const isSent = estimate.status === "sent";
+  const isAccepted = estimate.status === "accepted";
+  const canApprove = isSent || isAccepted;
+  const isApprovedOrPartially =
+    estimate.status === "approved" || estimate.status === "partially_approved";
+  const convertedWoId = (() => {
+    const raw = estimate.convertedToWorkOrderId;
+    if (!raw) return null;
+    if (typeof raw === "string") return raw;
+    return (raw as { _id?: string })?._id ?? null;
+  })();
 
   return (
     <div style={{ padding: "2rem", maxWidth: "960px" }}>
@@ -591,54 +666,111 @@ export default function EstimateDetailPage() {
           </div>
         )}
         {/* id="f2-sent-ui-resend-pdf" - sent action buttons */}
-        {isSent && (
+        {canApprove && (
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+            {isSent && (
+              <>
+                <button
+                  type="button"
+                  disabled={loadingPdf}
+                  onClick={async () => {
+                    if (!id) return;
+                    try {
+                      setLoadingPdf(true);
+                      const blob = await httpBlob(`/estimates/${id}/pdf`);
+                      const blobUrl = URL.createObjectURL(blob);
+                      window.open(blobUrl, "_blank", "noopener,noreferrer");
+                      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+                    } catch (err) {
+                      console.error("[EstimateDetail] PDF fetch failed:", err);
+                    } finally {
+                      setLoadingPdf(false);
+                    }
+                  }}
+                  style={{
+                    padding: "0.5rem 1.25rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #2563eb",
+                    background: loadingPdf ? "#4b5563" : "transparent",
+                    color: "#2563eb",
+                    fontWeight: 500,
+                    cursor: loadingPdf ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {loadingPdf ? "Loading PDF…" : "View PDF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resending}
+                  style={{
+                    padding: "0.5rem 1.25rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #059669",
+                    background: resending ? "#4b5563" : "#059669",
+                    color: "#fff",
+                    fontWeight: 500,
+                    cursor: resending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {resending ? "Resending…" : "Resend email"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={handleApprove}
+              disabled={approving}
+              style={{
+                padding: "0.5rem 1.25rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #16a34a",
+                background: approving ? "#4b5563" : "#16a34a",
+                color: "#fff",
+                fontWeight: 500,
+                cursor: approving ? "not-allowed" : "pointer",
+              }}
+            >
+              {approving ? "Approving…" : "Approve"}
+            </button>
+          </div>
+        )}
+        {isApprovedOrPartially && !convertedWoId && (
           <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
             <button
               type="button"
-              disabled={loadingPdf}
-              onClick={async () => {
-                if (!id) return;
-                try {
-                  setLoadingPdf(true);
-                  const blob = await httpBlob(`/estimates/${id}/pdf`);
-                  const blobUrl = URL.createObjectURL(blob);
-                  window.open(blobUrl, "_blank", "noopener,noreferrer");
-                  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-                } catch (err) {
-                  console.error("[EstimateDetail] PDF fetch failed:", err);
-                } finally {
-                  setLoadingPdf(false);
-                }
-              }}
+              onClick={handleConvert}
+              disabled={converting}
               style={{
                 padding: "0.5rem 1.25rem",
                 borderRadius: "0.5rem",
                 border: "1px solid #2563eb",
-                background: loadingPdf ? "#4b5563" : "transparent",
-                color: "#2563eb",
-                fontWeight: 500,
-                cursor: loadingPdf ? "not-allowed" : "pointer",
-              }}
-            >
-              {loadingPdf ? "Loading PDF…" : "View PDF"}
-            </button>
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={resending}
-              style={{
-                padding: "0.5rem 1.25rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #059669",
-                background: resending ? "#4b5563" : "#059669",
+                background: converting ? "#4b5563" : "#2563eb",
                 color: "#fff",
                 fontWeight: 500,
-                cursor: resending ? "not-allowed" : "pointer",
+                cursor: converting ? "not-allowed" : "pointer",
               }}
             >
-              {resending ? "Resending…" : "Resend email"}
+              {converting ? "Converting…" : "Convert to Work Order"}
             </button>
           </div>
+        )}
+        {convertedWoId && (
+          <Link
+            to={`/work-orders/${convertedWoId}`}
+            style={{
+              padding: "0.5rem 1.25rem",
+              borderRadius: "0.5rem",
+              border: "1px solid #2563eb",
+              background: "transparent",
+              color: "#2563eb",
+              fontWeight: 500,
+              textDecoration: "none",
+              display: "inline-block",
+            }}
+          >
+            View Work Order
+          </Link>
         )}
       </div>
 
@@ -705,8 +837,15 @@ export default function EstimateDetailPage() {
         </div>
       )}
 
-      {(saveError || sendError || resendError) && (
-        <p style={{ color: "red", marginBottom: "1rem" }}>{saveError ?? sendError ?? resendError}</p>
+      {(saveError || sendError || resendError || approveError || convertError) && (
+        <p style={{ color: "red", marginBottom: "1rem" }}>
+          {saveError ?? sendError ?? resendError ?? approveError ?? convertError}
+        </p>
+      )}
+      {approveSuccess && (
+        <p style={{ color: "#22c55e", marginBottom: "1rem", fontSize: "0.9rem" }}>
+          {approveSuccess}
+        </p>
       )}
 
       <div style={{ marginTop: "0.75rem" }}>
@@ -817,10 +956,12 @@ export default function EstimateDetailPage() {
                     Phone
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     aria-label="Non-client phone"
                     value={nonClientPhone}
-                    onChange={(e) => setNonClientPhone(e.target.value)}
+                    onChange={(e) => setNonClientPhone(sanitizePhoneInput(e.target.value))}
                     placeholder="Phone"
                     style={{
                       width: "100%",

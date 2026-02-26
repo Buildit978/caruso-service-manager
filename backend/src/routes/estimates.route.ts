@@ -1016,6 +1016,53 @@ router.post(
 );
 
 /* =========================================================
+   POST /api/estimates/:id/approve
+   Only when status is sent or accepted. Set status='approved'.
+========================================================= */
+
+router.post(
+  "/:id/approve",
+  requireActiveBilling,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid estimate id" });
+      }
+
+      const estimate = await Estimate.findOne({ _id: id, accountId });
+      if (!estimate) {
+        return res.status(404).json({ message: "Estimate not found" });
+      }
+
+      const status = String(estimate.status || "").toLowerCase();
+      if (status === "approved") {
+        const estimateObj = estimate.toObject ? estimate.toObject() : estimate;
+        return res.json({ estimate: estimateObj });
+      }
+      if (status !== "sent" && status !== "accepted") {
+        return res.status(400).json({
+          message: `Cannot approve estimate with status "${estimate.status}". Status must be sent or accepted.`,
+        });
+      }
+
+      (estimate as any).status = "approved";
+      await estimate.save();
+
+      const estimateObj = estimate.toObject ? estimate.toObject() : estimate;
+      return res.json({ estimate: estimateObj });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* =========================================================
    POST /api/estimates/:id/convert
    - Validate status is approved or partially_approved
    - Ensure not already converted
@@ -1074,6 +1121,94 @@ router.post(
         });
       }
 
+      // Non-client: create Customer from nonClient if customerId missing
+      let effectiveCustomerId = estimate.customerId;
+      let nonClientVehicleId: Types.ObjectId | undefined;
+      let nonClientVehicleYear: number | undefined;
+      let nonClientVehicleMake: string | undefined;
+      let nonClientVehicleModel: string | undefined;
+      if (!effectiveCustomerId) {
+        const nc = (estimate as any).nonClient;
+        if (!nc || typeof nc !== "object") {
+          return res.status(400).json({
+            code: "NON_CLIENT_INFO_REQUIRED",
+            message: "Non-client estimate requires nonClient info for conversion.",
+          });
+        }
+        const firstName = String(nc.name ?? "").trim();
+        const lastName = String(nc.lastName ?? "").trim();
+        if (!firstName) {
+          return res.status(400).json({
+            code: "NON_CLIENT_NAME_REQUIRED",
+            message: "Missing nonClient.name (name and lastName required for conversion).",
+          });
+        }
+        if (!lastName) {
+          return res.status(400).json({
+            code: "NON_CLIENT_LASTNAME_REQUIRED",
+            message: "Missing nonClient.lastName (name and lastName required for conversion).",
+          });
+        }
+        const v = nc.vehicle;
+        if (!v || typeof v !== "object") {
+          return res.status(400).json({
+            code: "NON_CLIENT_VEHICLE_REQUIRED",
+            message: "Missing nonClient.vehicle (year/make/model required for conversion).",
+          });
+        }
+        const year = typeof v.year === "number" ? v.year : undefined;
+        const make = v.make ? String(v.make).trim() : undefined;
+        const model = v.model ? String(v.model).trim() : undefined;
+        if (year === undefined) {
+          return res.status(400).json({
+            code: "NON_CLIENT_VEHICLE_YEAR_REQUIRED",
+            message: "Missing nonClient.vehicle.year (year/make/model required for conversion).",
+          });
+        }
+        if (!make) {
+          return res.status(400).json({
+            code: "NON_CLIENT_VEHICLE_MAKE_REQUIRED",
+            message: "Missing nonClient.vehicle.make (year/make/model required for conversion).",
+          });
+        }
+        if (!model) {
+          return res.status(400).json({
+            code: "NON_CLIENT_VEHICLE_MODEL_REQUIRED",
+            message: "Missing nonClient.vehicle.model (year/make/model required for conversion).",
+          });
+        }
+
+        const newCustomer = await Customer.create({
+          accountId,
+          firstName,
+          lastName,
+          phone: nc.phone ? String(nc.phone).trim() : undefined,
+          email: nc.email ? String(nc.email).trim().toLowerCase() : undefined,
+        });
+        (estimate as any).customerId = newCustomer._id;
+        await estimate.save();
+        effectiveCustomerId = newCustomer._id as Types.ObjectId;
+
+        try {
+          const createdVehicle = await Vehicle.create({
+            accountId,
+            customerId: newCustomer._id,
+            year,
+            make,
+            model,
+          });
+          nonClientVehicleId = createdVehicle._id as Types.ObjectId;
+          nonClientVehicleYear = year;
+          nonClientVehicleMake = make;
+          nonClientVehicleModel = model;
+        } catch (vehErr: any) {
+          return res.status(400).json({
+            code: "VEHICLE_CREATE_FAILED",
+            message: vehErr?.message ?? "Could not create vehicle for non-client estimate.",
+          });
+        }
+      }
+
       // Map to WorkOrder line items
       const lineItems = approvedItems.map((it: any) => ({
         type: (it.type || "service") as "labour" | "part" | "service",
@@ -1091,7 +1226,7 @@ router.post(
       const taxAmount = subtotal * (taxRatePercent / 100);
       const total = subtotal + taxAmount;
 
-      // Build vehicle snapshot if estimate has vehicleId
+      // Build vehicle snapshot: from vehicleId or from nonClient.vehicle (non-client)
       let vehicle: any = undefined;
       if (estimate.vehicleId) {
         const v = await Vehicle.findOne({
@@ -1110,11 +1245,19 @@ router.post(
             notes: (v as any).notes,
           };
         }
+      } else if (nonClientVehicleId !== undefined) {
+        vehicle = {
+          vehicleId: nonClientVehicleId,
+          year: nonClientVehicleYear,
+          make: nonClientVehicleMake,
+          model: nonClientVehicleModel,
+        };
       }
 
       const workOrder = new WorkOrder({
         accountId,
-        customerId: estimate.customerId,
+        customerId: effectiveCustomerId,
+        sourceEstimateId: estimate._id,
         complaint: `Converted from estimate ${estimate.estimateNumber}`,
         diagnosis: (estimate as any).internalNotes,
         notes: (estimate as any).customerNotes,

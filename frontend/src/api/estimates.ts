@@ -152,6 +152,12 @@ export async function resendEstimate(id: string): Promise<Estimate> {
   });
 }
 
+export async function approveEstimate(id: string): Promise<{ estimate: Estimate }> {
+  return await http<{ estimate: Estimate }>(`/estimates/${id}/approve`, {
+    method: "POST",
+  });
+}
+
 export async function convertEstimateToWorkOrder(id: string): Promise<{
   estimate: Estimate;
   workOrder: { _id: string; [key: string]: unknown };

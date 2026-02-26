@@ -44,6 +44,7 @@ export interface IWorkOrder extends Document {
 
   customerId: Types.ObjectId;
   invoiceId?: Types.ObjectId;
+  sourceEstimateId?: Types.ObjectId;
 
   date: Date;
 
@@ -136,6 +137,12 @@ const workOrderSchema = new Schema<IWorkOrder>(
       ref: "Invoice",
       required: false,
       index: true,
+    },
+
+    sourceEstimateId: {
+      type: Schema.Types.ObjectId,
+      ref: "Estimate",
+      required: false,
     },
 
     customerId: {

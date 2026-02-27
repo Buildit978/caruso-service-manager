@@ -12,6 +12,7 @@ export default function StartPage() {
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -19,10 +20,23 @@ export default function StartPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!hasAcceptedLegal) {
+      setError("You must agree to the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await register({ shopName, ownerName, email, password });
+      const response = await register({
+        shopName,
+        ownerName,
+        email,
+        password,
+        acceptedTermsVersion: "2026-02-27",
+        acceptedPrivacyVersion: "2026-02-27",
+      });
       
       // Store token in localStorage
       setToken(response.token);
@@ -229,6 +243,59 @@ export default function StartPage() {
             <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "#9ca3af" }}>
               Minimum 8 characters
             </div>
+          </div>
+
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.5rem",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontSize: "0.9rem",
+                color: "#e5e7eb",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={hasAcceptedLegal}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHasAcceptedLegal(checked);
+                  if (checked) setError(null);
+                }}
+                disabled={loading}
+                style={{
+                  marginTop: "0.25rem",
+                  flexShrink: 0,
+                  width: "1rem",
+                  height: "1rem",
+                  accentColor: "#2563eb",
+                }}
+              />
+              <span>
+                I agree to the{" "}
+                <a
+                  href="https://shopservicemanager.com/terms"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#3b82f6", textDecoration: "none" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href="https://shopservicemanager.com/privacy"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#3b82f6", textDecoration: "none" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+              </span>
+            </label>
           </div>
 
           <button

@@ -296,6 +296,30 @@ function Layout() {
           )}
         </nav>
 
+        {/* Legal */}
+        <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #1f2937', fontSize: '0.8rem' }}>
+          <a
+            href="https://shopservicemanager.com/terms"
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'block', color: '#ffffff', textDecoration: 'none', marginBottom: '0.35rem', transition: 'opacity 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          >
+            Terms of Service
+          </a>
+          <a
+            href="https://shopservicemanager.com/privacy"
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'block', color: '#ffffff', textDecoration: 'none', transition: 'opacity 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          >
+            Privacy Policy
+          </a>
+        </div>
+
         {/* Logout / Sign in button */}
         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #1f2937' }}>
           {me ? (

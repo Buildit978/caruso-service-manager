@@ -1368,6 +1368,31 @@ export default function SettingsPage() {
                 </div>
             )}
 
+            {/* Legal — available to all users */}
+            <div className="settings-card" style={{ margin: 0 }}>
+                <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
+                    Legal
+                </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <a
+                        href="https://shopservicemanager.com/terms"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.95rem" }}
+                    >
+                        Terms of Service
+                    </a>
+                    <a
+                        href="https://shopservicemanager.com/privacy"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.95rem" }}
+                    >
+                        Privacy Policy
+                    </a>
+                </div>
+            </div>
+
             </div>
             {/* end settings-grid */}
 

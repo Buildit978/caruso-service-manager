@@ -12,6 +12,8 @@ export interface RegisterRequest {
   ownerName: string;
   email: string;
   password: string;
+  acceptedTermsVersion?: string;
+  acceptedPrivacyVersion?: string;
 }
 
 export interface LoginResponse {

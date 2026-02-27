@@ -56,17 +56,24 @@ function isValidEmail(email: string): boolean {
  */
 export async function handleRegister(req: Request, res: Response, next: NextFunction) {
   try {
-    const { shopName, ownerName, email, password, betaCode }: {
+    const { shopName, ownerName, email, password, betaCode, acceptedTermsVersion, acceptedPrivacyVersion }: {
       shopName?: string;
       ownerName?: string;
       email?: string;
       password?: string;
       betaCode?: string;
+      acceptedTermsVersion?: string;
+      acceptedPrivacyVersion?: string;
     } = req.body;
 
     // Validate required fields
     if (!shopName || !ownerName || !email || !password) {
       return res.status(400).json({ message: "shopName, ownerName, email, and password are required" });
+    }
+
+    // Enforce legal acceptance
+    if (!acceptedTermsVersion || typeof acceptedTermsVersion !== "string" || !acceptedTermsVersion.trim()) {
+      return res.status(400).json({ message: "You must accept the Terms of Service and Privacy Policy." });
     }
 
     // Validate email format
@@ -119,6 +126,13 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
     const firstName = ownerNameParts[0] || "";
     const lastName = ownerNameParts.slice(1).join(" ") || "";
 
+    const nowForLegal = new Date();
+    const termsVersion = String(acceptedTermsVersion).trim();
+    const privacyVersion =
+      acceptedPrivacyVersion && String(acceptedPrivacyVersion).trim()
+        ? String(acceptedPrivacyVersion).trim()
+        : termsVersion;
+
     const user = await User.create({
       accountId: account._id,
       email: String(email).toLowerCase().trim(),
@@ -129,6 +143,10 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
       passwordHash,
       isActive: true,
       tokenInvalidBefore: new Date(), // Start fresh
+      acceptedTermsAt: nowForLegal,
+      acceptedTermsVersion: termsVersion,
+      acceptedPrivacyAt: nowForLegal,
+      acceptedPrivacyVersion: privacyVersion,
     });
 
     // Create default Settings for the account

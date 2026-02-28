@@ -302,9 +302,14 @@ function Layout() {
             href="https://shopservicemanager.com/terms"
             target="_blank"
             rel="noreferrer"
-            style={{ display: 'block', color: '#ffffff', textDecoration: 'none', marginBottom: '0.35rem', transition: 'opacity 0.2s' }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            style={{
+              display: 'block',
+              color: '#7589bb',
+              textDecoration: 'none',
+              marginBottom: '0.35rem',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
           >
             Terms of Service
           </a>
@@ -312,9 +317,13 @@ function Layout() {
             href="https://shopservicemanager.com/privacy"
             target="_blank"
             rel="noreferrer"
-            style={{ display: 'block', color: '#ffffff', textDecoration: 'none', transition: 'opacity 0.2s' }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            style={{
+              display: 'block',
+              color: '#7589bb',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
           >
             Privacy Policy
           </a>

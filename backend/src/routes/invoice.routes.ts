@@ -17,6 +17,7 @@ import { trackEvent } from "../utils/trackEvent";
 import { Settings } from "../models/settings.model";
 import { requireActiveBilling } from "../middleware/requireBillingActive";
 import { trackBetaInvoiceCreated } from "../domain/billing/tryPromoteBetaCandidate";
+import { gaEvent } from "../lib/ga";
 
 const router = Router();
 
@@ -623,6 +624,15 @@ router.post(
     (invoice as any).sentAt = (invoice as any).sentAt ?? now;
 
     await invoice.save();
+
+    gaEvent({
+      clientId: accountId.toString(),
+      name: "invoice_sent",
+      params: {
+        account_id: accountId.toString(),
+        invoice_id: invoice._id.toString(),
+      },
+    });
 
     trackEvent({
       req,

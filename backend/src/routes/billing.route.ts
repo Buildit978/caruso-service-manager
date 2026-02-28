@@ -4,6 +4,7 @@ import Stripe from "stripe";
 
 import { Account } from "../models/account.model";
 import { WebhookEvent } from "../models/webhookEvent.model";
+import { gaEvent } from "../lib/ga";
 
 const router = express.Router();
 
@@ -384,7 +385,17 @@ async function applyActiveBillingFromSubscription(subscriptionId: string) {
 
   const unset: Record<string, 1> = { trialEndsAt: 1, graceEndsAt: 1 };
 
+  const wasAlreadyActive = account.billingStatus === "active";
+
   await Account.updateOne({ _id: account._id }, { $set: set, $unset: unset });
+
+  if (!wasAlreadyActive) {
+    gaEvent({
+      clientId: account._id.toString(),
+      name: "subscription_active",
+      params: { account_id: account._id.toString() },
+    });
+  }
 
   console.log("[billing] applyActiveBillingFromSubscription", {
     accountId: account._id.toString(),
@@ -414,6 +425,8 @@ async function applyActiveBillingFromInvoice(invoice: Stripe.Invoice) {
     raw?.lines?.data?.[0]?.period?.end ??
     raw?.period_end;
 
+  const wasAlreadyActive = account.billingStatus === "active";
+
   account.billingStatus = "active";
   account.graceEndsAt = undefined;
   if (periodEndSec) {
@@ -421,6 +434,14 @@ async function applyActiveBillingFromInvoice(invoice: Stripe.Invoice) {
   }
 
   await account.save();
+
+  if (!wasAlreadyActive) {
+    gaEvent({
+      clientId: account._id.toString(),
+      name: "subscription_active",
+      params: { account_id: account._id.toString() },
+    });
+  }
 }
 
 async function applyPastDueFromInvoice(invoice: Stripe.Invoice) {

@@ -8,6 +8,7 @@ import { Account } from "../models/account.model";
 import { requireAuth } from "../middleware/requireAuth";
 import { Types } from "mongoose";
 import { validateNewPassword } from "../utils/passwordValidation";
+import { gaEvent } from "../lib/ga"; // adjust relative path if needed
 
 // JWT payload type
 interface JwtPayload {
@@ -116,6 +117,17 @@ export async function handleRegister(req: Request, res: Response, next: NextFunc
       isBetaTester: false,
       ...(betaCandidate ? { betaCandidate: true, betaCandidateSince } : { betaCandidate: false }),
     });
+
+    // after successful create:
+await gaEvent({
+  clientId: account._id.toString(),
+  name: "trial_started",
+  params: {
+    account_id: account._id.toString(),
+    // optionally add a plan hint if you have it (no PII)
+    // plan: "trial",
+  },
+});
 
     // Hash password
     const saltRounds = Number(process.env.BCRYPT_ROUNDS) || 10;

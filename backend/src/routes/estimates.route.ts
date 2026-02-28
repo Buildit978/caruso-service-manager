@@ -13,6 +13,7 @@ import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { trackEvent } from "../utils/trackEvent";
 import { buildEstimatePdfBuffer } from "../utils/estimatePdf";
 import { sendEmail } from "../utils/email";
+import { gaEvent } from "../lib/ga";
 
 const router = Router();
 
@@ -119,6 +120,17 @@ router.post(
           taxRate: taxRatePercent,
         });
 
+        gaEvent({
+          clientId: accountId.toString(),
+          name: "estimate_created",
+          params: {
+            account_id: accountId.toString(),
+            estimate_id: estimate._id.toString(),
+            is_non_client: true,
+            items_count: (Array.isArray((estimate as any).items) ? (estimate as any).items.length : 0),
+          },
+        });
+
         trackEvent({
           req,
           type: "estimate.created",
@@ -157,6 +169,17 @@ router.post(
         taxRate: taxRatePercent,
       });
 
+      gaEvent({
+        clientId: accountId.toString(),
+        name: "estimate_created",
+        params: {
+          account_id: accountId.toString(),
+          estimate_id: estimate._id.toString(),
+          is_non_client: false,
+          items_count: (Array.isArray((estimate as any).items) ? (estimate as any).items.length : 0),
+        },
+      });
+
       trackEvent({
         req,
         type: "estimate.created",
@@ -169,6 +192,9 @@ router.post(
     }
   }
 );
+
+
+
 
 /* =========================================================
    GET /api/estimates
@@ -1276,6 +1302,16 @@ router.post(
 
       estimate.convertedToWorkOrderId = workOrder._id as Types.ObjectId;
       await estimate.save();
+
+      gaEvent({
+        clientId: accountId.toString(),
+        name: "estimate_converted_to_workorder",
+        params: {
+          account_id: accountId.toString(),
+          estimate_id: estimate._id.toString(),
+          work_order_id: workOrder._id.toString(),
+        },
+      });
 
       trackEvent({
         req,

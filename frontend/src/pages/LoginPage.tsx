@@ -1,7 +1,7 @@
 // frontend/src/pages/LoginPage.tsx
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { login, reactivate } from "../api/auth";
 import { setToken, setMustChangePassword } from "../api/http";
 import type { HttpError } from "../api/http";
@@ -448,6 +448,20 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>
+
+          <Link
+            to="/forgot-password"
+            style={{
+              display: "block",
+              marginTop: "0.75rem",
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: "0.9rem",
+              textDecoration: "none",
+            }}
+          >
+            Forgot password?
+          </Link>
         </form>
         )}
       </div>

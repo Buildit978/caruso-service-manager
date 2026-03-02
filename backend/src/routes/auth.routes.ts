@@ -2,19 +2,22 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import { User, type UserRole } from "../models/user.model";
 import { Settings } from "../models/settings.model";
 import { Account } from "../models/account.model";
 import { requireAuth } from "../middleware/requireAuth";
 import { Types } from "mongoose";
 import { validateNewPassword } from "../utils/passwordValidation";
-import { gaEvent } from "../lib/ga"; // adjust relative path if needed
+import { gaEvent } from "../lib/ga";
+import { sendEmail } from "../lib/email";
 
 // JWT payload type
 interface JwtPayload {
   userId: string;
   accountId: string;
   role: UserRole;
+  sv: number; // sessionVersion from user document
 }
 
 
@@ -41,6 +44,24 @@ export const reactivateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: process.env.NODE_ENV === "production" ? 3 : 10,
   message: { message: "Too many reactivation attempts, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiting for forgot-password endpoint (tight in prod, like login)
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === "production" ? 5 : 50,
+  message: { message: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiting for reset-password endpoint (tight in prod, like login)
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === "production" ? 5 : 50,
+  message: { message: "Too many requests, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -182,6 +203,7 @@ await gaEvent({
       userId: user._id.toString(),
       accountId: account._id.toString(),
       role: user.role,
+      sv: user.sessionVersion ?? 0,
     };
     const signOptions = {
       expiresIn: tokenExpiry,
@@ -357,10 +379,12 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
     }
 
     const tokenExpiry = process.env.AUTH_TOKEN_EXPIRY || "7d";
+    const sv = (user as any).sessionVersion ?? 0;
     const payload: JwtPayload = {
       userId: user._id.toString(),
       accountId: user.accountId.toString(),
       role: user.role,
+      sv,
     };
     const signOptions = {
       expiresIn: tokenExpiry,
@@ -458,6 +482,7 @@ export async function handleReactivate(req: Request, res: Response, next: NextFu
       userId: user._id.toString(),
       accountId: user.accountId.toString(),
       role: user.role,
+      sv: (user as { sessionVersion?: number }).sessionVersion ?? 0,
     };
     const signOptions = {
       expiresIn: tokenExpiry,
@@ -472,6 +497,163 @@ export async function handleReactivate(req: Request, res: Response, next: NextFu
         role: user.role,
         accountId: user.accountId.toString(),
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/forgot-password
+ * Public endpoint - owner only. Sends reset email; always returns 200 (no user enumeration).
+ */
+export async function handleForgotPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, shopCode } = req.body as { email?: string; shopCode?: string };
+
+    if (!email || typeof email !== "string" || !shopCode || typeof shopCode !== "string") {
+      return res.status(400).json({ message: "email and shopCode are required" });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const normalizedShopCode = String(shopCode).trim();
+    if (!normalizedShopCode) {
+      return res.status(400).json({ message: "email and shopCode are required" });
+    }
+
+    const account = await Account.findOne({
+      slug: normalizedShopCode,
+      isActive: true,
+    }).lean();
+
+    if (!account) {
+      return res.status(200).json({ ok: true });
+    }
+
+    const user = await User.findOne({
+      accountId: account._id,
+      email: normalizedEmail,
+      isActive: true,
+    });
+
+    if (!user) {
+      return res.status(200).json({ ok: true });
+    }
+
+    if (user.role !== "owner") {
+      return res.status(200).json({ ok: true });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+
+    user.passwordResetTokenHash = hash;
+    user.passwordResetExpiresAt = expiresAt;
+    await user.save();
+
+    const appBaseUrl = (process.env.APP_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
+    const resetLink = `${appBaseUrl}/reset-password?token=${encodeURIComponent(token)}&shopCode=${encodeURIComponent(normalizedShopCode)}`;
+
+    const subject = "Reset your password";
+    const text = `Click the link below to reset your password:\n\n${resetLink}\n\nThis link expires in 30 minutes.`;
+    const html = `<p>Click the link below to reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p><p>This link expires in 30 minutes.</p>`;
+
+    await sendEmail({ to: normalizedEmail, subject, text, html });
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Public endpoint - owner only. Validates reset token and sets new password; returns JWT for auto-login.
+ */
+export async function handleResetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token, shopCode, newPassword } = req.body as {
+      token?: string;
+      shopCode?: string;
+      newPassword?: string;
+    };
+
+    if (!token || typeof token !== "string" || !shopCode || typeof shopCode !== "string" || !newPassword || typeof newPassword !== "string") {
+      return res.status(400).json({ message: "token, shopCode, and newPassword are required" });
+    }
+
+    const normalizedShopCode = String(shopCode).trim();
+    if (!normalizedShopCode) {
+      return res.status(400).json({ message: "token, shopCode, and newPassword are required" });
+    }
+
+    const validationErrors = validateNewPassword(newPassword);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        message: validationErrors.join(" "),
+        errors: validationErrors,
+      });
+    }
+
+    const account = await Account.findOne({
+      slug: normalizedShopCode,
+      isActive: true,
+    }).lean();
+
+    if (!account) {
+      return res.status(400).json({ message: "Invalid or expired reset link" });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const now = new Date();
+
+    const user = await User.findOne({
+      accountId: account._id,
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: now },
+      isActive: true,
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset link" });
+    }
+
+    if (user.role !== "owner") {
+      return res.status(400).json({ message: "Invalid or expired reset link" });
+    }
+
+    const saltRounds = Number(process.env.BCRYPT_ROUNDS) || 10;
+    user.passwordHash = await bcrypt.hash(newPassword, saltRounds);
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    user.mustChangePassword = false;
+    user.tempPasswordExpiresAt = null;
+    user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+    await user.save();
+
+    const secret = process.env.AUTH_TOKEN_SECRET;
+    if (!secret || typeof secret !== "string") {
+      return res.status(500).json({ message: "Server auth misconfigured" });
+    }
+
+    const tokenExpiry = process.env.AUTH_TOKEN_EXPIRY || "7d";
+    const sv = (user as any).sessionVersion ?? 0;
+    const payload: JwtPayload = {
+      userId: user._id.toString(),
+      accountId: user.accountId.toString(),
+      role: user.role,
+      sv,
+    };
+    const signOptions = { expiresIn: tokenExpiry } as SignOptions;
+    const jwtToken = jwt.sign(payload, secret, signOptions);
+
+    return res.status(200).json({
+      ok: true,
+      token: jwtToken,
+      mustChangePassword: false,
     });
   } catch (err) {
     next(err);
@@ -542,7 +724,10 @@ export async function handleMe(req: Request, res: Response, next: NextFunction) 
 
 /**
  * POST /api/auth/change-password
- * Protected endpoint - change password (forced change flow, no current password required)
+ * Protected endpoint - change password.
+ * Supports both flows:
+ * - Forced: mustChangePassword === true -> no currentPassword required
+ * - Voluntary: mustChangePassword !== true -> currentPassword required
  */
 export async function handleChangePassword(req: Request, res: Response, next: NextFunction) {
   try {
@@ -553,7 +738,13 @@ export async function handleChangePassword(req: Request, res: Response, next: Ne
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { newPassword } = req.body as { newPassword?: string };
+    // Block admin/superadmin (tenant surface separation)
+    if (actor.role === "admin" || actor.role === "superadmin") {
+      return res.status(403).json({ message: "Not allowed on this endpoint" });
+    }
+
+    const newPassword = req.body?.newPassword as string | undefined;
+    const currentPassword = req.body?.currentPassword as string | undefined;
 
     if (!newPassword || typeof newPassword !== "string") {
       return res.status(400).json({ message: "newPassword is required" });
@@ -571,23 +762,53 @@ export async function handleChangePassword(req: Request, res: Response, next: Ne
       _id: actor._id,
       accountId,
       isActive: true,
-    });
+    }).select("passwordHash mustChangePassword tempPasswordExpiresAt role accountId sessionVersion");
 
     if (!user) {
       return res.status(401).json({ message: "User not found or inactive" });
     }
 
-    // Hash new password
+    const isForced = user.mustChangePassword === true;
+
+    if (!isForced) {
+      if (!currentPassword || typeof currentPassword !== "string") {
+        return res.status(401).json({ message: "Current password is required" });
+      }
+      const match = await bcrypt.compare(currentPassword, user.passwordHash || "");
+      if (!match) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+    }
+
     const saltRounds = Number(process.env.BCRYPT_ROUNDS) || 10;
     user.passwordHash = await bcrypt.hash(newPassword, saltRounds);
-
-    // Clear mustChangePassword and tempPasswordExpiresAt
     user.mustChangePassword = false;
     user.tempPasswordExpiresAt = null;
+    user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+
+    const secret = process.env.AUTH_TOKEN_SECRET;
+    if (!secret || typeof secret !== "string") {
+      return res.status(500).json({ message: "Server auth misconfigured" });
+    }
+
+    const tokenExpiry = process.env.AUTH_TOKEN_EXPIRY || "7d";
+    const sv = (user as any).sessionVersion ?? 0;
+    const payload: JwtPayload = {
+      userId: user._id.toString(),
+      accountId: user.accountId.toString(),
+      role: user.role,
+      sv,
+    };
+    const signOptions = { expiresIn: tokenExpiry } as SignOptions;
+    const token = jwt.sign(payload, secret, signOptions);
 
     await user.save();
 
-    return res.json({ ok: true });
+    return res.json({
+      ok: true,
+      token,
+      mustChangePassword: false,
+    });
   } catch (err) {
     next(err);
   }

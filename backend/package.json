@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "seed:account": "ts-node src/scripts/seedDefaultAccount.ts",
     "seed:shop": "ts-node src/scripts/seedFirstShop.ts",
-    "backfill:account": "ts-node src/scripts/backfillAccountId.ts"
+    "backfill:account": "ts-node src/scripts/backfillAccountId.ts",
+    "verify:change-password": "ts-node src/scripts/verifyChangePassword.ts"
   },
   "engines": {
     "node": "18.x"

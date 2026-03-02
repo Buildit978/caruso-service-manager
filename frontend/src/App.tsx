@@ -22,6 +22,8 @@ import TeamPage from "./pages/TeamPage";
 import EstimatesPage from "./pages/EstimatesPage";
 import EstimateDetailPage from "./pages/EstimateDetailPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdminGatePage from "./pages/admin/AdminGatePage";
 import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminAccountDetailPage from "./pages/admin/AdminAccountDetailPage";
@@ -33,6 +35,8 @@ function App() {
     <Routes>
       <Route path="/start" element={<StartPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/admin" element={<Outlet />}>
         <Route index element={<AdminGatePage />} />

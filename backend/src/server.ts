@@ -16,7 +16,7 @@ import { requireAuth } from "./middleware/requireAuth";
 import { requireAdminAuth } from "./middleware/requireAdminAuth";
 import { requireAdmin } from "./middleware/requireAdmin";
 import vehicleRoutes from "./routes/vehicles.route";
-import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter, handleChangePassword } from "./routes/auth.routes";
+import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, handleReactivate, reactivateLimiter, handleForgotPassword, forgotPasswordLimiter, handleResetPassword, resetPasswordLimiter, handleChangePassword } from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
@@ -70,12 +70,23 @@ app.get("/__build", (_req, res) => {
   });
 });
 
+app.get("/__debug/build", (_req, res) => {
+  return res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV,
+    pid: process.pid,
+  });
+});
+
 
 
 // 🔓 Public auth routes
 app.post("/api/auth/register", registerLimiter, handleRegister);
 app.post("/api/auth/login", loginLimiter, handleLogin);
 app.post("/api/auth/reactivate", reactivateLimiter, handleReactivate);
+app.post("/api/auth/forgot-password", forgotPasswordLimiter, handleForgotPassword);
+app.post("/api/auth/reset-password", resetPasswordLimiter, handleResetPassword);
 
 // 🔓 Public admin auth (login only; rest of /api/admin requires token)
 app.use("/api/admin/auth", adminAuthPublicRouter);
@@ -95,6 +106,7 @@ app.use("/api", requireAuth);
 // 🔐 Protected auth routes (after requireAuth)
 app.get("/api/auth/me", handleMe);
 app.post("/api/auth/change-password", handleChangePassword);
+app.patch("/api/auth/password", handleChangePassword);
 
 app.use("/api/customers", customerRoutes);
 app.use("/api/work-orders", workOrderRoutes);

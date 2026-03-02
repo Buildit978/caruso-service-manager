@@ -12,6 +12,7 @@ interface AuthTokenPayload {
   accountId: string;
   role: UserRole;
   iat?: number; // Issued at (timestamp in seconds)
+  sv?: number; // sessionVersion for revocation (password change bumps it)
   // allow extra claims but we only rely on these
   [key: string]: unknown;
 }
@@ -35,6 +36,13 @@ declare module "express-serve-static-core" {
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  function deny(code: string) {
+    if (process.env.NODE_ENV !== "production") {
+      return res.status(401).json({ message: "Unauthorized", code });
+    }
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
   const secret = process.env.AUTH_TOKEN_SECRET;
 
   if (!secret) {
@@ -46,7 +54,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = req.header("x-auth-token");
 
   if (!token || typeof token !== "string") {
-    return res.status(401).json({ message: "Unauthorized" });
+    return deny("NO_TOKEN");
   }
 
   try {
@@ -56,11 +64,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     // Basic shape + value checks
     if (!userId || !accountId || !VALID_ROLES.includes(role as UserRole)) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return deny("BAD_CLAIMS");
     }
 
     if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(accountId)) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return deny("BAD_OBJECTID");
     }
 
     // ✅ Harden: Fetch User from DB to verify active status and get authoritative role
@@ -71,23 +79,30 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }).lean();
 
     if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return deny("USER_NOT_FOUND");
     }
 
-    // ✅ Check token revocation (instant lockout)
-    if (user.tokenInvalidBefore && iat) {
-      // iat is in seconds, convert to milliseconds for comparison
-      const tokenIssuedAt = iat * 1000;
-      const revocationTime = user.tokenInvalidBefore.getTime();
-      if (tokenIssuedAt < revocationTime) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+    // ✅ Session version check (authoritative for password change revocation)
+    const tokenSv = typeof decoded.sv === "number" ? decoded.sv : 0;
+    const userSv = typeof (user as any).sessionVersion === "number" ? (user as any).sessionVersion : 0;
+    if (tokenSv !== userSv) {
+      return deny("SESSION_REVOKED");
+    }
+
+    // ✅ Check tokenInvalidBefore (admin force logout / instant lockout) — second-based
+    const tokenIatSec = typeof iat === "number" ? iat : undefined;
+    const revocationSec = user.tokenInvalidBefore
+      ? Math.floor(new Date(user.tokenInvalidBefore).getTime() / 1000)
+      : undefined;
+
+    if (tokenIatSec !== undefined && revocationSec !== undefined && tokenIatSec < revocationSec) {
+      return deny("TOKEN_REVOKED");
     }
 
     // ✅ Use DB role (authoritative), not JWT payload role
     const dbRole = user.role;
     if (!VALID_ROLES.includes(dbRole)) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return deny("BAD_DB_ROLE");
     }
 
     // ✅ Check Account.isActive
@@ -154,13 +169,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         ],
       },
       { $set: { lastActiveAt: now } }
-    ).catch((err) =>
-      console.debug?.("[requireAuth] lastActiveAt update failed", err?.message)
-    );
+    ).catch(() => { /* non-critical background update */ });
 
     return next();
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
+  } catch (err) {
+    return deny("JWT_VERIFY_FAILED");
   }
 }
 

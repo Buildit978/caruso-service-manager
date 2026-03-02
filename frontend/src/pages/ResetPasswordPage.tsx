@@ -1,21 +1,29 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { changePassword } from "../api/auth";
-import { setToken, setMustChangePassword, getMustChangePassword } from "../api/http";
+import { useState, useEffect, type FormEvent } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { resetPassword } from "../api/auth";
+import { setToken, setMustChangePassword } from "../api/http";
 import type { HttpError } from "../api/http";
 import { validateNewPassword } from "../utils/passwordValidation";
+import "./LoginPage.css";
 
-export default function ChangePasswordPage() {
+export default function ResetPasswordPage() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const mustChangePassword = getMustChangePassword();
-  const [currentPassword, setCurrentPassword] = useState("");
+  const token = searchParams.get("token") ?? "";
+  const shopCode = searchParams.get("shopCode") ?? "";
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    if (!token || !shopCode) {
+      setError("Invalid reset link. Please request a new password reset.");
+    }
+  }, [token, shopCode]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -35,9 +43,10 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const response = await changePassword({
+      const response = await resetPassword({
+        token,
+        shopCode,
         newPassword,
-        currentPassword: mustChangePassword ? undefined : currentPassword,
       });
 
       setToken(response.token);
@@ -47,12 +56,76 @@ export default function ChangePasswordPage() {
       setLoading(false);
       if (err instanceof Error && "status" in err) {
         const httpError = err as HttpError;
-        const data = httpError.data as any;
-        setError((data as any)?.message || httpError.message || "Failed to change password");
+        const data = httpError.data as { message?: string };
+        setError(data?.message || httpError.message || "Failed to reset password");
       } else {
         setError("An unexpected error occurred");
       }
     }
+  }
+
+  if (!token || !shopCode) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f172a",
+          padding: "1rem",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "400px",
+            background: "#1e293b",
+            border: "1px solid #334155",
+            borderRadius: "0.5rem",
+            padding: "2rem",
+          }}
+        >
+          <h1
+            style={{
+              marginTop: 0,
+              marginBottom: "1rem",
+              fontSize: "1.5rem",
+              fontWeight: 600,
+              color: "#e5e7eb",
+              textAlign: "center",
+            }}
+          >
+            Reset Password
+          </h1>
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.75rem",
+              background: "#7f1d1d",
+              border: "1px solid #991b1b",
+              borderRadius: "0.375rem",
+              color: "#fca5a5",
+              fontSize: "0.9rem",
+            }}
+          >
+            {error}
+          </div>
+          <Link
+            to="/forgot-password"
+            style={{
+              display: "block",
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: "0.9rem",
+              textDecoration: "none",
+            }}
+          >
+            Request a new reset link
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -86,24 +159,8 @@ export default function ChangePasswordPage() {
             textAlign: "center",
           }}
         >
-          Change Password
+          Reset Password
         </h1>
-
-        <div
-          style={{
-            marginBottom: "1.5rem",
-            padding: "0.75rem",
-            background: "#1e3a5f",
-            border: "1px solid #3b82f6",
-            borderRadius: "0.375rem",
-            color: "#93c5fd",
-            fontSize: "0.9rem",
-          }}
-        >
-          {mustChangePassword
-            ? "Your temporary password has expired or requires a change. Please set a new password to continue."
-            : "Enter your current password and choose a new one."}
-        </div>
 
         <form onSubmit={handleSubmit}>
           {error && (
@@ -119,52 +176,6 @@ export default function ChangePasswordPage() {
               }}
             >
               {error}
-            </div>
-          )}
-
-          {!mustChangePassword && (
-            <div style={{ marginBottom: "1rem" }}>
-              <label
-                htmlFor="current-password"
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.9rem",
-                  fontWeight: 500,
-                  color: "#e5e7eb",
-                }}
-              >
-                Current Password
-              </label>
-              <div className="password-field">
-                <input
-                  id="current-password"
-                  type={showCurrentPassword ? "text" : "password"}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.6rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid #4b5563",
-                    background: "#020617",
-                    color: "#e5e7eb",
-                    fontSize: "0.9rem",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword((s) => !s)}
-                  aria-label={showCurrentPassword ? "Hide password" : "Show password"}
-                  disabled={loading}
-                  className="password-toggle"
-                >
-                  {showCurrentPassword ? "Hide" : "Show"}
-                </button>
-              </div>
             </div>
           )}
 
@@ -281,7 +292,7 @@ export default function ChangePasswordPage() {
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? "Changing Password..." : "Change Password"}
+            {loading ? "Resetting..." : "Reset Password"}
           </button>
         </form>
       </div>

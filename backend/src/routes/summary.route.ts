@@ -85,11 +85,11 @@ import { requireRole } from "../middleware/requireRole";
             }
 
             const startOfWeek = getStartOfWeek();
-            const startOfYear = getStartOfYear();
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 7);
+            endOfWeek.setMilliseconds(endOfWeek.getMilliseconds() - 1);
 
-            const completedExpr = {
-            $eq: [{ $toLower: { $trim: { input: "$status" } } }, "completed"],
-            };
+            const startOfYear = getStartOfYear();
 
             const [
             statusAgg,
@@ -143,13 +143,16 @@ import { requireRole } from "../middleware/requireRole";
 ]),
 
 
-            // 5) This week's completed work orders + revenue, scoped by account
+            // 5) This week's work orders by completedAt (Mon 00:00–Sun 23:59:59), matches drill-down list
             WorkOrder.aggregate([
                 {
                 $match: {
                     accountId,
-                    createdAt: { $gte: startOfWeek },
-                    $expr: completedExpr,
+                    completedAt: {
+                    $exists: true,
+                    $gte: startOfWeek,
+                    $lte: endOfWeek,
+                    },
                 },
                 },
                 {

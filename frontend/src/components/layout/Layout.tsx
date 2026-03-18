@@ -274,6 +274,7 @@ function Layout() {
         <nav>
           <Link to="/" style={linkStyle('/')} onClick={closeDrawer}>Dashboard</Link>
           <Link to="/work-orders" style={linkStyle('/work-orders')} onClick={closeDrawer}>Work Orders</Link>
+          <Link to="/scheduler" style={linkStyle('/scheduler')} onClick={closeDrawer}>Scheduler</Link>
 
           {(isOwner || isManager) && (
             <Link to="/estimates" style={linkStyle('/estimates')} onClick={closeDrawer}>Estimates</Link>

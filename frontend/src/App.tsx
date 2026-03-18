@@ -16,6 +16,7 @@ import InvoiceDetailPage from "./pages/InvoiceDetailPage";
 import VehicleDetailPage from "./pages/VehicleDetailPage";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
 import RevenueReportPage from "./pages/RevenueReportPage";
+import SchedulerPage from "./pages/SchedulerPage";
 import LoginPage from "./pages/LoginPage";
 import StartPage from "./pages/StartPage";
 import TeamPage from "./pages/TeamPage";
@@ -47,6 +48,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="work-orders" element={<WorkOrdersPage />} />
+        <Route path="scheduler" element={<SchedulerPage />} />
         <Route path="estimates" element={<EstimatesPage />} />
         <Route path="estimates/:id" element={<EstimateDetailPage />} />
         <Route path="work-orders/new" element={<WorkOrderCreatePage />} />

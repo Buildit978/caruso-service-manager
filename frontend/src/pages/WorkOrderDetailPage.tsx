@@ -8,10 +8,19 @@ import {
   updateWorkOrder,
   updateWorkOrderStatus,
 } from "../api/workOrders";
+import {
+  fetchScheduleEntryByWorkOrder,
+  deleteScheduleEntry,
+  type ScheduleEntry,
+  type UnscheduledWorkOrder,
+} from "../api/scheduler";
+import { listUsers } from "../api/users";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
 import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
+import ScheduleEntryModal from "../components/scheduler/ScheduleEntryModal";
 import { useMe } from "../auth/useMe";
 import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
+import { formatDateDisplay, formatTimeRangeDisplay } from "../utils/dateTime";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -131,6 +140,17 @@ export default function WorkOrderDetailPage() {
     return subscribe((s) => setBillingLocked(s.billingLocked));
   }, []);
 
+  const [scheduleEntry, setScheduleEntry] = useState<ScheduleEntry | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleModalMode, setScheduleModalMode] = useState<"create" | "edit" | "view">("create");
+  const [technicians, setTechnicians] = useState<{ id: string; name: string }[]>([]);
+  const [isUnscheduling, setIsUnscheduling] = useState(false);
+
+  const { me } = useMe();
+  const canSeePricing = me?.role === "owner" || me?.role === "manager";
+  const canEditSchedule = canSeePricing;
+
   // 🔁 Shared loader so we can call it from useEffect AND after save
   async function loadWorkOrder() {
     if (!id) return;
@@ -151,6 +171,47 @@ export default function WorkOrderDetailPage() {
     loadWorkOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const workOrderId = id;
+    let cancelled = false;
+    async function loadSchedule() {
+      setScheduleLoading(true);
+      try {
+        const entry = await fetchScheduleEntryByWorkOrder(workOrderId);
+        if (!cancelled) setScheduleEntry(entry);
+      } catch {
+        if (!cancelled) setScheduleEntry(null);
+      } finally {
+        if (!cancelled) setScheduleLoading(false);
+      }
+    }
+    loadSchedule();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    if (!canSeePricing) return;
+    let cancelled = false;
+    async function loadTechnicians() {
+      try {
+        const res = await listUsers();
+        if (cancelled) return;
+        const techs = (res.users ?? [])
+          .filter((u) => u.role === "technician" && u.isActive)
+          .map((u) => ({
+            id: u.id,
+            name: u.name || u.email || u.id,
+          }));
+        setTechnicians(techs);
+      } catch {
+        if (!cancelled) setTechnicians([]);
+      }
+    }
+    loadTechnicians();
+    return () => { cancelled = true; };
+  }, [canSeePricing]);
 
   useEffect(() => {
     if (!workOrder) return;
@@ -216,10 +277,6 @@ export default function WorkOrderDetailPage() {
     customer?.fullName ||
     `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() ||
     "(No name)";
-
-  // Determine if user can see pricing (deny-by-default: only owner/manager)
-  const { me } = useMe();
-  const canSeePricing = me?.role === "owner" || me?.role === "manager";
 
   // ✏️ Edit button
   function handleEdit() {
@@ -437,6 +494,46 @@ export default function WorkOrderDetailPage() {
     setShowDeleteConfirm(true);
     setDeleteError(null);
   }
+
+  const handleScheduleModalSaved = () => {
+    if (!id) return;
+    fetchScheduleEntryByWorkOrder(id).then(setScheduleEntry);
+  };
+
+  const handleScheduleNow = () => {
+    setScheduleModalMode("create");
+    setScheduleModalOpen(true);
+  };
+
+  const handleEditSchedule = () => {
+    setScheduleModalMode("edit");
+    setScheduleModalOpen(true);
+  };
+
+  const handleUnschedule = async () => {
+    if (!scheduleEntry?._id || !confirm("Unschedule this work order? It will be marked as cancelled.")) return;
+    setIsUnscheduling(true);
+    try {
+      await deleteScheduleEntry(scheduleEntry._id);
+      setScheduleEntry(null);
+    } catch (err) {
+      console.error("[WO Detail] Unschedule error", err);
+      setActionError("Could not unschedule. Please try again.");
+    } finally {
+      setIsUnscheduling(false);
+    }
+  };
+
+  const workOrderForSchedule = workOrder
+    ? ({
+        _id: workOrder._id,
+        customerLabel: displayName,
+        vehicleLabel: workOrder.vehicle
+          ? [workOrder.vehicle.year, workOrder.vehicle.make, workOrder.vehicle.model].filter(Boolean).join(" ")
+          : undefined,
+        complaint: workOrder.complaint,
+      } as UnscheduledWorkOrder)
+    : null;
 
   async function confirmDelete() {
     if (!workOrder?._id) return;
@@ -805,7 +902,99 @@ export default function WorkOrderDetailPage() {
           <h3 style={{ marginTop: 0 }}>Timeline</h3>
           <TimelineBlock items={timelineItems} />
         </div>
+
+        {/* Schedule card */}
+        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>Schedule</h3>
+          {scheduleLoading ? (
+            <p style={{ color: "#9ca3af", fontSize: "0.9rem" }}>Loading…</p>
+          ) : scheduleEntry ? (
+            <>
+              <p>
+                <strong>Date:</strong> {formatDateDisplay(scheduleEntry.scheduledDate)}
+              </p>
+              <p>
+                <strong>Time:</strong> {formatTimeRangeDisplay(scheduleEntry.startAt, scheduleEntry.endAt)}
+              </p>
+              <p>
+                <strong>Technician:</strong> {scheduleEntry.technicianLabel || "Unassigned"}
+              </p>
+              {canEditSchedule && (
+                <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleEditSchedule}
+                    style={{
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #2563eb",
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edit Schedule
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleUnschedule}
+                    disabled={isUnscheduling}
+                    style={{
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #b91c1c",
+                      background: "transparent",
+                      color: "#b91c1c",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      cursor: isUnscheduling ? "not-allowed" : "pointer",
+                      opacity: isUnscheduling ? 0.7 : 1,
+                    }}
+                  >
+                    {isUnscheduling ? "Unscheduling…" : "Unschedule"}
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p style={{ color: "#9ca3af", marginBottom: "0.5rem" }}>Not scheduled</p>
+              {canEditSchedule && (
+                <button
+                  type="button"
+                  onClick={handleScheduleNow}
+                  disabled={billingLocked}
+                  style={{
+                    padding: "0.4rem 0.75rem",
+                    borderRadius: "8px",
+                    border: "1px solid #2563eb",
+                    background: "#2563eb",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: billingLocked ? "not-allowed" : "pointer",
+                    opacity: billingLocked ? 0.7 : 1,
+                  }}
+                >
+                  Schedule Now
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
+      <ScheduleEntryModal
+        open={scheduleModalOpen}
+        mode={scheduleModalMode}
+        workOrder={scheduleModalMode === "create" ? workOrderForSchedule : null}
+        entry={scheduleModalMode === "edit" || scheduleModalMode === "view" ? scheduleEntry : null}
+        technicians={technicians}
+        onClose={() => setScheduleModalOpen(false)}
+        onSaved={handleScheduleModalSaved}
+      />
 
       {/* LINE ITEMS */}
       <div style={{ marginTop: "1.25rem" }}>

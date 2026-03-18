@@ -1280,13 +1280,20 @@ router.post(
         };
       }
 
+      const customerNotes = (estimate as any).customerNotes;
+      const internalNotes = (estimate as any).internalNotes;
+      const complaint =
+        (customerNotes && String(customerNotes).trim()) ||
+        (internalNotes && String(internalNotes).trim()) ||
+        "General service";
+
       const workOrder = new WorkOrder({
         accountId,
         customerId: effectiveCustomerId,
         sourceEstimateId: estimate._id,
-        complaint: `Converted from estimate ${estimate.estimateNumber}`,
-        diagnosis: (estimate as any).internalNotes,
-        notes: (estimate as any).customerNotes,
+        complaint,
+        diagnosis: internalNotes,
+        notes: customerNotes,
         status: "open",
         date: new Date(),
         vehicle,

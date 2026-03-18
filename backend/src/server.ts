@@ -12,6 +12,7 @@ import invoiceRoutes from "./routes/invoice.routes";
 import estimateRoutes from "./routes/estimates.route";
 import { getMailer } from "./utils/mailer";
 import reportsRouter from "./routes/reports.routes";
+import schedulerRoutes from "./routes/scheduler.route";
 import { requireAuth } from "./middleware/requireAuth";
 import { requireAdminAuth } from "./middleware/requireAdminAuth";
 import { requireAdmin } from "./middleware/requireAdmin";
@@ -116,10 +117,12 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/estimates", estimateRoutes);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/reports", reportsRouter);
+app.use("/api/scheduler", schedulerRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/billing", billingRouter);
 
 console.log("✅ Mounted /api/invoices routes");
+console.log("✅ Mounted /api/scheduler routes");
 console.log("✅ Mounted /api/reports routes");
 console.log("✅ Mounted /api/users routes");
 

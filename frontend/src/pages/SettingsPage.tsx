@@ -77,7 +77,7 @@ export default function SettingsPage() {
     // Billing status state
     const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
     const [loadingBillingStatus, setLoadingBillingStatus] = useState(true);
-    const [checkoutTier, setCheckoutTier] = useState<CheckoutTier>("regular");
+    const [checkoutTier, setCheckoutTier] = useState<CheckoutTier>("founding");
     const [checkoutInterval, setCheckoutInterval] = useState<CheckoutInterval>("monthly");
 
     useEffect(() => {

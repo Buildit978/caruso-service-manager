@@ -831,11 +831,13 @@ export default function SettingsPage() {
                                 const isLocked = billingStatus.locked === true || billingLocked;
                                 const hasSubscription =
                                     billingStatus.billingStatus === "active" || billingStatus.billingStatus === "past_due";
+                                const checkoutTierWord = checkoutTier === "founding" ? "Founding" : "Standard";
+                                const checkoutIntervalWord = checkoutInterval === "monthly" ? "Monthly" : "Annual";
                                 const billingButtonLabel = isLocked
                                     ? "Fix billing"
                                     : hasSubscription
                                         ? "Manage billing"
-                                        : "Start subscription";
+                                        : `Start ${checkoutTierWord} ${checkoutIntervalWord}`;
 
                                 if (isExemptOrDemo) {
                                     return (
@@ -913,43 +915,199 @@ export default function SettingsPage() {
 
                             {/* Plan selection — used when starting checkout (owner, non-exempt, needs checkout path) */}
                             {isOwner && !isExemptOrDemo && (!hasSubscription || isLocked) && (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-end" }}>
-                                    <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem", color: "#9ca3af" }}>
-                                        Plan tier
-                                        <select
-                                            value={checkoutTier}
-                                            onChange={(e) => setCheckoutTier(e.target.value as CheckoutTier)}
-                                            style={{
-                                                padding: "0.45rem 0.6rem",
-                                                borderRadius: "0.5rem",
-                                                border: "1px solid #4b5563",
-                                                background: "#111827",
-                                                color: "#e5e7eb",
-                                                minWidth: "9rem",
-                                            }}
-                                        >
-                                            <option value="regular">Regular</option>
-                                            <option value="founding">Founding</option>
-                                        </select>
-                                    </label>
-                                    <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem", color: "#9ca3af" }}>
-                                        Billing interval
-                                        <select
-                                            value={checkoutInterval}
-                                            onChange={(e) => setCheckoutInterval(e.target.value as CheckoutInterval)}
-                                            style={{
-                                                padding: "0.45rem 0.6rem",
-                                                borderRadius: "0.5rem",
-                                                border: "1px solid #4b5563",
-                                                background: "#111827",
-                                                color: "#e5e7eb",
-                                                minWidth: "9rem",
-                                            }}
-                                        >
-                                            <option value="monthly">Monthly</option>
-                                            <option value="annual">Annual</option>
-                                        </select>
-                                    </label>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "0.75rem",
+                                        padding: "0.85rem",
+                                        borderRadius: "0.5rem",
+                                        border: "1px solid #374151",
+                                        background: "#0f172a",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: "0.95rem",
+                                            fontWeight: 600,
+                                            color: "#e5e7eb",
+                                        }}
+                                    >
+                                        Choose your plan
+                                    </div>
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "0.8rem",
+                                            color: "#9ca3af",
+                                            lineHeight: 1.45,
+                                        }}
+                                    >
+                                        Lock in founding pricing now — keep this rate for life while your subscription remains active.
+                                    </p>
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: "0.65rem",
+                                            alignItems: "stretch",
+                                        }}
+                                    >
+                                        {(
+                                            [
+                                                {
+                                                    tier: "founding" as const,
+                                                    title: "Founding Member",
+                                                    monthly: "$59",
+                                                    yearly: "$590",
+                                                    badge: "Limited-time",
+                                                },
+                                                {
+                                                    tier: "regular" as const,
+                                                    title: "Standard",
+                                                    monthly: "$99",
+                                                    yearly: "$990",
+                                                    badge: null,
+                                                },
+                                            ] as const
+                                        ).map((plan) => {
+                                            const selected = checkoutTier === plan.tier;
+                                            const segmentBtn = (interval: CheckoutInterval, label: string) => {
+                                                const on = checkoutInterval === interval;
+                                                return (
+                                                    <button
+                                                        key={interval}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCheckoutInterval(interval);
+                                                        }}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: "0.4rem 0.5rem",
+                                                            borderRadius: "0.375rem",
+                                                            border: on ? "1px solid #3b82f6" : "1px solid #4b5563",
+                                                            background: on ? "#1d4ed8" : "transparent",
+                                                            color: "#e5e7eb",
+                                                            fontSize: "0.78rem",
+                                                            fontWeight: 600,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                );
+                                            };
+                                            return (
+                                                <div
+                                                    key={plan.tier}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => setCheckoutTier(plan.tier)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault();
+                                                            setCheckoutTier(plan.tier);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        flex: "1 1 156px",
+                                                        minWidth: "148px",
+                                                        padding: "0.75rem",
+                                                        borderRadius: "0.5rem",
+                                                        border: selected ? "2px solid #3b82f6" : "1px solid #4b5563",
+                                                        background: selected ? "rgba(30, 58, 95, 0.45)" : "#111827",
+                                                        cursor: "pointer",
+                                                        outline: "none",
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: "0.45rem",
+                                                        textAlign: "left" as const,
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: "0.4rem",
+                                                            flexWrap: "wrap",
+                                                            minHeight: "1.35rem",
+                                                        }}
+                                                    >
+                                                        {plan.badge && (
+                                                            <span
+                                                                style={{
+                                                                    fontSize: "0.65rem",
+                                                                    fontWeight: 700,
+                                                                    textTransform: "uppercase" as const,
+                                                                    letterSpacing: "0.04em",
+                                                                    color: "#1e293b",
+                                                                    background: "#fbbf24",
+                                                                    padding: "0.12rem 0.35rem",
+                                                                    borderRadius: "0.25rem",
+                                                                }}
+                                                            >
+                                                                {plan.badge}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            fontSize: "0.92rem",
+                                                            fontWeight: 600,
+                                                            color: "#e5e7eb",
+                                                        }}
+                                                    >
+                                                        {plan.title}
+                                                    </div>
+                                                    <div style={{ fontSize: "0.82rem", color: "#9ca3af", lineHeight: 1.35 }}>
+                                                        <div>{plan.monthly}/month</div>
+                                                        <div>{plan.yearly}/year</div>
+                                                    </div>
+                                                    {selected && (
+                                                        <div
+                                                            style={{ marginTop: "0.15rem" }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onKeyDown={(e) => e.stopPropagation()}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    fontSize: "0.72rem",
+                                                                    color: "#6b7280",
+                                                                    marginBottom: "0.35rem",
+                                                                }}
+                                                            >
+                                                                Billing cycle
+                                                            </div>
+                                                            <div style={{ display: "flex", gap: "0.35rem", alignItems: "stretch" }}>
+                                                                {segmentBtn("monthly", "Monthly")}
+                                                                <div
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        display: "flex",
+                                                                        flexDirection: "column",
+                                                                        gap: "0.2rem",
+                                                                    }}
+                                                                >
+                                                                    {segmentBtn("annual", "Annual")}
+                                                                    <span
+                                                                        style={{
+                                                                            fontSize: "0.68rem",
+                                                                            color: "#86efac",
+                                                                            lineHeight: 1.2,
+                                                                            textAlign: "center" as const,
+                                                                        }}
+                                                                    >
+                                                                        Best value
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
 

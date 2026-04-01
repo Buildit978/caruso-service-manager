@@ -7,7 +7,13 @@ import { useMe } from "../../auth/useMe";
 import { clearToken, getMustChangePassword } from "../../api/http";
 import { useSettings } from "../../hooks/useSettings";
 import BillingLockBanner from "../common/BillingLockBanner";
-import { createCheckoutSession, createPortalSession, getBillingStatus, type BillingStatusResponse } from "../../api/billing";
+import {
+  CHECKOUT_SELECTION_QUICK_CTA,
+  createCheckoutSession,
+  createPortalSession,
+  getBillingStatus,
+  type BillingStatusResponse,
+} from "../../api/billing";
 import { getBillingLockState, subscribe } from "../../state/billingLock";
 import type { HttpError } from "../../api/http";
 
@@ -95,7 +101,7 @@ function Layout() {
         } catch (err) {
           const e = err as HttpError;
           if (e?.status === 400 && (e?.data as { message?: string })?.message === "No Stripe customer on file") {
-            const { url } = await createCheckoutSession();
+            const { url } = await createCheckoutSession(CHECKOUT_SELECTION_QUICK_CTA);
             if (url) window.location.href = url;
             return;
           }
@@ -107,7 +113,7 @@ function Layout() {
         const { url } = await createPortalSession();
         if (url) window.location.href = url;
       } else {
-        const { url } = await createCheckoutSession();
+        const { url } = await createCheckoutSession(CHECKOUT_SELECTION_QUICK_CTA);
         if (url) window.location.href = url;
       }
     } catch (err) {

@@ -11,8 +11,20 @@ export function assertStripeEnvIsolation() {
   const sk = process.env.STRIPE_SECRET_KEY;
   const whsecLive = process.env.STRIPE_WEBHOOK_SECRET_LIVE;
   const whsecTest = process.env.STRIPE_WEBHOOK_SECRET_TEST;
-  const priceLive = process.env.STRIPE_PRICE_ID_LIVE;
-  const priceTest = process.env.STRIPE_PRICE_ID_TEST;
+
+  const PRICE_KEYS_LIVE = [
+    "STRIPE_PRICE_FOUNDING_MONTHLY_LIVE",
+    "STRIPE_PRICE_FOUNDING_ANNUAL_LIVE",
+    "STRIPE_PRICE_REGULAR_MONTHLY_LIVE",
+    "STRIPE_PRICE_REGULAR_ANNUAL_LIVE",
+  ] as const;
+
+  const PRICE_KEYS_TEST = [
+    "STRIPE_PRICE_FOUNDING_MONTHLY_TEST",
+    "STRIPE_PRICE_FOUNDING_ANNUAL_TEST",
+    "STRIPE_PRICE_REGULAR_MONTHLY_TEST",
+    "STRIPE_PRICE_REGULAR_ANNUAL_TEST",
+  ] as const;
 
   const problems: string[] = [];
 
@@ -22,13 +34,21 @@ export function assertStripeEnvIsolation() {
   if (isProd) {
     if (!present(whsecLive)) problems.push("PROD missing STRIPE_WEBHOOK_SECRET_LIVE");
     if (present(whsecTest)) problems.push("PROD must NOT set STRIPE_WEBHOOK_SECRET_TEST");
-    if (!present(priceLive)) problems.push("PROD missing STRIPE_PRICE_ID_LIVE");
-    if (present(priceTest)) problems.push("PROD must NOT set STRIPE_PRICE_ID_TEST");
+    for (const k of PRICE_KEYS_LIVE) {
+      if (!present(process.env[k])) problems.push(`PROD missing ${k}`);
+    }
+    for (const k of PRICE_KEYS_TEST) {
+      if (present(process.env[k])) problems.push(`PROD must NOT set ${k}`);
+    }
   } else {
     if (!present(whsecTest)) problems.push("NON-PROD missing STRIPE_WEBHOOK_SECRET_TEST");
     if (present(whsecLive)) problems.push("NON-PROD must NOT set STRIPE_WEBHOOK_SECRET_LIVE");
-    if (!present(priceTest)) problems.push("NON-PROD missing STRIPE_PRICE_ID_TEST");
-    if (present(priceLive)) problems.push("NON-PROD must NOT set STRIPE_PRICE_ID_LIVE");
+    for (const k of PRICE_KEYS_TEST) {
+      if (!present(process.env[k])) problems.push(`NON-PROD missing ${k}`);
+    }
+    for (const k of PRICE_KEYS_LIVE) {
+      if (present(process.env[k])) problems.push(`NON-PROD must NOT set ${k}`);
+    }
   }
 
   // hard isolation for secret key

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMe } from "../../auth/useMe";
 import {
+  CHECKOUT_SELECTION_QUICK_CTA,
   createCheckoutSession,
   createPortalSession,
   getBillingStatus,
@@ -97,7 +98,7 @@ export default function BillingLockBanner() {
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch (err: any) {
       if (err?.status === 400) {
-        const { url } = await createCheckoutSession();
+        const { url } = await createCheckoutSession(CHECKOUT_SELECTION_QUICK_CTA);
         if (url) window.open(url, "_blank", "noopener,noreferrer");
         return;
       }

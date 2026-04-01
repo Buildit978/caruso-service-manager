@@ -23,7 +23,14 @@ import { exportCustomers, importCustomers, type ImportSummary } from "../api/cus
 import { updateMe } from "../api/users";
 import { clearToken } from "../api/http";
 import { useNavigate } from "react-router-dom";
-import { getBillingStatus, createCheckoutSession, createPortalSession, type BillingStatusResponse } from "../api/billing";
+import {
+    getBillingStatus,
+    createCheckoutSession,
+    createPortalSession,
+    type BillingStatusResponse,
+    type CheckoutInterval,
+    type CheckoutTier,
+} from "../api/billing";
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -70,6 +77,8 @@ export default function SettingsPage() {
     // Billing status state
     const [billingStatus, setBillingStatus] = useState<BillingStatusResponse | null>(null);
     const [loadingBillingStatus, setLoadingBillingStatus] = useState(true);
+    const [checkoutTier, setCheckoutTier] = useState<CheckoutTier>("regular");
+    const [checkoutInterval, setCheckoutInterval] = useState<CheckoutInterval>("monthly");
 
     useEffect(() => {
         if (me) setDisplayNameDraft(me.displayName ?? "");
@@ -902,12 +911,59 @@ export default function SettingsPage() {
                                 </div>
                             ) : null}
 
+                            {/* Plan selection — used when starting checkout (owner, non-exempt, needs checkout path) */}
+                            {isOwner && !isExemptOrDemo && (!hasSubscription || isLocked) && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-end" }}>
+                                    <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+                                        Plan tier
+                                        <select
+                                            value={checkoutTier}
+                                            onChange={(e) => setCheckoutTier(e.target.value as CheckoutTier)}
+                                            style={{
+                                                padding: "0.45rem 0.6rem",
+                                                borderRadius: "0.5rem",
+                                                border: "1px solid #4b5563",
+                                                background: "#111827",
+                                                color: "#e5e7eb",
+                                                minWidth: "9rem",
+                                            }}
+                                        >
+                                            <option value="regular">Regular</option>
+                                            <option value="founding">Founding</option>
+                                        </select>
+                                    </label>
+                                    <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+                                        Billing interval
+                                        <select
+                                            value={checkoutInterval}
+                                            onChange={(e) => setCheckoutInterval(e.target.value as CheckoutInterval)}
+                                            style={{
+                                                padding: "0.45rem 0.6rem",
+                                                borderRadius: "0.5rem",
+                                                border: "1px solid #4b5563",
+                                                background: "#111827",
+                                                color: "#e5e7eb",
+                                                minWidth: "9rem",
+                                            }}
+                                        >
+                                            <option value="monthly">Monthly</option>
+                                            <option value="annual">Annual</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            )}
+
                             {/* Billing CTA button — owners only, label by locked/subscribed state */}
                             {isOwner && (
                                 <button
                                     type="button"
                                     onClick={async () => {
                                         setError(null);
+                                        const checkoutBody = { tier: checkoutTier, interval: checkoutInterval };
+                                        const redirectToCheckout = async () => {
+                                            const { url } = await createCheckoutSession(checkoutBody);
+                                            if (url) window.location.href = url;
+                                        };
                                         try {
                                             if (isLocked) {
                                                 try {
@@ -916,8 +972,7 @@ export default function SettingsPage() {
                                                 } catch (err) {
                                                     const e = err as HttpError;
                                                     if (e?.status === 400 && (e?.data as { message?: string })?.message === "No Stripe customer on file") {
-                                                        const { url } = await createCheckoutSession();
-                                                        if (url) window.location.href = url;
+                                                        await redirectToCheckout();
                                                         return;
                                                     }
                                                     throw err;
@@ -928,8 +983,7 @@ export default function SettingsPage() {
                                                 const { url } = await createPortalSession();
                                                 if (url) window.location.href = url;
                                             } else {
-                                                const { url } = await createCheckoutSession();
-                                                if (url) window.location.href = url;
+                                                await redirectToCheckout();
                                             }
                                         } catch (err) {
                                             setError((err as HttpError)?.message ?? "Could not open billing. Please try again.");

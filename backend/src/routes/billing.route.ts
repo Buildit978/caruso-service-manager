@@ -10,6 +10,39 @@ const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+function resolveCheckoutPriceId(
+  isProd: boolean,
+  tier: "founding" | "regular",
+  interval: "monthly" | "annual"
+): string {
+  let priceId: string | undefined;
+  if (isProd) {
+    if (tier === "founding" && interval === "monthly") {
+      priceId = process.env.STRIPE_PRICE_FOUNDING_MONTHLY_LIVE;
+    } else if (tier === "founding" && interval === "annual") {
+      priceId = process.env.STRIPE_PRICE_FOUNDING_ANNUAL_LIVE;
+    } else if (tier === "regular" && interval === "monthly") {
+      priceId = process.env.STRIPE_PRICE_REGULAR_MONTHLY_LIVE;
+    } else {
+      priceId = process.env.STRIPE_PRICE_REGULAR_ANNUAL_LIVE;
+    }
+  } else {
+    if (tier === "founding" && interval === "monthly") {
+      priceId = process.env.STRIPE_PRICE_FOUNDING_MONTHLY_TEST;
+    } else if (tier === "founding" && interval === "annual") {
+      priceId = process.env.STRIPE_PRICE_FOUNDING_ANNUAL_TEST;
+    } else if (tier === "regular" && interval === "monthly") {
+      priceId = process.env.STRIPE_PRICE_REGULAR_MONTHLY_TEST;
+    } else {
+      priceId = process.env.STRIPE_PRICE_REGULAR_ANNUAL_TEST;
+    }
+  }
+  if (!priceId || typeof priceId !== "string" || !priceId.trim()) {
+    throw new Error("Missing Stripe price id for this environment");
+  }
+  return priceId.trim();
+}
+
 // GET /api/billing/status
 router.get("/status", async (req: any, res) => {
   try {
@@ -173,15 +206,37 @@ router.get("/status", async (req: any, res) => {
 });
 
 router.post("/checkout-session", async (req: any, res) => {
-  try {
-    const priceId =
-      process.env.NODE_ENV === "production"
-        ? process.env.STRIPE_PRICE_ID_LIVE
-        : process.env.STRIPE_PRICE_ID_TEST;
+  const rawInterval = req.body?.interval;
+  const rawTier = req.body?.tier;
 
-    if (!priceId) {
-      throw new Error("Missing Stripe price id for this environment");
-    }
+  if (rawInterval === undefined || rawInterval === null || rawInterval === "") {
+    return res.status(400).json({
+      message: 'interval is required ("monthly" or "annual")',
+    });
+  }
+  if (rawInterval !== "monthly" && rawInterval !== "annual") {
+    return res.status(400).json({
+      message: 'interval must be "monthly" or "annual"',
+    });
+  }
+
+  if (rawTier === undefined || rawTier === null || rawTier === "") {
+    return res.status(400).json({
+      message: 'tier is required ("founding" or "regular")',
+    });
+  }
+  if (rawTier !== "founding" && rawTier !== "regular") {
+    return res.status(400).json({
+      message: 'tier must be "founding" or "regular"',
+    });
+  }
+
+  const interval = rawInterval;
+  const tier = rawTier;
+
+  try {
+    const isProd = process.env.NODE_ENV === "production";
+    const priceId = resolveCheckoutPriceId(isProd, tier, interval);
 
     const appUrl = process.env.APP_URL!;
 

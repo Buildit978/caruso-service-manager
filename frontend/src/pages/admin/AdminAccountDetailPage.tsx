@@ -355,7 +355,7 @@ export default function AdminAccountDetailPage() {
       if (!def) return null;
       return { flagId, ...def };
     })
-    .filter((x): x is { flagId: string } & AssistedFlagSuggestion => x != null);
+    .filter((x): x is { flagId: string } & AssistedFlagMeta => x != null);
 
   const assistedVisible = assistedForFlags.filter((s) => !dismissedAssistedFlagIds.includes(s.flagId));
 

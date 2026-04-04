@@ -35,6 +35,8 @@ export interface IAccount extends Document {
   billingExemptSetBy?: string;
   // Account tags (demo, sales, internal, etc.) — normalized lowercase/trim/unique
   accountTags: string[];
+  /** Internal-only; never return from tenant APIs. */
+  adminNotes?: string;
   // Trial
   trialEndsAt?: Date;
   isBetaTester?: boolean;
@@ -74,6 +76,7 @@ const accountSchema = new Schema<IAccount>(
     billingExemptSetAt: Date,
     billingExemptSetBy: String,
     accountTags: { type: [String], default: () => [] },
+    adminNotes: { type: String, required: false, trim: true },
     // Trial
     trialEndsAt: Date,
     isBetaTester: Boolean,

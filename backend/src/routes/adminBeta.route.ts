@@ -8,8 +8,30 @@ import { User } from "../models/user.model";
 import { WorkOrder } from "../models/workOrder.model";
 import Invoice from "../models/invoice.model";
 import { Customer } from "../models/customer.model";
+import { trackAdminAudit } from "../utils/trackAdminAudit";
 
 const router = Router();
+
+const EVENTS_MAX_LIMIT = 200;
+const EVENTS_DEFAULT_LIMIT = 50;
+const EVENTS_DEFAULT_SKIP = 0;
+const ADMIN_NOTES_MAX_LEN = 32000;
+
+function parseEventsLimit(query: Request["query"]): number {
+  const raw = query.limit;
+  if (raw == null || raw === "") return EVENTS_DEFAULT_LIMIT;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return EVENTS_DEFAULT_LIMIT;
+  return Math.min(Math.max(n, 1), EVENTS_MAX_LIMIT);
+}
+
+function parseEventsSkip(query: Request["query"]): number {
+  const raw = query.skip;
+  if (raw == null || raw === "") return EVENTS_DEFAULT_SKIP;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 0) return EVENTS_DEFAULT_SKIP;
+  return n;
+}
 
 function parseDays(query: Request["query"]): number {
   const raw = query.days;
@@ -73,6 +95,87 @@ function parseNewDays(query: Request["query"]): number {
 
 function computeSince(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+const HEALTH_MS_HOUR = 60 * 60 * 1000;
+const HEALTH_MS_DAY = 24 * HEALTH_MS_HOUR;
+
+/** Customer health signals for admin list/detail only (no persistence). */
+function computeHealthFlags(params: {
+  now: Date;
+  createdAt: Date;
+  lastActiveAt?: Date | null;
+  billingExempt: boolean;
+  billingStatus?: string | null;
+  trialEndsAt?: Date | null;
+  graceEndsAt?: Date | null;
+  currentPeriodEnd?: Date | null;
+  workOrders: number;
+  invoices: number;
+}): string[] {
+  const {
+    now,
+    createdAt,
+    lastActiveAt,
+    billingExempt,
+    billingStatus,
+    trialEndsAt,
+    graceEndsAt,
+    currentPeriodEnd,
+    workOrders,
+    invoices,
+  } = params;
+
+  const createdMs = createdAt.getTime();
+  if (!Number.isFinite(createdMs)) return [];
+
+  const nowMs = now.getTime();
+  const agedEnough = nowMs - createdMs >= 48 * HEALTH_MS_HOUR;
+  const activityAt =
+    lastActiveAt != null && Number.isFinite(lastActiveAt.getTime()) ? lastActiveAt : createdAt;
+  const activityMs = activityAt.getTime();
+
+  const flags: string[] = [];
+
+  if (nowMs - createdMs < 7 * HEALTH_MS_DAY) {
+    flags.push("new_signup");
+  }
+
+  if (agedEnough) {
+    if (activityMs < nowMs - 3 * HEALTH_MS_DAY) flags.push("inactive_3d");
+    if (activityMs < nowMs - 7 * HEALTH_MS_DAY) flags.push("inactive_7d");
+    if (workOrders === 0) flags.push("no_first_workorder");
+    if (invoices === 0) flags.push("no_first_invoice");
+  }
+
+  if (!billingExempt) {
+    if (trialEndsAt != null && Number.isFinite(trialEndsAt.getTime())) {
+      const trialEndMs = trialEndsAt.getTime();
+      if (nowMs < trialEndMs && trialEndMs <= nowMs + 7 * HEALTH_MS_DAY) {
+        const cpeValid =
+          currentPeriodEnd != null &&
+          Number.isFinite(currentPeriodEnd.getTime()) &&
+          currentPeriodEnd.getTime() > nowMs;
+        const notActivePaid = billingStatus !== "active" || !cpeValid;
+        if (notActivePaid) flags.push("trial_ending");
+      }
+    }
+
+    let billingAttention = false;
+    if (billingStatus === "past_due" || billingStatus === "canceled") {
+      billingAttention = true;
+    }
+    if (graceEndsAt != null && Number.isFinite(graceEndsAt.getTime())) {
+      const g = graceEndsAt.getTime();
+      if (nowMs < g && g <= nowMs + 7 * HEALTH_MS_DAY) billingAttention = true;
+    }
+    if (trialEndsAt != null && Number.isFinite(trialEndsAt.getTime()) && trialEndsAt.getTime() <= nowMs) {
+      billingAttention = true;
+    }
+    if (billingAttention) flags.push("billing_attention");
+  }
+
+  return flags;
 }
 
 /** Tenant roles only (exclude admin/superadmin) for q=email match. */
@@ -218,9 +321,13 @@ router.get("/accounts", async (req: Request, res: Response) => {
       });
     }
 
-    const [countsWo, countsInv, countsCust, countsUsers] = await Promise.all([
+    const [countsWo, countsWoCompleted, countsInv, countsCust, countsUsers] = await Promise.all([
       WorkOrder.aggregate<{ _id: Types.ObjectId; count: number }>([
         { $match: { accountId: { $in: accountIds } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } },
+      ]),
+      WorkOrder.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { accountId: { $in: accountIds }, status: "completed" } },
         { $group: { _id: "$accountId", count: { $sum: 1 } } },
       ]),
       Invoice.aggregate<{ _id: Types.ObjectId; count: number }>([
@@ -243,6 +350,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
       return m;
     };
     const woMap = mapCount(countsWo);
+    const woCompletedMap = mapCount(countsWoCompleted);
     const invMap = mapCount(countsInv);
     const custMap = mapCount(countsCust);
     const usersMap = mapCount(countsUsers);
@@ -269,15 +377,30 @@ router.get("/accounts", async (req: Request, res: Response) => {
       primaryOwnerDisplayByAcc.set(accId, display);
     }
 
+    const healthNow = new Date();
     const items = accounts.map((a) => {
       const id = String(a._id);
       const acc = a as {
         name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date;
         accountTags?: string[]; billingExempt?: boolean; billingExemptReason?: string; billingStatus?: string;
-        currentPeriodEnd?: Date; graceEndsAt?: Date;
+        currentPeriodEnd?: Date; graceEndsAt?: Date; trialEndsAt?: Date; adminNotes?: string;
       };
       const createdAtDate = acc.createdAt as Date | undefined;
       const isNew = !!createdAtDate && new Date(createdAtDate).getTime() >= newSince.getTime();
+      const wo = woMap.get(id) ?? 0;
+      const inv = invMap.get(id) ?? 0;
+      const healthFlags = computeHealthFlags({
+        now: healthNow,
+        createdAt: acc.createdAt as Date,
+        lastActiveAt: acc.lastActiveAt,
+        billingExempt: acc.billingExempt === true,
+        billingStatus: acc.billingStatus,
+        trialEndsAt: acc.trialEndsAt,
+        graceEndsAt: acc.graceEndsAt,
+        currentPeriodEnd: acc.currentPeriodEnd,
+        workOrders: wo,
+        invoices: inv,
+      });
       return {
         accountId: id,
         name: acc.name,
@@ -294,9 +417,14 @@ router.get("/accounts", async (req: Request, res: Response) => {
         billingStatus: acc.billingStatus ?? undefined,
         currentPeriodEnd: acc.currentPeriodEnd ? (acc.currentPeriodEnd as Date).toISOString() : undefined,
         graceEndsAt: acc.graceEndsAt ? (acc.graceEndsAt as Date).toISOString() : undefined,
+        trialEndsAt: acc.trialEndsAt ? (acc.trialEndsAt as Date).toISOString() : undefined,
+        adminNotes:
+          typeof acc.adminNotes === "string" && acc.adminNotes.length > 0 ? acc.adminNotes : undefined,
+        healthFlags,
         counts: {
-          workOrders: woMap.get(id) ?? 0,
-          invoices: invMap.get(id) ?? 0,
+          workOrders: wo,
+          completedWorkOrders: woCompletedMap.get(id) ?? 0,
+          invoices: inv,
           customers: custMap.get(id) ?? 0,
           users: usersMap.get(id) ?? 0,
         },
@@ -317,6 +445,132 @@ router.get("/accounts", async (req: Request, res: Response) => {
   }
 });
 
+// GET /accounts/:accountId/events — activity timeline (Event model), newest first
+router.get("/accounts/:accountId/events", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.accountId;
+    if (raw == null || raw === "" || !Types.ObjectId.isValid(raw)) {
+      return res.status(400).json({ message: "Invalid accountId" });
+    }
+    const accountId = new Types.ObjectId(raw);
+    const exists = await Account.findById(accountId).select("_id").lean();
+    if (!exists) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+    const limit = parseEventsLimit(req.query);
+    const skip = parseEventsSkip(req.query);
+    const events = await Event.find({ accountId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const items = events.map((ev) => {
+      const doc = ev as {
+        _id: Types.ObjectId;
+        type: string;
+        createdAt: Date;
+        actorId?: Types.ObjectId;
+        actorRole?: string;
+        entity?: { kind: string; id: Types.ObjectId };
+        meta?: Record<string, unknown>;
+      };
+      return {
+        _id: String(doc._id),
+        type: doc.type,
+        createdAt: doc.createdAt.toISOString(),
+        actorId: doc.actorId ? String(doc.actorId) : undefined,
+        actorRole: doc.actorRole ?? undefined,
+        entity: doc.entity
+          ? { kind: doc.entity.kind, id: String(doc.entity.id) }
+          : undefined,
+        meta: doc.meta,
+      };
+    });
+
+    return res.json({
+      paging: { skip, limit, returned: items.length },
+      items,
+    });
+  } catch (err) {
+    console.error("[admin/beta] GET /accounts/:accountId/events error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /accounts/:accountId/admin-notes — internal notes (admin + superadmin; not tenant-facing)
+router.patch("/accounts/:accountId/admin-notes", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.accountId;
+    if (raw == null || raw === "" || !Types.ObjectId.isValid(raw)) {
+      return res.status(400).json({ message: "Invalid accountId" });
+    }
+    const accountId = new Types.ObjectId(raw);
+    const adminActor = (req as any).adminActor;
+    if (!adminActor?._id) return res.status(401).json({ message: "Unauthorized" });
+
+    const body = req.body as { adminNotes?: unknown };
+    if (!Object.prototype.hasOwnProperty.call(body ?? {}, "adminNotes")) {
+      return res.status(400).json({ message: "adminNotes is required (string or null)" });
+    }
+
+    const accountBefore = await Account.findById(accountId).lean();
+    if (!accountBefore) return res.status(404).json({ message: "Account not found" });
+
+    const beforeNotes =
+      typeof (accountBefore as { adminNotes?: string }).adminNotes === "string"
+        ? (accountBefore as { adminNotes?: string }).adminNotes
+        : null;
+
+    const rawNotes = body.adminNotes;
+    if (rawNotes !== null && typeof rawNotes !== "string") {
+      return res.status(400).json({ message: "adminNotes must be a string or null" });
+    }
+
+    if (rawNotes === null) {
+      await Account.updateOne({ _id: accountId }, { $unset: { adminNotes: "" } });
+    } else {
+      const trimmed = rawNotes.trim();
+      if (trimmed.length > ADMIN_NOTES_MAX_LEN) {
+        return res
+          .status(400)
+          .json({ message: `adminNotes must be at most ${ADMIN_NOTES_MAX_LEN} characters` });
+      }
+      if (trimmed.length === 0) {
+        await Account.updateOne({ _id: accountId }, { $unset: { adminNotes: "" } });
+      } else {
+        await Account.updateOne({ _id: accountId }, { $set: { adminNotes: trimmed } });
+      }
+    }
+
+    const updated = await Account.findById(accountId).lean();
+    const afterNotes =
+      updated &&
+      typeof (updated as { adminNotes?: string }).adminNotes === "string" &&
+      (updated as { adminNotes?: string }).adminNotes!.length > 0
+        ? (updated as { adminNotes?: string }).adminNotes!
+        : null;
+
+    await trackAdminAudit({
+      adminId: adminActor._id,
+      action: "account.admin_notes.update",
+      targetAccountId: accountId,
+      before: { adminNotes: beforeNotes },
+      after: { adminNotes: afterNotes },
+      ip: (req as any).auditContext?.ip,
+      userAgent: (req as any).auditContext?.userAgent,
+    });
+
+    return res.status(200).json({
+      accountId: accountId.toString(),
+      adminNotes: afterNotes ?? undefined,
+    });
+  } catch (err) {
+    console.error("[admin/beta] PATCH /accounts/:accountId/admin-notes error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /accounts/:accountId — single account detail (same shape as list item + shopName, shopCode, primaryOwner)
 router.get("/accounts/:accountId", async (req: Request, res: Response) => {
   try {
@@ -330,10 +584,12 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    const [settings, primaryOwnerUser, countsWo, countsInv, countsCust, countsUsers, seatsAgg] = await Promise.all([
+    const [settings, primaryOwnerUser, countsWo, countsWoCompleted, countsInv, countsCust, countsUsers, seatsAgg] =
+      await Promise.all([
       Settings.findOne({ accountId }).select("shopName invoiceProfile").lean(),
       User.findOne({ accountId, role: "owner", isActive: true }).select("name email firstName lastName phone").lean(),
       WorkOrder.countDocuments({ accountId }),
+      WorkOrder.countDocuments({ accountId, status: "completed" }),
       Invoice.countDocuments({ accountId }),
       Customer.countDocuments({ accountId }),
       User.countDocuments({ accountId, role: { $in: TENANT_ROLES } }),
@@ -347,7 +603,7 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
     const acc = account as {
       name?: string; slug?: string; region?: "Canada" | "TT"; isActive?: boolean; createdAt?: Date; lastActiveAt?: Date;
       accountTags?: string[]; billingExempt?: boolean; billingExemptReason?: string; billingStatus?: string;
-      currentPeriodEnd?: Date; graceEndsAt?: Date;
+      currentPeriodEnd?: Date; graceEndsAt?: Date; trialEndsAt?: Date; adminNotes?: string;
     };
     const owner = primaryOwnerUser as { name?: string; email?: string; firstName?: string; lastName?: string; phone?: string } | null;
     const shopName = (settings as { shopName?: string } | null)?.shopName ?? acc.name ?? undefined;
@@ -371,6 +627,20 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
     const seatsTechnician = seatsMap.get("technician") ?? 0;
     const seatsTotal = seatsOwner + seatsManager + seatsTechnician;
 
+    const detailNow = new Date();
+    const healthFlags = computeHealthFlags({
+      now: detailNow,
+      createdAt: acc.createdAt as Date,
+      lastActiveAt: acc.lastActiveAt,
+      billingExempt: acc.billingExempt === true,
+      billingStatus: acc.billingStatus,
+      trialEndsAt: acc.trialEndsAt,
+      graceEndsAt: acc.graceEndsAt,
+      currentPeriodEnd: acc.currentPeriodEnd,
+      workOrders: countsWo,
+      invoices: countsInv,
+    });
+
     return res.json({
       accountId: id,
       name: acc.name,
@@ -387,6 +657,10 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       billingStatus: acc.billingStatus ?? undefined,
       currentPeriodEnd: acc.currentPeriodEnd ? (acc.currentPeriodEnd as Date).toISOString() : undefined,
       graceEndsAt: acc.graceEndsAt ? (acc.graceEndsAt as Date).toISOString() : undefined,
+      trialEndsAt: acc.trialEndsAt ? (acc.trialEndsAt as Date).toISOString() : undefined,
+      adminNotes:
+        typeof acc.adminNotes === "string" && acc.adminNotes.length > 0 ? acc.adminNotes : undefined,
+      healthFlags,
       primaryOwner,
       address,
       seats: {
@@ -397,6 +671,7 @@ router.get("/accounts/:accountId", async (req: Request, res: Response) => {
       },
       counts: {
         workOrders: countsWo,
+        completedWorkOrders: countsWoCompleted,
         invoices: countsInv,
         customers: countsCust,
         users: countsUsers,

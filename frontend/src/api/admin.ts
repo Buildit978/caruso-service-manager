@@ -7,11 +7,14 @@ const ADMIN_ROLE_KEY = "adminRole";
 export type AdminRole = "admin" | "superadmin";
 
 export function getAdminToken(): string | null {
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
+  const raw = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 export function setAdminToken(token: string): void {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  localStorage.setItem(ADMIN_TOKEN_KEY, token.trim());
 }
 
 export function clearAdminToken(): void {
@@ -20,7 +23,7 @@ export function clearAdminToken(): void {
 }
 
 export function getAdminRole(): AdminRole | null {
-  const r = localStorage.getItem(ADMIN_ROLE_KEY);
+  const r = localStorage.getItem(ADMIN_ROLE_KEY)?.trim();
   if (r === "admin" || r === "superadmin") return r;
   return null;
 }
@@ -91,8 +94,8 @@ async function adminFetch<T>(
     ...(options.headers as Record<string, string>),
   };
   const response = await fetch(url, { ...options, headers });
+  // 401 = invalid/missing auth: drop token. 403 = allowed user but forbidden action (e.g. superadmin-only route); keep token so other admin calls still work.
   if (response.status === 401 || response.status === 403) {
-    clearAdminToken();
     let data: unknown;
     try {
       data = await response.json();
@@ -104,6 +107,9 @@ async function adminFetch<T>(
     ) as HttpError;
     error.status = response.status;
     error.data = data;
+    if (response.status === 401) {
+      clearAdminToken();
+    }
     throw error;
   }
   if (!response.ok) {
@@ -155,13 +161,68 @@ export interface AdminAccountItem {
   billingStatus?: "active" | "past_due" | "canceled";
   currentPeriodEnd?: string;
   graceEndsAt?: string;
+  trialEndsAt?: string;
+  /** Internal-only; admin API surfaces only. */
+  adminNotes?: string;
   seats?: {
     owner: number;
     manager: number;
     technician: number;
     total: number;
   };
-  counts: { workOrders: number; invoices: number; customers: number; users: number };
+  counts: {
+    workOrders: number;
+    completedWorkOrders?: number;
+    invoices: number;
+    customers: number;
+    users: number;
+  };
+  /** Backend-derived health signals (admin beta only). */
+  healthFlags?: string[];
+}
+
+/** Short labels for admin UI (display-only). */
+export const ADMIN_HEALTH_FLAG_LABELS: Record<string, string> = {
+  new_signup: "New",
+  inactive_3d: "Inactive 3d",
+  inactive_7d: "Inactive 7d",
+  no_first_workorder: "No WO",
+  no_first_invoice: "No invoice",
+  trial_ending: "Trial ending",
+  billing_attention: "Billing",
+};
+
+/**
+ * If both inactive_3d and inactive_7d are present, drop inactive_3d for display only.
+ */
+export function healthFlagsForDisplay(flags: string[] | undefined | null): string[] {
+  if (!Array.isArray(flags) || flags.length === 0) return [];
+  const has7 = flags.includes("inactive_7d");
+  return flags.filter((f) => !(has7 && f === "inactive_3d"));
+}
+
+export function healthFlagLabel(flagId: string): string {
+  return ADMIN_HEALTH_FLAG_LABELS[flagId] ?? flagId;
+}
+
+export interface AdminAccountEventItem {
+  _id: string;
+  type: string;
+  createdAt: string;
+  actorId?: string;
+  actorRole?: string;
+  entity?: { kind: string; id: string };
+  meta?: Record<string, unknown>;
+}
+
+export interface AdminAccountEventsResponse {
+  paging: { skip: number; limit: number; returned: number };
+  items: AdminAccountEventItem[];
+}
+
+export interface AdminAccountNotesPatchResponse {
+  accountId: string;
+  adminNotes?: string;
 }
 
 export interface AdminAccountUser {
@@ -237,6 +298,29 @@ export function fetchAdminAccounts(params?: {
 /** GET /api/admin/beta/accounts/:accountId — single account detail (same shape as list item + shopName, shopCode, primaryOwner). */
 export function fetchAdminAccountById(accountId: string): Promise<AdminAccountItem> {
   return adminFetch<AdminAccountItem>(`/beta/accounts/${accountId}`);
+}
+
+/** GET /api/admin/beta/accounts/:accountId/events — customer activity (Event model), newest first. */
+export function fetchAdminAccountEvents(
+  accountId: string,
+  params?: { limit?: number; skip?: number }
+): Promise<AdminAccountEventsResponse> {
+  const sp = new URLSearchParams();
+  if (params?.limit != null) sp.set("limit", String(params.limit));
+  if (params?.skip != null) sp.set("skip", String(params.skip));
+  const q = sp.toString() ? `?${sp.toString()}` : "";
+  return adminFetch<AdminAccountEventsResponse>(`/beta/accounts/${accountId}/events${q}`);
+}
+
+/** PATCH /api/admin/beta/accounts/:accountId/admin-notes — internal notes (admin + superadmin). */
+export function patchAdminAccountNotes(
+  accountId: string,
+  body: { adminNotes: string | null }
+): Promise<AdminAccountNotesPatchResponse> {
+  return adminFetch<AdminAccountNotesPatchResponse>(`/beta/accounts/${accountId}/admin-notes`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }
 
 /** GET /api/admin/accounts/:accountId/users?role=&isActive=&search= — tenant users for account overview. */

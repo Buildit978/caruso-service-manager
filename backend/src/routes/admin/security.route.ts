@@ -170,8 +170,9 @@ function firstBillingExemptReasonFromTags(tags: string[]): BillingExemptReason {
   return "demo";
 }
 
-/** Build admin-list shape for an account document (used by PATCH tags response). */
+/** Build admin-list / PATCH response shape for an account document (used by PATCH tags/billing-exempt). */
 function adminListAccountFields(acc: Record<string, unknown>, id: string): Record<string, unknown> {
+  const adminNotesRaw = acc.adminNotes;
   return {
     accountId: id,
     name: acc.name,
@@ -186,6 +187,9 @@ function adminListAccountFields(acc: Record<string, unknown>, id: string): Recor
     billingStatus: acc.billingStatus ?? undefined,
     currentPeriodEnd: (acc.currentPeriodEnd as Date)?.toISOString?.(),
     graceEndsAt: (acc.graceEndsAt as Date)?.toISOString?.(),
+    trialEndsAt: (acc.trialEndsAt as Date)?.toISOString?.(),
+    adminNotes:
+      typeof adminNotesRaw === "string" && adminNotesRaw.length > 0 ? adminNotesRaw : undefined,
   };
 }
 

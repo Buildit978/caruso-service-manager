@@ -725,3 +725,127 @@
   min-width: 12rem;
   flex: 1;
 }
+
+.admin-detail-notes-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.admin-detail-notes-form .admin-form-group {
+  width: 100%;
+}
+
+.admin-detail-notes-textarea {
+  width: 100%;
+  min-height: 100px;
+  min-width: unset !important;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.admin-detail-activity-meta {
+  font-size: 0.85rem;
+}
+
+.admin-health-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.admin-health-badges-detail {
+  margin-top: 0.35rem;
+}
+
+.admin-badge-health {
+  background: rgba(148, 163, 184, 0.22);
+  color: var(--admin-muted, inherit);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.admin-badge-health-overflow {
+  opacity: 0.9;
+}
+
+.admin-suggest-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-suggest-item {
+  border: 1px solid var(--admin-border, #334155);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--admin-card-bg, rgba(30, 41, 59, 0.35));
+}
+
+.admin-suggest-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.admin-suggest-message {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.9375rem;
+  color: var(--admin-fg, #e2e8f0);
+}
+
+.admin-suggest-action-line {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8125rem;
+}
+
+.admin-suggest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-assisted-sheet {
+    max-width: 400px;
+  }
+
+  .admin-assisted-email-sheet {
+    max-width: min(560px, 100vw - 2rem);
+    width: 100%;
+  }
+}
+
+.admin-assisted-email-warning {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.admin-assisted-email-body {
+  min-height: 200px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.admin-assisted-email-footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.admin-assisted-email-footer .admin-btn {
+  text-decoration: none;
+  box-sizing: border-box;
+}

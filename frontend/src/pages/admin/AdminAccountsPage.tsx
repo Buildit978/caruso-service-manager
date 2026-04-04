@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchAdminAccounts,
+  healthFlagsForDisplay,
+  healthFlagLabel,
   type AdminAccountItem,
   type HttpError,
 } from "../../api/admin";
@@ -54,6 +56,31 @@ function UsageCounts({ counts }: { counts: AdminAccountItem["counts"] }) {
   return (
     <span className="admin-usage-counts">
       WO:{counts.workOrders} Inv:{counts.invoices} Cust:{counts.customers} Users:{counts.users}
+    </span>
+  );
+}
+
+const HEALTH_BADGE_MAX = 3;
+
+function HealthBadges({ flags }: { flags: string[] | undefined }) {
+  const ordered = healthFlagsForDisplay(flags);
+  if (ordered.length === 0) {
+    return <span className="admin-detail-muted">—</span>;
+  }
+  const visible = ordered.slice(0, HEALTH_BADGE_MAX);
+  const overflow = ordered.length - visible.length;
+  return (
+    <span className="admin-health-badges">
+      {visible.map((id) => (
+        <span key={id} className="admin-badge admin-badge-health" title={id}>
+          {healthFlagLabel(id)}
+        </span>
+      ))}
+      {overflow > 0 ? (
+        <span className="admin-badge admin-badge-health admin-badge-health-overflow" title={ordered.slice(HEALTH_BADGE_MAX).join(", ")}>
+          +{overflow}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -341,6 +368,12 @@ export default function AdminAccountsPage() {
                         <BillingStatusBadge item={a} />
                       </span>
                     </div>
+                    <div className="admin-account-card-row">
+                      <span className="admin-account-card-label">Health</span>
+                      <span className="admin-account-card-value">
+                        <HealthBadges flags={a.healthFlags} />
+                      </span>
+                    </div>
                     <span className="admin-account-card-cta">View & actions →</span>
                   </button>
                 ))}
@@ -358,6 +391,7 @@ export default function AdminAccountsPage() {
                       <th>Last Active</th>
                       <th>Usage</th>
                       <th>Status</th>
+                      <th>Health</th>
                       <th>Billing</th>
                     </tr>
                   </thead>
@@ -394,6 +428,9 @@ export default function AdminAccountsPage() {
                           <UsageCounts counts={a.counts} />
                         </td>
                         <td>{a.isActive ? "Active" : "Inactive"}</td>
+                        <td>
+                          <HealthBadges flags={a.healthFlags} />
+                        </td>
                         <td><BillingStatusBadge item={a} /></td>
                       </tr>
                     ))}

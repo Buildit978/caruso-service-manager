@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   fetchAdminAccountById,
   fetchAdminAudits,
   fetchAdminAccountUsers,
+  fetchAdminAccountEvents,
   postQuarantine,
   deleteQuarantine,
   postThrottle,
@@ -11,10 +12,14 @@ import {
   postForceLogout,
   patchBillingExempt,
   patchAccountTags,
+  patchAdminAccountNotes,
   getAdminRole,
+  healthFlagsForDisplay,
+  healthFlagLabel,
   type AdminAccountItem,
   type AdminAccountUser,
   type AdminAuditItem,
+  type AdminAccountEventItem,
   type HttpError,
 } from "../../api/admin";
 import AdminLayout from "./AdminLayout";
@@ -38,6 +43,183 @@ function copyToClipboard(value: string): void {
   if (!value || !navigator.clipboard?.writeText) return;
   navigator.clipboard.writeText(value);
 }
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  "workorder.created": "Work order created",
+  "workorder.updated": "Work order updated",
+  "estimate.created": "Estimate created",
+  "estimate.converted": "Estimate converted",
+  "invoice.created": "Invoice created",
+  invoice_create_skipped_existing: "Invoice create skipped (existing)",
+  "invoice.sent": "Invoice sent",
+  invoice_payment_recorded: "Invoice payment recorded",
+  invoice_emailed_failed: "Invoice email failed",
+  invoice_emailed_success: "Invoice emailed",
+  "customer.created": "Customer created",
+  "vehicle.created": "Vehicle created",
+};
+
+function formatActivityEventType(type: string): string {
+  if (EVENT_TYPE_LABELS[type]) return EVENT_TYPE_LABELS[type];
+  if (!type) return "Event";
+  return type.replace(/\./g, " · ").replace(/_/g, " ");
+}
+
+function formatEventDetailLine(ev: AdminAccountEventItem): string | null {
+  const parts: string[] = [];
+  if (ev.entity?.kind && ev.entity?.id) {
+    const shortId = ev.entity.id.length > 10 ? `${ev.entity.id.slice(0, 8)}…` : ev.entity.id;
+    parts.push(`${ev.entity.kind}: ${shortId}`);
+  }
+  const meta = ev.meta;
+  if (meta != null && typeof meta === "object" && !Array.isArray(meta)) {
+    const status = (meta as Record<string, unknown>).status;
+    if (typeof status === "string" && status.trim()) parts.push(`status ${status}`);
+  }
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** Frontend-only assisted actions from healthFlags (compose only; nothing is sent from the app). */
+type AssistedActionKind = "email" | "guide";
+
+type AssistedFlagMeta = {
+  message: string;
+  kind: AssistedActionKind;
+};
+
+/** Draft copy for Mailchimp / manual send — `{{shopName}}`, `{{ownerName}}`, `{{ownerEmail}}`, `{{accountSlug}}`. */
+type EmailTemplate = {
+  subject: string;
+  body: string;
+  actionLabel: string;
+};
+
+const BRAND_NAME = "Shop Service Manager";
+
+const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
+  new_signup: {
+    actionLabel: "Prepare welcome email",
+    subject: `Welcome to ${BRAND_NAME} — let's get you set up`,
+    body: `Hi {{ownerName}},
+
+Thanks for signing up — we're glad {{shopName}} is on ${BRAND_NAME}. A few quick steps to get value right away:
+
+• Confirm your shop details and team members
+• Create your first work order when a job comes in
+• Send an invoice when you're ready to get paid
+
+If you have questions, just reply to this email.
+
+— ${BRAND_NAME} team`,
+  },
+  inactive_3d: {
+    actionLabel: "Prepare check-in email",
+    subject: "Quick check-in",
+    body: `Hi {{ownerName}},
+
+We noticed things have been quiet on {{shopName}} in ${BRAND_NAME} over the last few days. If anything is blocking you (setup, training, or a bug), we'd like to help.
+
+Want a short call or a pointer to docs? Reply here and we'll follow up.
+
+— ${BRAND_NAME} team`,
+  },
+  inactive_7d: {
+    actionLabel: "Prepare stronger check-in",
+    subject: "We're here if you need anything",
+    body: `Hi {{ownerName}},
+
+We haven't seen activity on {{shopName}} in ${BRAND_NAME} for about a week. Before you move on, is there something we should fix or clarify?
+
+If you're pausing intentionally, no problem — if you're stuck, tell us what's going on and we'll do our best to unblock you.
+
+— ${BRAND_NAME} team`,
+  },
+  no_first_workorder: {
+    actionLabel: "Guide to create first work order",
+    subject: `Create your first work order in ${BRAND_NAME}`,
+    body: `Hi {{ownerName}},
+
+A simple path to your first work order in ${BRAND_NAME}:
+
+1. Open Work orders (or Jobs, depending on your workspace)
+2. Click New / Create work order
+3. Add customer & vehicle (or minimal details), then save
+
+Once that first work order exists, estimates and invoicing get much easier. If anything in the UI is unclear, reply with a screenshot and we'll guide you.
+
+— ${BRAND_NAME} team`,
+  },
+  no_first_invoice: {
+    actionLabel: "Guide to create first invoice",
+    subject: `Create your first invoice in ${BRAND_NAME}`,
+    body: `Hi {{ownerName}},
+
+To send your first invoice from ${BRAND_NAME}:
+
+1. From a completed work order or customer, choose the option to create an invoice (or open Invoices → New)
+2. Confirm line items and totals
+3. Send or download the PDF for your customer
+
+If billing is blocked by setup (tax, numbering, etc.), tell us what's missing and we'll point you to the right place.
+
+— ${BRAND_NAME} team`,
+  },
+  trial_ending: {
+    actionLabel: "Prepare trial reminder",
+    subject: `Your ${BRAND_NAME} trial is ending soon`,
+    body: `Hi {{ownerName}},
+
+Your ${BRAND_NAME} trial for {{shopName}} is ending soon. To keep uninterrupted access, please add or confirm billing in your account settings.
+
+If you need more time or have questions about plans, reply here.
+
+— ${BRAND_NAME} team`,
+  },
+  billing_attention: {
+    actionLabel: "Prepare billing email",
+    subject: "Billing — action needed",
+    body: `Hi {{ownerName}},
+
+We're reaching out because billing for {{shopName}} in ${BRAND_NAME} needs attention (for example: past due or payment issue). Please update your payment method or billing details in account settings, or reply to this email if something looks wrong on our side.
+
+— ${BRAND_NAME} team`,
+  },
+};
+
+/** Replace {{shopName}}, {{ownerName}}, {{ownerEmail}}, {{accountSlug}} in draft strings. */
+function applyEmailTemplate(template: string, ctx: { shopName: string; ownerName: string; ownerEmail: string; accountSlug: string }): string {
+  const shopName = ctx.shopName.trim() || "your shop";
+  const ownerName = ctx.ownerName.trim() || "there";
+  const ownerEmail = ctx.ownerEmail.trim();
+  const accountSlug = ctx.accountSlug.trim();
+  return template
+    .replace(/\{\{shopName\}\}/g, shopName)
+    .replace(/\{\{ownerName\}\}/g, ownerName)
+    .replace(/\{\{ownerEmail\}\}/g, ownerEmail || "[email not on file]")
+    .replace(/\{\{accountSlug\}\}/g, accountSlug || "—");
+}
+
+function emailContextFromAccount(acct: AdminAccountItem): { shopName: string; ownerName: string; ownerEmail: string; accountSlug: string } {
+  return {
+    shopName: acct.shopName || acct.name || acct.slug || "",
+    ownerName: acct.primaryOwner?.name?.trim() || acct.primaryOwnerDisplayName?.trim() || "",
+    ownerEmail: acct.primaryOwner?.email?.trim() || "",
+    accountSlug: acct.slug?.trim() || "",
+  };
+}
+
+/** Placeholder URL — swap for your team’s Mailchimp campaign or audience page if desired. */
+const ADMIN_MAILCHIMP_EXTERNAL_URL = "https://mailchimp.com/";
+
+const HEALTH_FLAG_ASSISTED: Record<string, AssistedFlagMeta> = {
+  new_signup: { message: "New signup — shop may need onboarding.", kind: "email" },
+  inactive_3d: { message: "No meaningful activity in several days.", kind: "email" },
+  inactive_7d: { message: "Inactive for a week — higher risk of churn.", kind: "email" },
+  no_first_workorder: { message: "No work order created yet.", kind: "guide" },
+  no_first_invoice: { message: "No invoice created yet.", kind: "guide" },
+  trial_ending: { message: "Trial period is ending soon.", kind: "email" },
+  billing_attention: { message: "Billing needs attention (e.g. past due or similar).", kind: "email" },
+};
 
 export default function AdminAccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
@@ -65,6 +247,22 @@ export default function AdminAccountDetailPage() {
   const [tagsSaving, setTagsSaving] = useState(false);
   const [billingExemptSaving, setBillingExemptSaving] = useState(false);
 
+  const [activityEvents, setActivityEvents] = useState<AdminAccountEventItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [adminNotesDraft, setAdminNotesDraft] = useState("");
+  const [adminNotesSaving, setAdminNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  /** When true, do not overwrite the textarea from server-driven `account.adminNotes` (avoids snap-back on refetch). */
+  const adminNotesTouchedRef = useRef(false);
+
+  /** Session-only: hide assisted suggestion cards (not persisted). */
+  const [dismissedAssistedFlagIds, setDismissedAssistedFlagIds] = useState<string[]>([]);
+  const [assistedEmailModal, setAssistedEmailModal] = useState<{
+    flagId: string;
+    subject: string;
+    body: string;
+  } | null>(null);
+
   const loadAccount = useCallback(() => {
     if (!accountId) return;
     setError(null);
@@ -90,6 +288,29 @@ export default function AdminAccountDetailPage() {
       .then((res) => setAudits(res.items))
       .catch(() => setAudits([]));
   }, [accountId]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    setActivityLoading(true);
+    fetchAdminAccountEvents(accountId, { limit: 50 })
+      .then((res) => setActivityEvents(res.items))
+      .catch(() => setActivityEvents([]))
+      .finally(() => setActivityLoading(false));
+  }, [accountId]);
+
+  useEffect(() => {
+    adminNotesTouchedRef.current = false;
+  }, [accountId]);
+
+  useEffect(() => {
+    setDismissedAssistedFlagIds([]);
+    setAssistedEmailModal(null);
+  }, [accountId]);
+
+  useEffect(() => {
+    if (adminNotesTouchedRef.current) return;
+    setAdminNotesDraft(account?.adminNotes ?? "");
+  }, [account?.accountId, account?.adminNotes]);
 
   const loadUsers = useCallback(() => {
     if (!accountId) return;
@@ -125,6 +346,42 @@ export default function AdminAccountDetailPage() {
     const lower = tags.map((t) => t.toLowerCase());
     return lower.includes("demo") || lower.includes("sales") || lower.includes("internal");
   };
+
+  const displayHealthFlags = healthFlagsForDisplay(account?.healthFlags);
+
+  const assistedForFlags = displayHealthFlags
+    .map((flagId) => {
+      const def = HEALTH_FLAG_ASSISTED[flagId];
+      if (!def) return null;
+      return { flagId, ...def };
+    })
+    .filter((x): x is { flagId: string } & AssistedFlagSuggestion => x != null);
+
+  const assistedVisible = assistedForFlags.filter((s) => !dismissedAssistedFlagIds.includes(s.flagId));
+
+  function openAssistedEmailModal(flagId: string) {
+    if (!account) return;
+    const tpl = EMAIL_TEMPLATES[flagId];
+    if (!tpl) return;
+    const ctx = emailContextFromAccount(account);
+    setAssistedEmailModal({
+      flagId,
+      subject: applyEmailTemplate(tpl.subject, ctx),
+      body: applyEmailTemplate(tpl.body, ctx),
+    });
+  }
+
+  function handleAssistedCopyDraft() {
+    if (!assistedEmailModal) return;
+    const text = `Subject: ${assistedEmailModal.subject}\n\n${assistedEmailModal.body}`;
+    copyToClipboard(text);
+    setSuccessMessage("Copied subject and body to clipboard.");
+  }
+
+  function handleAssistedCopyAndOpenMailchimp() {
+    handleAssistedCopyDraft();
+    window.open(ADMIN_MAILCHIMP_EXTERNAL_URL, "_blank", "noopener,noreferrer");
+  }
 
   // DEV_DEBUG: temporary logs to trace billingExempt toggle flow; remove when done.
   const DEV_DEBUG = import.meta.env.DEV;
@@ -169,6 +426,30 @@ export default function AdminAccountDetailPage() {
         setActionError(msg);
       })
       .finally(() => setBillingExemptSaving(false));
+  }
+
+  function handleAdminNotesSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!accountId) return;
+    setNotesError(null);
+    setAdminNotesSaving(true);
+    const trimmed = adminNotesDraft.trim();
+    patchAdminAccountNotes(accountId, { adminNotes: trimmed === "" ? null : trimmed })
+      .then((res) => {
+        adminNotesTouchedRef.current = false;
+        setAccount((prev) =>
+          prev
+            ? {
+                ...prev,
+                adminNotes: res.adminNotes,
+              }
+            : prev
+        );
+        setAdminNotesDraft(res.adminNotes ?? "");
+        setSuccessMessage("Internal notes saved.");
+      })
+      .catch((err) => setNotesError((err as HttpError).message ?? "Failed to save notes"))
+      .finally(() => setAdminNotesSaving(false));
   }
 
   function handleTagsSave(e: React.FormEvent) {
@@ -393,6 +674,12 @@ export default function AdminAccountDetailPage() {
                   "—"
                 )}
               </dd>
+              <dt>Trial ends</dt>
+              <dd>{formatDateTime(account.trialEndsAt)}</dd>
+              <dt>Grace ends</dt>
+              <dd>{formatDateTime(account.graceEndsAt)}</dd>
+              <dt>Current period ends</dt>
+              <dd>{formatDateTime(account.currentPeriodEnd)}</dd>
               <dt>Created</dt>
               <dd>{formatDate(account.createdAt)}</dd>
               <dt>Last Active</dt>
@@ -400,6 +687,99 @@ export default function AdminAccountDetailPage() {
               <dt>ID</dt>
               <dd className="admin-detail-id">{accountId}</dd>
             </dl>
+          </div>
+
+          <div className="admin-detail-section">
+            <h3>Health</h3>
+            <p className="admin-detail-muted">
+              Internal operational signals derived from shop activity and billing fields (admin only, not shown to customers).
+            </p>
+            {displayHealthFlags.length === 0 ? (
+              <p className="admin-detail-muted">No health flags at this time.</p>
+            ) : (
+              <div className="admin-health-badges admin-health-badges-detail">
+                {displayHealthFlags.map((id) => (
+                  <span key={id} className="admin-badge admin-badge-health" title={id}>
+                    {healthFlagLabel(id)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="admin-detail-section">
+            <h3>Suggested Actions</h3>
+            <p className="admin-detail-muted">
+              Assisted mode: ideas only. Nothing is sent automatically — use your normal tools after deciding.
+            </p>
+            {displayHealthFlags.length === 0 ? (
+              <p className="admin-detail-muted">No actions needed.</p>
+            ) : assistedForFlags.length === 0 ? (
+              <p className="admin-detail-muted">No suggested actions for current health flags.</p>
+            ) : assistedVisible.length === 0 ? (
+              <p className="admin-detail-muted">All suggestions dismissed for this session.</p>
+            ) : (
+              <ul className="admin-suggest-list">
+                {assistedVisible.map((s) => (
+                  <li key={s.flagId} className="admin-suggest-item">
+                    <div className="admin-suggest-item-head">
+                      <span className="admin-badge admin-badge-health" title={s.flagId}>
+                        {healthFlagLabel(s.flagId)}
+                      </span>
+                      <button
+                        type="button"
+                        className="admin-btn admin-btn-secondary admin-btn-small"
+                        aria-label={`Dismiss suggestion for ${s.flagId}`}
+                        onClick={() =>
+                          setDismissedAssistedFlagIds((prev) => (prev.includes(s.flagId) ? prev : [...prev, s.flagId]))
+                        }
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <p className="admin-suggest-message">{s.message}</p>
+                    <p className="admin-detail-muted admin-suggest-action-line">
+                      {EMAIL_TEMPLATES[s.flagId]?.actionLabel ?? "Suggested action"}
+                    </p>
+                    <div className="admin-suggest-actions">
+                      <button
+                        type="button"
+                        className="admin-btn admin-btn-primary admin-btn-small"
+                        onClick={() => openAssistedEmailModal(s.flagId)}
+                      >
+                        {s.kind === "guide" ? "Prepare guide" : "Prepare email"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="admin-detail-section">
+            <h3>Internal admin notes</h3>
+            <p className="admin-detail-muted">Visible only in admin tools. Not shown to shop users.</p>
+            <form onSubmit={handleAdminNotesSave} className="admin-detail-tags-form admin-detail-notes-form">
+              <div className="admin-form-group">
+                <label htmlFor="admin-internal-notes">Notes</label>
+                <textarea
+                  id="admin-internal-notes"
+                  className="admin-input admin-detail-notes-textarea"
+                  value={adminNotesDraft}
+                  onChange={(e) => {
+                    adminNotesTouchedRef.current = true;
+                    setAdminNotesDraft(e.target.value);
+                  }}
+                  placeholder="Internal notes for this account…"
+                  disabled={adminNotesSaving}
+                  aria-label="Internal admin notes"
+                />
+              </div>
+              <button type="submit" className="admin-btn admin-btn-primary" disabled={adminNotesSaving}>
+                {adminNotesSaving ? "…" : "Save notes"}
+              </button>
+            </form>
+            {notesError && <p className="admin-gate-error admin-detail-action-error">{notesError}</p>}
           </div>
 
           {isSuperAdmin && (
@@ -540,6 +920,8 @@ export default function AdminAccountDetailPage() {
             <dl className="admin-detail-dl admin-detail-counts">
               <dt>Work orders</dt>
               <dd>{account.counts.workOrders}</dd>
+              <dt>Completed work orders</dt>
+              <dd>{account.counts.completedWorkOrders ?? 0}</dd>
               <dt>Invoices</dt>
               <dd>{account.counts.invoices}</dd>
               <dt>Customers</dt>
@@ -547,6 +929,38 @@ export default function AdminAccountDetailPage() {
               <dt>Users</dt>
               <dd>{account.counts.users}</dd>
             </dl>
+          </div>
+
+          <div className="admin-detail-section">
+            <h3>Customer activity</h3>
+            <p className="admin-detail-muted">Recent events from product usage (newest first).</p>
+            {activityLoading && <p className="admin-detail-muted">Loading activity…</p>}
+            {!activityLoading && (
+              <ul className="admin-audit-list">
+                {activityEvents.length === 0 && (
+                  <li className="admin-audit-item">No customer activity recorded yet.</li>
+                )}
+                {activityEvents.map((ev) => {
+                  const detail = formatEventDetailLine(ev);
+                  return (
+                    <li key={ev._id} className="admin-audit-item">
+                      <time dateTime={ev.createdAt}>{new Date(ev.createdAt).toLocaleString()}</time>
+                      {" · "}
+                      <strong>{formatActivityEventType(ev.type)}</strong>
+                      {ev.actorRole && ` · ${ev.actorRole}`}
+                      {detail && (
+                        <>
+                          <br />
+                          <span className="admin-detail-muted admin-detail-activity-meta">
+                            {detail}
+                          </span>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
 
           <div className="admin-detail-section">
@@ -674,6 +1088,86 @@ export default function AdminAccountDetailPage() {
               </button>
               <button type="submit" className="admin-btn admin-btn-primary" disabled={actionLoading} onClick={(e) => { e.preventDefault(); handleThrottleSubmit(e); }}>
                 {actionLoading ? "…" : "Set throttle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assistedEmailModal && account && (
+        <div
+          className="admin-overlay"
+          onClick={() => setAssistedEmailModal(null)}
+          role="presentation"
+        >
+          <div
+            className="admin-sheet admin-assisted-sheet admin-assisted-email-sheet"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="assisted-email-title"
+          >
+            <div className="admin-sheet-header" id="assisted-email-title">
+              {EMAIL_TEMPLATES[assistedEmailModal.flagId]?.actionLabel ?? "Email draft"}
+            </div>
+            <div className="admin-sheet-body">
+              <p className="admin-detail-muted">
+                Edit below, then copy into Mailchimp or your mail client. Nothing is sent from this app.
+              </p>
+              {!account.primaryOwner?.email?.trim() ? (
+                <p className="admin-assisted-email-warning" role="status">
+                  No primary owner email on file for this account — confirm the recipient when you send from Mailchimp or your mail client.
+                </p>
+              ) : (
+                <p className="admin-detail-muted">
+                  Intended recipient: <strong>{account.primaryOwner.email}</strong>
+                </p>
+              )}
+              <div className="admin-form-group">
+                <label htmlFor="assisted-email-subject">Subject</label>
+                <input
+                  id="assisted-email-subject"
+                  className="admin-input"
+                  value={assistedEmailModal.subject}
+                  onChange={(e) =>
+                    setAssistedEmailModal((m) => (m ? { ...m, subject: e.target.value } : m))
+                  }
+                  autoComplete="off"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label htmlFor="assisted-email-body">Body</label>
+                <textarea
+                  id="assisted-email-body"
+                  className="admin-input admin-detail-notes-textarea admin-assisted-email-body"
+                  value={assistedEmailModal.body}
+                  onChange={(e) =>
+                    setAssistedEmailModal((m) => (m ? { ...m, body: e.target.value } : m))
+                  }
+                  rows={12}
+                />
+              </div>
+            </div>
+            <div className="admin-sheet-footer admin-assisted-email-footer">
+              <button type="button" className="admin-btn admin-btn-secondary" onClick={handleAssistedCopyDraft}>
+                Copy to Clipboard
+              </button>
+              <a
+                href={ADMIN_MAILCHIMP_EXTERNAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="admin-btn admin-btn-secondary"
+              >
+                Open Mailchimp
+              </a>
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={handleAssistedCopyAndOpenMailchimp}
+              >
+                Copy & Open Mailchimp
+              </button>
+              <button type="button" className="admin-btn admin-btn-primary" onClick={() => setAssistedEmailModal(null)}>
+                Close
               </button>
             </div>
           </div>

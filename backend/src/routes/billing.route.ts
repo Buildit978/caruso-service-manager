@@ -10,6 +10,13 @@ const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+/** App host for Stripe redirects (success/cancel/portal). Prefer APP_WEB_URL when marketing site uses a different domain. */
+function getBillingAppBaseUrl(): string | null {
+  const raw = (process.env.APP_WEB_URL || process.env.APP_URL || "").trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
 function resolveCheckoutPriceId(
   isProd: boolean,
   tier: "founding" | "regular",
@@ -238,10 +245,12 @@ router.post("/checkout-session", async (req: any, res) => {
     const isProd = process.env.NODE_ENV === "production";
     const priceId = resolveCheckoutPriceId(isProd, tier, interval);
 
-    const appUrl = process.env.APP_URL!;
+    const appUrl = getBillingAppBaseUrl();
 
     if (!appUrl) {
-      return res.status(500).json({ message: "Billing not configured (missing env vars)" });
+      return res
+        .status(500)
+        .json({ message: "Billing not configured (missing APP_WEB_URL or APP_URL)" });
     }
 
     // ✅ Derive identity from existing auth middleware (requireAuth)
@@ -314,7 +323,7 @@ router.post("/portal-session", async (req: any, res) => {
   try {
     const accountId = (req as any).accountId;
     const actor = (req as any).actor;
-    const appUrl = process.env.APP_URL!;
+    const appUrl = getBillingAppBaseUrl();
 
     if (!accountId || !actor?._id || !actor?.role) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -325,7 +334,9 @@ router.post("/portal-session", async (req: any, res) => {
     }
 
     if (!appUrl) {
-      return res.status(500).json({ message: "Billing not configured (missing APP_URL)" });
+      return res
+        .status(500)
+        .json({ message: "Billing not configured (missing APP_WEB_URL or APP_URL)" });
     }
 
     const account = await Account.findById(accountId).select("stripeCustomerId billingExempt").lean();

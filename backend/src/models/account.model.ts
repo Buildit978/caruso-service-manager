@@ -44,6 +44,10 @@ export interface IAccount extends Document {
   betaCandidateSince?: Date;
   betaActivatedAt?: Date;
   betaActivation?: { workOrdersCreated?: number; invoicesCreated?: number };
+  /** Set by automation when day-3 onboarding nudge is sent (Make / internal). */
+  day3NudgeSentAt?: Date;
+  /** Set by automation when day-7 onboarding nudge is sent (Make / internal). */
+  day7NudgeSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +91,8 @@ const accountSchema = new Schema<IAccount>(
       workOrdersCreated: Number,
       invoicesCreated: Number,
     },
+    day3NudgeSentAt: Date,
+    day7NudgeSentAt: Date,
   },
   {
     timestamps: true,

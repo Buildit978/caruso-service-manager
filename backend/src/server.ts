@@ -22,6 +22,7 @@ import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
 import billingRouter, { billingWebhookHandler } from "./routes/billing.route";
+import automationRouter from "./routes/automation.route";
 import { assertStripeEnvIsolation } from "./utils/envGuard";
 
 assertStripeEnvIsolation();
@@ -98,6 +99,9 @@ app.post(
   express.raw({ type: "application/json" }),
   billingWebhookHandler
 );
+
+// 🔐 Automation (shared secret; not tenant JWT) — mount before requireAuth
+app.use("/api/automation", automationRouter);
 
 app.use("/api/admin", requireAdminAuth, adminRouter);
 

@@ -19,6 +19,7 @@ import RevenueReportPage from "./pages/RevenueReportPage";
 import SchedulerPage from "./pages/SchedulerPage";
 import LoginPage from "./pages/LoginPage";
 import StartPage from "./pages/StartPage";
+import WelcomePage from "./pages/WelcomePage";
 import TeamPage from "./pages/TeamPage";
 import EstimatesPage from "./pages/EstimatesPage";
 import EstimateDetailPage from "./pages/EstimateDetailPage";
@@ -35,6 +36,7 @@ function App() {
   return (
     <Routes>
       <Route path="/start" element={<StartPage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />

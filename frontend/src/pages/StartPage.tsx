@@ -41,8 +41,8 @@ export default function StartPage() {
       // Store token in localStorage
       setToken(response.token);
       
-      // Redirect to dashboard
-      navigate("/", { replace: true });
+      // Redirect to dedicated post-signup welcome page
+      navigate("/welcome", { replace: true });
     } catch (err) {
       setLoading(false);
       if (err instanceof Error && "status" in err) {

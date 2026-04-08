@@ -11,6 +11,7 @@ import { Types } from "mongoose";
 import { validateNewPassword } from "../utils/passwordValidation";
 import { gaEvent } from "../lib/ga";
 import { sendEmail } from "../lib/email";
+import { sendAutomationWebhook } from "../utils/automationWebhook";
 
 // JWT payload type
 interface JwtPayload {
@@ -191,6 +192,19 @@ await gaEvent({
         techniciansEnabled: true,
       },
     });
+
+    await sendAutomationWebhook("signup.completed", {
+      email: user.email,
+      name: user.name,
+      shopName: String(shopName).trim(),
+      accountId: account._id.toString(),
+      userId: user._id.toString(),
+      userRole: user.role,
+      trialEndsAt: trialEndsAt.toISOString(),
+    });
+
+    // TODO(day-3): Add delayed activation automation hook for +3 day onboarding follow-up.
+    // TODO(day-7): Add delayed activation automation hook for +7 day onboarding follow-up.
 
     // Sign JWT token
     const secret = process.env.AUTH_TOKEN_SECRET;

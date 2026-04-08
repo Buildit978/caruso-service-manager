@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { Router, Request, Response, NextFunction } from 'express';
 import { WorkOrder } from '../models/workOrder.model';
 import { Customer } from '../models/customer.model';
+import { User } from "../models/user.model";
 import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import Invoice from "../models/invoice.model";
@@ -12,6 +13,7 @@ import { trackEvent } from "../utils/trackEvent";
 import { requireRole } from "../middleware/requireRole";
 import { requireActiveBilling } from "../middleware/requireBillingActive";
 import { trackBetaWorkOrderCreated } from "../domain/billing/tryPromoteBetaCandidate";
+import { sendAutomationWebhook } from "../utils/automationWebhook";
 
 
 
@@ -453,6 +455,26 @@ return res.json(result);
         });
 
         await workOrder.save();
+
+        const workOrderCount = await WorkOrder.countDocuments({ accountId });
+        if (workOrderCount === 1) {
+          const owner = await User.findOne({
+            accountId,
+            role: "owner",
+            isActive: true,
+          })
+            .select("email name")
+            .lean();
+          await sendAutomationWebhook("workorder.first_created", {
+            email: owner?.email ?? "",
+            name: owner?.name ?? "",
+            accountId: accountId.toString(),
+            workOrderId: workOrder._id.toString(),
+            customerId: String(customerId),
+            status: workOrder.status,
+            createdAt: (workOrder.createdAt ?? new Date()).toISOString(),
+          });
+        }
 
         trackEvent({
           req,

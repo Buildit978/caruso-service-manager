@@ -40,9 +40,19 @@ export default function StartPage() {
       
       // Store token in localStorage
       setToken(response.token);
-      
-      // Redirect to dedicated post-signup welcome page
-      navigate("/welcome", { replace: true });
+
+      const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
+      const navigateToWelcome = () => {
+        navigate("/welcome", { replace: true });
+      };
+
+      if (gtag) {
+        gtag("event", "ads_conversion_signup");
+        const GA_REDIRECT_DELAY_MS = 400;
+        setTimeout(navigateToWelcome, GA_REDIRECT_DELAY_MS);
+      } else {
+        navigateToWelcome();
+      }
     } catch (err) {
       setLoading(false);
       if (err instanceof Error && "status" in err) {

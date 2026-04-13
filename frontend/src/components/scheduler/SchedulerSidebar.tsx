@@ -11,6 +11,10 @@ type Props = {
   canEdit: boolean;
   compact?: boolean;
   isMobile?: boolean;
+  /** Emphasize a work order row (e.g. opened from work order detail) */
+  highlightWorkOrderId?: string | null;
+  /** Accepted for API symmetry with other scheduler panes; unused here */
+  highlightEntryId?: string | null;
 };
 
 function formatSecondaryLine(wo: UnscheduledWorkOrder): string {
@@ -35,6 +39,7 @@ export default function SchedulerSidebar({
   canEdit,
   compact = false,
   isMobile = false,
+  highlightWorkOrderId = null,
 }: Props) {
   return (
     <div
@@ -85,7 +90,9 @@ export default function SchedulerSidebar({
         ) : workOrders.length === 0 ? (
           <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>No unscheduled work orders.</p>
         ) : (
-          workOrders.map((wo) => (
+          workOrders.map((wo) => {
+            const highlighted = highlightWorkOrderId && wo._id === highlightWorkOrderId;
+            return (
             <button
               key={wo._id}
               type="button"
@@ -99,8 +106,8 @@ export default function SchedulerSidebar({
                 minHeight: isMobile ? 44 : undefined,
                 marginBottom: "0.25rem",
                 borderRadius: "6px",
-                border: "1px solid #1f2937",
-                background: canEdit ? "#1e293b" : "#0f172a",
+                border: highlighted ? "2px solid #60a5fa" : "1px solid #1f2937",
+                background: highlighted ? "rgba(37, 99, 235, 0.2)" : canEdit ? "#1e293b" : "#0f172a",
                 color: "#e5e7eb",
                 fontSize: "0.85rem",
                 cursor: canEdit ? "pointer" : "default",
@@ -116,7 +123,8 @@ export default function SchedulerSidebar({
                 </div>
               )}
             </button>
-          ))
+          );
+          })
         )}
       </div>
     </div>

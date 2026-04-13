@@ -13,6 +13,9 @@ type Props = {
   canEdit: boolean;
   onSlotClick: (date: Date, hour: number) => void;
   onEntryClick: (entry: ScheduleEntry) => void;
+  /** Accepted for API symmetry with sidebar; unused here */
+  highlightWorkOrderId?: string | null;
+  highlightEntryId?: string | null;
 };
 
 const HOURS_START = 6;
@@ -33,6 +36,7 @@ export default function SchedulerGrid({
   canEdit,
   onSlotClick,
   onEntryClick,
+  highlightEntryId = null,
 }: Props) {
   const { start: weekStart, end: weekEnd } = getThisWeekRangeMondayBased(viewDate);
 
@@ -198,7 +202,9 @@ export default function SchedulerGrid({
               marginLeft: 0,
             }}
           >
-            {entriesInRange.map((entry) => (
+            {entriesInRange.map((entry) => {
+              const highlighted = highlightEntryId && entry._id === highlightEntryId;
+              return (
               <button
                 key={entry._id}
                 type="button"
@@ -206,9 +212,10 @@ export default function SchedulerGrid({
                 style={{
                   ...getEntryStyle(entry),
                   pointerEvents: "auto",
-                  background: "#2563eb",
+                  background: highlighted ? "#1d4ed8" : "#2563eb",
                   color: "#fff",
-                  border: "1px solid #1d4ed8",
+                  border: highlighted ? "2px solid #fbbf24" : "1px solid #1d4ed8",
+                  boxShadow: highlighted ? "0 0 0 2px rgba(251, 191, 36, 0.35)" : undefined,
                   borderRadius: "4px",
                   fontSize: "0.75rem",
                   padding: "2px 4px",
@@ -225,7 +232,8 @@ export default function SchedulerGrid({
                   {entry.technicianLabel ? ` • ${entry.technicianLabel}` : ""}
                 </div>
               </button>
-            ))}
+            );
+            })}
           </div>
         </div>
       </div>

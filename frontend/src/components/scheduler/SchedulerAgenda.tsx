@@ -10,6 +10,9 @@ type Props = {
   onEntryClick: (entry: ScheduleEntry) => void;
   onAddClick?: () => void;
   isMobile?: boolean;
+  /** Accepted for API symmetry with sidebar; unused here */
+  highlightWorkOrderId?: string | null;
+  highlightEntryId?: string | null;
 };
 
 const touchTargetStyle = {
@@ -34,6 +37,7 @@ export default function SchedulerAgenda({
   onEntryClick,
   onAddClick,
   isMobile = false,
+  highlightEntryId = null,
 }: Props) {
   const dayStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), viewDate.getDate());
   const dayEnd = new Date(dayStart);
@@ -108,7 +112,9 @@ export default function SchedulerAgenda({
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {dayEntries.map((entry) => (
+          {dayEntries.map((entry) => {
+            const highlighted = highlightEntryId && entry._id === highlightEntryId;
+            return (
             <button
               key={entry._id}
               type="button"
@@ -120,8 +126,8 @@ export default function SchedulerAgenda({
                 padding: isMobile ? "1rem 1.25rem" : "0.75rem 1rem",
                 minHeight: isMobile ? 44 : undefined,
                 borderRadius: "8px",
-                border: "1px solid #1f2937",
-                background: "#1e293b",
+                border: highlighted ? "2px solid #fbbf24" : "1px solid #1f2937",
+                background: highlighted ? "rgba(37, 99, 235, 0.35)" : "#1e293b",
                 color: "#e5e7eb",
                 cursor: "pointer",
                 ...(isMobile ? touchTargetStyle : {}),
@@ -149,7 +155,8 @@ export default function SchedulerAgenda({
                 </div>
               )}
             </button>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

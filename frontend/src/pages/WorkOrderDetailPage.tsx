@@ -12,7 +12,6 @@ import {
   fetchScheduleEntryByWorkOrder,
   deleteScheduleEntry,
   type ScheduleEntry,
-  type UnscheduledWorkOrder,
 } from "../api/scheduler";
 import { listUsers } from "../api/users";
 import type { WorkOrder, WorkOrderLineItem } from "../types/workOrder";
@@ -20,7 +19,7 @@ import WorkOrderMessages from "../components/workOrders/WorkOrderMessages";
 import ScheduleEntryModal from "../components/scheduler/ScheduleEntryModal";
 import { useMe } from "../auth/useMe";
 import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
-import { formatDateDisplay, formatTimeRangeDisplay } from "../utils/dateTime";
+import { formatScheduleLocalDayFromStartAt, formatTimeRangeDisplay } from "../utils/dateTime";
 
 const markWorkOrderComplete = (id: string) => updateWorkOrderStatus(id, "completed");
 
@@ -142,8 +141,7 @@ export default function WorkOrderDetailPage() {
 
   const [scheduleEntry, setScheduleEntry] = useState<ScheduleEntry | null>(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [scheduleModalMode, setScheduleModalMode] = useState<"create" | "edit" | "view">("create");
+  const [scheduleEditModalOpen, setScheduleEditModalOpen] = useState(false);
   const [technicians, setTechnicians] = useState<{ id: string; name: string }[]>([]);
   const [isUnscheduling, setIsUnscheduling] = useState(false);
 
@@ -495,24 +493,25 @@ export default function WorkOrderDetailPage() {
     setDeleteError(null);
   }
 
-  const handleScheduleModalSaved = () => {
+  const handleScheduleNow = () => {
+    if (!id) return;
+    const params = new URLSearchParams();
+    params.set("workOrderId", id);
+    params.set("returnTo", `/work-orders/${id}`);
+    navigate(`/scheduler?${params.toString()}`);
+  };
+
+  const handleEditSchedule = () => setScheduleEditModalOpen(true);
+
+  const handleScheduleEntryModalSaved = () => {
     if (!id) return;
     fetchScheduleEntryByWorkOrder(id).then(setScheduleEntry);
-  };
-
-  const handleScheduleNow = () => {
-    setScheduleModalMode("create");
-    setScheduleModalOpen(true);
-  };
-
-  const handleEditSchedule = () => {
-    setScheduleModalMode("edit");
-    setScheduleModalOpen(true);
   };
 
   const handleUnschedule = async () => {
     if (!scheduleEntry?._id || !confirm("Unschedule this work order? It will be marked as cancelled.")) return;
     setIsUnscheduling(true);
+    setScheduleEditModalOpen(false);
     try {
       await deleteScheduleEntry(scheduleEntry._id);
       setScheduleEntry(null);
@@ -523,17 +522,6 @@ export default function WorkOrderDetailPage() {
       setIsUnscheduling(false);
     }
   };
-
-  const workOrderForSchedule = workOrder
-    ? ({
-        _id: workOrder._id,
-        customerLabel: displayName,
-        vehicleLabel: workOrder.vehicle
-          ? [workOrder.vehicle.year, workOrder.vehicle.make, workOrder.vehicle.model].filter(Boolean).join(" ")
-          : undefined,
-        complaint: workOrder.complaint,
-      } as UnscheduledWorkOrder)
-    : null;
 
   async function confirmDelete() {
     if (!workOrder?._id) return;
@@ -903,39 +891,97 @@ export default function WorkOrderDetailPage() {
           <TimelineBlock items={timelineItems} />
         </div>
 
-        {/* Schedule card */}
-        <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Schedule</h3>
+        {/* Schedule card — explicit colors: layout-main inherits layout-root (#020617 + #e5e7eb); global App.css h3 { color: #0c0c0c } would be illegible without overrides */}
+        <div
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: "12px",
+            padding: "1rem",
+            color: "#e5e7eb",
+          }}
+        >
+          <h3
+            style={{
+              marginTop: 0,
+              marginBottom: "0.35rem",
+              color: "#f8fafc",
+              fontSize: "1rem",
+              fontWeight: 600,
+            }}
+          >
+            Schedule in Calendar
+          </h3>
+          <p style={{ margin: "0 0 0.85rem", fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.45 }}>
+            The shop calendar is the source of truth for when this job runs. Pick a slot there to schedule
+            or move it; use Edit Details for technician, duration, and notes on this page.
+          </p>
           {scheduleLoading ? (
-            <p style={{ color: "#9ca3af", fontSize: "0.9rem" }}>Loading…</p>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "#94a3b8" }}>Loading…</p>
           ) : scheduleEntry ? (
             <>
-              <p>
-                <strong>Date:</strong> {formatDateDisplay(scheduleEntry.scheduledDate)}
-              </p>
-              <p>
-                <strong>Time:</strong> {formatTimeRangeDisplay(scheduleEntry.startAt, scheduleEntry.endAt)}
-              </p>
-              <p>
-                <strong>Technician:</strong> {scheduleEntry.technicianLabel || "Unassigned"}
-              </p>
+              <div
+                style={{
+                  marginBottom: "0.75rem",
+                  padding: "0.65rem 0.75rem",
+                  borderRadius: "8px",
+                  background: "rgba(15, 23, 42, 0.75)",
+                  border: "1px solid #334155",
+                  fontSize: "0.9rem",
+                  color: "#e5e7eb",
+                }}
+              >
+                <p style={{ margin: "0 0 0.4rem" }}>
+                  <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Day:</strong>{" "}
+                  {formatScheduleLocalDayFromStartAt(scheduleEntry.startAt)}
+                </p>
+                <p style={{ margin: "0 0 0.4rem" }}>
+                  <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Time:</strong>{" "}
+                  {formatTimeRangeDisplay(scheduleEntry.startAt, scheduleEntry.endAt)}
+                </p>
+                {scheduleEntry.technicianLabel ? (
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Technician:</strong>{" "}
+                    {scheduleEntry.technicianLabel}
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, color: "#94a3b8" }}>No technician assigned</p>
+                )}
+              </div>
               {canEditSchedule && (
-                <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={handleScheduleNow}
+                    disabled={billingLocked}
+                    style={{
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "1px solid #2563eb",
+                      background: billingLocked ? "#93c5fd" : "#2563eb",
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      cursor: billingLocked ? "not-allowed" : "pointer",
+                      opacity: billingLocked ? 0.85 : 1,
+                    }}
+                  >
+                    Reschedule
+                  </button>
                   <button
                     type="button"
                     onClick={handleEditSchedule}
                     style={{
                       padding: "0.4rem 0.75rem",
                       borderRadius: "8px",
-                      border: "1px solid #2563eb",
-                      background: "#2563eb",
-                      color: "#fff",
+                      border: "1px solid #475569",
+                      background: "#1e293b",
+                      color: "#e5e7eb",
                       fontSize: "0.85rem",
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
-                    Edit Schedule
+                    Edit Details
                   </button>
                   <button
                     type="button"
@@ -946,7 +992,7 @@ export default function WorkOrderDetailPage() {
                       borderRadius: "8px",
                       border: "1px solid #b91c1c",
                       background: "transparent",
-                      color: "#b91c1c",
+                      color: "#fca5a5",
                       fontSize: "0.85rem",
                       fontWeight: 600,
                       cursor: isUnscheduling ? "not-allowed" : "pointer",
@@ -960,7 +1006,9 @@ export default function WorkOrderDetailPage() {
             </>
           ) : (
             <>
-              <p style={{ color: "#9ca3af", marginBottom: "0.5rem" }}>Not scheduled</p>
+              <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "#cbd5e1" }}>
+                No schedule set yet
+              </p>
               {canEditSchedule && (
                 <button
                   type="button"
@@ -970,12 +1018,12 @@ export default function WorkOrderDetailPage() {
                     padding: "0.4rem 0.75rem",
                     borderRadius: "8px",
                     border: "1px solid #2563eb",
-                    background: "#2563eb",
+                    background: billingLocked ? "#93c5fd" : "#2563eb",
                     color: "#fff",
                     fontSize: "0.85rem",
                     fontWeight: 600,
                     cursor: billingLocked ? "not-allowed" : "pointer",
-                    opacity: billingLocked ? 0.7 : 1,
+                    opacity: billingLocked ? 0.85 : 1,
                   }}
                 >
                   Schedule Now
@@ -987,13 +1035,13 @@ export default function WorkOrderDetailPage() {
       </div>
 
       <ScheduleEntryModal
-        open={scheduleModalOpen}
-        mode={scheduleModalMode}
-        workOrder={scheduleModalMode === "create" ? workOrderForSchedule : null}
-        entry={scheduleModalMode === "edit" || scheduleModalMode === "view" ? scheduleEntry : null}
+        open={scheduleEditModalOpen && !!scheduleEntry}
+        mode="edit"
+        workOrder={null}
+        entry={scheduleEntry}
         technicians={technicians}
-        onClose={() => setScheduleModalOpen(false)}
-        onSaved={handleScheduleModalSaved}
+        onClose={() => setScheduleEditModalOpen(false)}
+        onSaved={handleScheduleEntryModalSaved}
       />
 
       {/* LINE ITEMS */}

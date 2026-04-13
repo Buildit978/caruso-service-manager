@@ -44,6 +44,17 @@ export function formatDateDisplay(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+/**
+ * Show the local calendar day for a scheduled start instant.
+ * Prefer this over `scheduledDate` from the API when displaying on a work order:
+ * `scheduledDate` is often stored as UTC midnight and can shift one day in local time.
+ */
+export function formatScheduleLocalDayFromStartAt(isoStartAt: string): string {
+  const d = new Date(isoStartAt);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
 /** Format time range for display (e.g. "9:00 AM – 10:30 AM") */
 export function formatTimeRangeDisplay(startIso: string, endIso: string): string {
   const start = formatTimeDisplay(startIso);

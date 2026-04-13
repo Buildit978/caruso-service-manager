@@ -40,7 +40,7 @@ type Props = {
   initialHour?: number;
   technicians: { id: string; name: string }[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (meta?: { kind: "create" | "update" | "delete"; workOrderId?: string }) => void;
 };
 
 const MINUTES_OPTIONS = [0, 15, 30, 45] as const;
@@ -179,7 +179,7 @@ export default function ScheduleEntryModal({
           notes: notes.trim() || undefined,
         });
         setWarnings(res.warnings ?? []);
-        onSaved();
+        onSaved({ kind: "create", workOrderId: String(woId) });
         onClose();
       } else if (entry) {
         const res = await updateScheduleEntry(entry._id, {
@@ -189,7 +189,7 @@ export default function ScheduleEntryModal({
           notes: notes.trim() || undefined,
         });
         setWarnings(res.warnings ?? []);
-        onSaved();
+        onSaved({ kind: "update" });
         onClose();
       }
     } catch (err: unknown) {
@@ -207,7 +207,7 @@ export default function ScheduleEntryModal({
     setError(null);
     try {
       await deleteScheduleEntry(entry._id);
-      onSaved();
+      onSaved({ kind: "delete" });
       onClose();
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "Failed to unschedule.";

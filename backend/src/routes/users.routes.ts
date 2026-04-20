@@ -116,8 +116,8 @@ router.post(
       try {
         const loginUrl = getTenantLoginUrl();
         const displayShopCode = shopCode || "(not available)";
-        const subject = "Welcome to Caruso Service Manager";
-        const text = `You've been invited to join Caruso Service Manager as a ${role}.\n\n` +
+        const subject = "Welcome to Shop Service Manager";
+        const text = `You've been invited to join Shop Service Manager as a ${role}.\n\n` +
           `Shop Code: ${displayShopCode}\n` +
           `Role: ${role}\n` +
           `Email: ${toEmail}\n` +
@@ -132,7 +132,7 @@ router.post(
   <meta charset="utf-8">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <p>You've been invited to join Caruso Service Manager as a <strong>${role}</strong>.</p>
+  <p>You've been invited to join Shop Service Manager as a <strong>${role}</strong>.</p>
   
   <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
     <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
@@ -552,7 +552,7 @@ router.post(
         try {
           const loginUrl = getTenantLoginUrl();
           const subject = "Your account has been reactivated";
-          const text = `Your Caruso Service Manager account has been reactivated.\n\n` +
+          const text = `Your Shop Service Manager account has been reactivated.\n\n` +
             `Shop Code: ${displayShopCode}\n` +
             `Temporary password: ${tempPassword}\n` +
             `Email: ${toEmail}\n` +
@@ -566,7 +566,7 @@ router.post(
   <meta charset="utf-8">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <p>Your Caruso Service Manager account has been reactivated.</p>
+  <p>Your Shop Service Manager account has been reactivated.</p>
   
   <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
     <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>
@@ -694,7 +694,7 @@ router.patch(
       try {
         const loginUrl = getTenantLoginUrl();
         const subject = "Your role has been updated";
-        const text = `Your role in Caruso Service Manager has been changed.\n\n` +
+        const text = `Your role in Shop Service Manager has been changed.\n\n` +
           `Shop Code: ${displayShopCode}\n` +
           `Previous Role: ${oldRole}\n` +
           `New Role: ${newRole}\n` +
@@ -709,7 +709,7 @@ router.patch(
   <meta charset="utf-8">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <p>Your role in Caruso Service Manager has been changed.</p>
+  <p>Your role in Shop Service Manager has been changed.</p>
   
   <div style="border: 1px solid #ddd; padding: 12px; margin: 16px 0; background-color: #f9f9f9;">
     <p style="margin: 0 0 8px 0;"><strong>Shop Code:</strong> <span style="font-size: 18px; font-weight: bold;">${displayShopCode}</span></p>

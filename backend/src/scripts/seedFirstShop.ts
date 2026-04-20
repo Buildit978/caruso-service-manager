@@ -14,7 +14,7 @@ async function main() {
     await mongoose.connect(MONGODB_URI);
 
     // Read values from env or CLI args
-    const accountName = process.argv[2] || process.env.SEED_ACCOUNT_NAME || "Caruso Service Center";
+    const accountName = process.argv[2] || process.env.SEED_ACCOUNT_NAME || "Shop Service Manager";
     const accountSlug = process.argv[3] || process.env.SEED_ACCOUNT_SLUG || "caruso-service-center";
     const ownerEmail = process.argv[4] || process.env.SEED_OWNER_EMAIL || "owner@caruso.local";
     const ownerName = process.argv[5] || process.env.SEED_OWNER_NAME || "Owner";

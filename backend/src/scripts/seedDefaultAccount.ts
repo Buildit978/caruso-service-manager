@@ -11,7 +11,7 @@ async function main() {
     console.log("⏳ Connecting to MongoDB...");
     await mongoose.connect(MONGODB_URI);
 
-    const name = "Caruso Service Center";
+    const name = "Shop Service Manager";
     const slug = "caruso-service-center"; // assuming your Account has a slug field
 
     let account = await Account.findOne({ slug });

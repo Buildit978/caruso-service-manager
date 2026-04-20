@@ -53,7 +53,7 @@ const settingsSchema = new Schema<ISettings>(
         },
         shopName: {
             type: String,
-            default: "Caruso's Service Center",
+            default: "Shop Service Manager",
             trim: true,
         },
         taxRate: {

@@ -1,4 +1,4 @@
-# Caruso Service Manager
+# Shop Service Manager
 
 // Note: A reconnect after a Vercel mix up.
 

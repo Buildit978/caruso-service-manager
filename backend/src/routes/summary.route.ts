@@ -98,6 +98,7 @@ import { requireRole } from "../middleware/requireRole";
             paidYtdAgg,
             thisWeekAgg,
             settingsDoc,
+            totalWorkOrders,
             ] = await Promise.all([
             // 1) Status counts, but only for this account
             WorkOrder.aggregate([
@@ -166,6 +167,9 @@ import { requireRole } from "../middleware/requireRole";
 
             // 6) Settings for this account
             Settings.findOne({ accountId }),
+
+            // 7) All work orders for this account (tenant-level total; all statuses)
+            WorkOrder.countDocuments({ accountId }),
             ]);
 
             const statusCounts = statusAgg.reduce(
@@ -220,6 +224,7 @@ import { requireRole } from "../middleware/requireRole";
 
             return res.json({
             totalCustomers,
+            totalWorkOrders,
             openWorkOrders,
             completedWorkOrders,
 

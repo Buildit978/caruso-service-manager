@@ -3,6 +3,7 @@ import { http } from './http';
 
 export type SummaryResponse = {
   totalCustomers: number;
+  totalWorkOrders: number;
   openWorkOrders: number;
   completedWorkOrders: number;
 

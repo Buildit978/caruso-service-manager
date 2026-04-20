@@ -26,8 +26,7 @@ export function DashboardSummary() {
     // Check if tenant is empty (no work orders)
     const isEmptyTenant = useMemo(() => {
         if (!data) return null;
-        // If all counts are 0, consider it empty (but allow for some overlap, so check if any exist)
-        return data.openWorkOrders === 0 && data.completedWorkOrders === 0;
+        return (data.totalWorkOrders ?? 0) === 0;
     }, [data]);
 
     // Check if user can create work orders

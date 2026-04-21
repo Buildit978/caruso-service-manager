@@ -112,3 +112,8 @@ export async function sendEmail(args: SendEmailArgs): Promise<{ messageId?: stri
   }
   return { messageId: info?.messageId };
 }
+
+// Backward-compatible alias for callers expecting sendMail naming.
+export async function sendMail(args: SendEmailArgs): Promise<{ messageId?: string }> {
+  return sendEmail(args);
+}

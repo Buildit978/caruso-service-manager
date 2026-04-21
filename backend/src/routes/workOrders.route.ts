@@ -14,6 +14,7 @@ import { requireRole } from "../middleware/requireRole";
 import { requireActiveBilling } from "../middleware/requireBillingActive";
 import { trackBetaWorkOrderCreated } from "../domain/billing/tryPromoteBetaCandidate";
 import { sendAutomationWebhook } from "../utils/automationWebhook";
+import { Settings } from "../models/settings.model";
 
 
 
@@ -465,9 +466,13 @@ return res.json(result);
           })
             .select("email name")
             .lean();
+          
+          const settings = await Settings.findOne({ accountId }).select("shopName").lean();
+          
           await sendAutomationWebhook("workorder.first_created", {
             email: owner?.email ?? "",
             name: owner?.name ?? "",
+            shopName: settings?.shopName ?? "",
             accountId: accountId.toString(),
             workOrderId: workOrder._id.toString(),
             customerId: String(customerId),

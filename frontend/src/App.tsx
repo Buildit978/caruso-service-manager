@@ -36,6 +36,8 @@ function App() {
   return (
     <Routes>
       <Route path="/start" element={<StartPage />} />
+      <Route path="/register" element={<StartPage />} />
+      <Route path="/signup" element={<StartPage />} />
       <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />

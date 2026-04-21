@@ -45,3 +45,8 @@ export async function sendEmail(opts: SendEmailOpts): Promise<void> {
     html: html ?? text,
   });
 }
+
+// Backward-compatible alias for callers expecting sendMail naming.
+export async function sendMail(opts: SendEmailOpts): Promise<void> {
+  return sendEmail(opts);
+}

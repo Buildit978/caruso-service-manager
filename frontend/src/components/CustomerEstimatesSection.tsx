@@ -54,22 +54,18 @@ export default function CustomerEstimatesSection({
     <section style={{ marginTop: "2rem" }}>
       <h3 style={{ marginBottom: "0.5rem" }}>Estimates</h3>
       <p
-        style={{
-          fontSize: "0.85rem",
-          color: "#9ca3af",
-          marginBottom: "0.75rem",
-          marginTop: 0,
-        }}
+        className="text-helper-readable"
+        style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
       >
         Estimates for this customer. Convert approved estimates to work orders from the Estimates page.
       </p>
 
       {loading ? (
-        <p>Loading estimates…</p>
+        <p className="text-helper-readable" style={{ color: "#d1d5db", fontWeight: 600 }}>Loading estimates…</p>
       ) : error ? (
         <p style={{ color: "red" }}>{error}</p>
       ) : estimates.length === 0 ? (
-        <p>No estimates for this customer yet.</p>
+        <p className="empty-state-readable" style={{ color: "#d1d5db", fontWeight: 600 }}>No estimates for this customer yet.</p>
       ) : (
         <ul style={{ paddingLeft: "1.25rem", marginBottom: "1rem" }}>
           {estimates.map((est) => {
@@ -81,9 +77,15 @@ export default function CustomerEstimatesSection({
                   style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
                 >
                   <div className="cust-estimate-info">
-                    <span>
+                    <Link
+                      to={`/estimates/${est._id}`}
+                      style={{ color: "#3b82f6", textDecoration: "underline" }}
+                    >
                       {est.estimateNumber} — {est.status}
-                    </span>
+                    </Link>
+                    {est.isDemo ? (
+                      <span style={{ fontWeight: 800, color: "#f8fafc" }}> [PRACTICE]</span>
+                    ) : null}
                   </div>
                   <div
                     className="cust-estimate-actions"

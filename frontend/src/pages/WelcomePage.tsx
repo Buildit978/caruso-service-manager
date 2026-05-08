@@ -39,24 +39,27 @@ export default function WelcomePage() {
           style={{
             margin: "0 auto 1.5rem",
             maxWidth: "520px",
-            lineHeight: 1.6,
-            color: "#cbd5e1",
+            lineHeight: 1.65,
+            color: "#f8fafc",
+            fontSize: "1.02rem",
+            fontWeight: 700,
           }}
         >
-          Your free trial is active. Let’s get your first work order into the
-          system.
+          It&apos;s safe to learn here.
         </p>
 
         <p
           style={{
             margin: "0 auto 1.25rem",
             maxWidth: "520px",
-            lineHeight: 1.5,
-            color: "#94a3b8",
-            fontSize: "0.95rem",
+            lineHeight: 1.6,
+            color: "#e2e8f0",
+            fontSize: "1rem",
+            fontWeight: 600,
           }}
         >
-          It only takes a minute, and you can update everything later.
+          Start by creating a customer profile, or jump directly into your first
+          work order.
         </p>
 
         <div
@@ -68,7 +71,7 @@ export default function WelcomePage() {
           }}
         >
           <Link
-            to="/work-orders/new"
+            to="/customers/new"
             style={{
               display: "inline-block",
               padding: "0.75rem 1.25rem",
@@ -79,19 +82,33 @@ export default function WelcomePage() {
               color: "#fff",
             }}
           >
-            Create Your First Work Order
+            Create Your First Customer
           </Link>
 
           <Link
-            to="/"
+            to="/work-orders/new"
             style={{
               display: "inline-block",
               padding: "0.75rem 1.25rem",
               borderRadius: "0.5rem",
               textDecoration: "none",
               border: "1px solid #475569",
-              color: "#e5e7eb",
-              background: "transparent",
+              color: "#f1f5f9",
+              background: "#334155",
+              fontWeight: 600,
+            }}
+          >
+            Create Work Order
+          </Link>
+        </div>
+        <div style={{ marginTop: "1rem" }}>
+          <Link
+            to="/"
+            style={{
+              color: "#e2e8f0",
+              textDecoration: "none",
+              fontSize: "0.95rem",
+              fontWeight: 600,
             }}
           >
             Skip for now → Go to Dashboard

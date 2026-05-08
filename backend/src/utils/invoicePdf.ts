@@ -18,6 +18,19 @@ export async function buildInvoicePdfBuffer(args: {
   });
 
   const money = (n: any) => Number(n ?? 0).toFixed(2);
+  const formatLineItemQuantity = (item: any): string => {
+    const quantity = Number(item?.quantity ?? 0);
+    if (!Number.isFinite(quantity)) return "";
+
+    if (item?.type === "labour") {
+      const totalMinutes = Math.max(0, Math.round(quantity * 60));
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${hours}:${String(minutes).padStart(2, "0")}`;
+    }
+
+    return String(Number(quantity.toFixed(4)));
+  };
 
   const profile = invoice.invoiceProfileSnapshot ?? settings?.invoiceProfile ?? {};
   const shopName = profile.shopName || settings?.shopName || "Invoice";
@@ -169,8 +182,8 @@ export async function buildInvoicePdfBuffer(args: {
   const items = (invoice.lineItems ?? []) as any[];
 
   doc.fontSize(10).text("Description", 50, doc.y, { continued: true });
-  doc.text("Qty", 330, doc.y, { width: 50, align: "right", continued: true });
-  doc.text("Unit", 390, doc.y, { width: 70, align: "right", continued: true });
+  doc.text("Qty", 310, doc.y, { width: 80, align: "right", continued: true });
+  doc.text("Unit", 400, doc.y, { width: 60, align: "right", continued: true });
   doc.text("Total", 0, doc.y, { align: "right" });
   doc.moveDown(0.3);
   doc.moveTo(50, doc.y).lineTo(560, doc.y).stroke();
@@ -181,11 +194,12 @@ export async function buildInvoicePdfBuffer(args: {
     const qty = Number(it.quantity ?? 0);
     const unit = Number(it.unitPrice ?? 0);
     const total = typeof it.lineTotal === "number" ? it.lineTotal : qty * unit;
+    const displayQty = formatLineItemQuantity(it);
 
     const y = doc.y;
-    doc.fontSize(10).text(desc, 50, y, { width: 270 });
-    doc.text(qty ? String(qty) : "", 330, y, { width: 50, align: "right" });
-    doc.text(qty ? `$${money(unit)}` : "", 390, y, { width: 70, align: "right" });
+    doc.fontSize(10).text(desc, 50, y, { width: 250 });
+    doc.text(qty ? displayQty : "", 310, y, { width: 80, align: "right", lineBreak: false });
+    doc.text(qty ? `$${money(unit)}` : "", 400, y, { width: 60, align: "right", lineBreak: false });
     doc.text(`$${money(total)}`, 0, y, { align: "right" });
     doc.moveDown(0.6);
   });

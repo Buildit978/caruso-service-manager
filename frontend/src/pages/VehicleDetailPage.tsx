@@ -15,6 +15,7 @@ type Vehicle = {
   licensePlate?: string;
   vin?: string;
   customerId?: string;
+  isDemo?: boolean;
 };
 
 export default function VehicleDetailPage() {
@@ -96,11 +97,18 @@ export default function VehicleDetailPage() {
       </div>
 
       <h1 className="vehicle-detail__title" style={{ marginBottom: "0.25rem" }}>
-        {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
-          "Vehicle"}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+          <span>
+            {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
+              "Vehicle"}
+          </span>
+          {vehicle.isDemo ? (
+            <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+          ) : null}
+        </span>
       </h1>
 
-      <div className="vehicle-detail__meta" style={{ opacity: 0.9, marginBottom: "1rem" }}>
+      <div className="detail-readable vehicle-detail__meta" style={{ marginBottom: "1rem" }}>
         {vehicle.licensePlate ? `Plate: ${vehicle.licensePlate}` : ""}
         {vehicle.licensePlate && vehicle.vin ? " • " : ""}
         {vehicle.vin ? `VIN: ${vehicle.vin}` : ""}
@@ -131,13 +139,16 @@ export default function VehicleDetailPage() {
                     ) : woError ? (
                         <p className="vehicle-detail__text">{woError}</p>
                     ) : workOrders.length === 0 ? (
-                        <p className="vehicle-detail__text">No work orders for this vehicle.</p>
+                        <p className="vehicle-detail__text empty-state-readable">No work orders for this vehicle.</p>
                     ) : (
                         <ul style={{ listStyle: "none", paddingLeft: 0 }}>
                         {workOrders.map((wo) => (
                             <li key={wo._id} style={{ marginBottom: "0.5rem" }}>
                             <Link to={`/work-orders/${wo._id}`} className="vehicle-detail__wo-link">
-                                {(wo.status || "open").toUpperCase()} — {wo.complaint || "Work Order"}
+                                {(wo.status || "open").toUpperCase()} — {wo.complaint || "Work Order"}{" "}
+                                {wo.isDemo ? (
+                                  <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                                ) : null}
                             </Link>
                             </li>
                         ))}

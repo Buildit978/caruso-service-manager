@@ -24,7 +24,7 @@ export interface EstimateSentSnapshot {
 }
 
 export async function buildEstimatePdfBuffer(args: {
-  estimate: { estimateNumber: string; sentAt?: Date | string };
+  estimate: { estimateNumber: string; sentAt?: Date | string; isDemo?: boolean };
   sentSnapshot: EstimateSentSnapshot;
   settings?: { shopName?: string; invoiceProfile?: { shopName?: string } };
 }): Promise<Buffer> {
@@ -78,6 +78,9 @@ export async function buildEstimatePdfBuffer(args: {
   doc.fontSize(20).text("ESTIMATE", 50, startY, { align: "right", width: rightWidth });
   doc.moveDown(0.5);
   doc.fontSize(10).text(`Estimate #: ${estimateNumber}`, { align: "right" });
+  if (estimate.isDemo === true) {
+    doc.text("[PRACTICE]", { align: "right" });
+  }
 
   if (estimate.sentAt) {
     doc.text(

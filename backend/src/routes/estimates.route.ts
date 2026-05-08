@@ -113,6 +113,7 @@ router.post(
 
         const estimate = await Estimate.create({
           accountId,
+          isDemo: false,
           estimateNumber,
           kind: "non_client",
           items: [],
@@ -161,6 +162,7 @@ router.post(
 
       const estimate = await Estimate.create({
         accountId,
+        isDemo: (customer as any).isDemo === true,
         estimateNumber,
         kind: "client",
         customerId: new Types.ObjectId(customerId),
@@ -352,6 +354,7 @@ router.get(
         estimate: {
           estimateNumber: (estimate as any).estimateNumber,
           sentAt: (estimate as any).sentAt,
+          isDemo: (estimate as any).isDemo === true,
         },
         sentSnapshot,
         settings: settings as any,
@@ -595,6 +598,67 @@ router.patch(
 );
 
 /* =========================================================
+   DELETE /api/estimates/:id
+   Allow deleting only truly empty draft estimates.
+========================================================= */
+router.delete(
+  "/:id",
+  requireActiveBilling,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const accountId = req.accountId;
+      if (!accountId) {
+        return res.status(400).json({ message: "Missing accountId" });
+      }
+
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid estimate id" });
+      }
+
+      const estimate = await Estimate.findOne({ _id: id, accountId }).lean();
+      if (!estimate) {
+        return res.status(404).json({ message: "Estimate not found" });
+      }
+
+      const status = String((estimate as any).status ?? "").toLowerCase();
+      const isDraft = status === "draft";
+      const isApprovedOrAccepted =
+        status === "approved" || status === "partially_approved" || status === "accepted";
+      const hasConverted = !!(estimate as any).convertedToWorkOrderId;
+      const hasLineItems = Array.isArray((estimate as any).items) && (estimate as any).items.length > 0;
+      const hasCustomerNotes = String((estimate as any).customerNotes ?? "").trim().length > 0;
+      const hasInternalNotes = String((estimate as any).internalNotes ?? "").trim().length > 0;
+
+      if (
+        !isDraft ||
+        isApprovedOrAccepted ||
+        hasConverted ||
+        hasLineItems ||
+        hasCustomerNotes ||
+        hasInternalNotes
+      ) {
+        return res.status(400).json({
+          message: "Only empty draft estimates can be discarded.",
+        });
+      }
+
+      await Estimate.deleteOne({ _id: id, accountId });
+
+      trackEvent({
+        req,
+        type: "estimate.discarded",
+        entity: { kind: "estimate", id },
+      });
+
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* =========================================================
    POST /api/estimates/:id/send
    Only when status is draft. Set status='sent', sentAt=now, sentSnapshot.
    Return updated estimate populated (customerId, vehicleId).
@@ -825,7 +889,11 @@ router.post(
       const settings = await Settings.findOne({ accountId }).lean();
       const sentAt = new Date();
       const pdfBuffer = await buildEstimatePdfBuffer({
-        estimate: { estimateNumber: (estimate as any).estimateNumber, sentAt },
+        estimate: {
+          estimateNumber: (estimate as any).estimateNumber,
+          sentAt,
+          isDemo: (estimate as any).isDemo === true,
+        },
         sentSnapshot,
         settings: settings as any,
       });
@@ -974,6 +1042,7 @@ router.post(
         estimate: {
           estimateNumber: String((estimate as any).estimateNumber ?? ""),
           sentAt: (estimate as any).sentAt ?? now,
+          isDemo: (estimate as any).isDemo === true,
         },
         sentSnapshot,
         settings,
@@ -1289,6 +1358,7 @@ router.post(
 
       const workOrder = new WorkOrder({
         accountId,
+        isDemo: (estimate as any).isDemo === true,
         customerId: effectiveCustomerId,
         sourceEstimateId: estimate._id,
         complaint,

@@ -21,6 +21,7 @@ export interface ICustomer extends Document {
     email?: string;
     address?: string;
     notes?: string;
+    isDemo: boolean;
     fullName: string;
     vehicles: IVehicle[];
 }
@@ -55,6 +56,7 @@ const customerSchema = new Schema<ICustomer>(
         email: { type: String, trim: true },
         address: { type: String, trim: true },
         notes: { type: String, trim: true },
+        isDemo: { type: Boolean, default: false, index: true },
 
         // NEW: vehicles array
         vehicles: {

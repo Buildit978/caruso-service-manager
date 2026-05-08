@@ -22,6 +22,7 @@ const vehicleSchema = new Schema(
     licensePlate: { type: String, trim: true },
     color: { type: String, trim: true },
     notes: { type: String, trim: true },
+    isDemo: { type: Boolean, default: false, index: true },
     
     currentOdometer: {
       type: Number,
@@ -35,6 +36,7 @@ const vehicleSchema = new Schema(
 
 // helpful compound index for queries by account + customer
 vehicleSchema.index({ accountId: 1, customerId: 1 });
+vehicleSchema.index({ accountId: 1, isDemo: 1 });
 
 export type IVehicle = InferSchemaType<typeof vehicleSchema>;
 export const Vehicle = model<IVehicle>("Vehicle", vehicleSchema);

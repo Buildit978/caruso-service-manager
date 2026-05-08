@@ -408,6 +408,9 @@ export default function WorkOrderCreatePage() {
     return name.includes(q) || phone.includes(q) || email.includes(q);
   });
 
+  const selectedCustomer =
+    customers.find((c) => c._id === form.customerId) ?? null;
+
 // 👇 if this line runs, it proves the component is still “inside” the function
 // console.log("[Create WO] filtered customers:", filteredCustomers.length);
 
@@ -535,10 +538,28 @@ export default function WorkOrderCreatePage() {
                 {filteredCustomers.map((c) => (
                   <option key={c._id} value={c._id}>
                     {String(formatCustomerName(c) ?? "(No name)")}
+                    {c.isDemo ? " [PRACTICE]" : ""}
                     {c.phone ? ` — ${c.phone}` : ""}
                   </option>
                 ))}
               </select>
+
+              {selectedCustomer?.isDemo ? (
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 800,
+                    color: "#111111",
+                    background: "#ffffff",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "0.4rem",
+                    padding: "0.35rem 0.5rem",
+                    width: "fit-content",
+                  }}
+                >
+                  [PRACTICE] This work order will be created as practice data.
+                </div>
+              ) : null}
 
               <button
                 type="button"

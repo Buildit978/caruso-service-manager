@@ -52,13 +52,72 @@ html {
 /* === Global Readability Enhancements === */
 body {
   font-size: 18px;
-  /* bigger base font */
   line-height: 1.6;
-  color: rgb(247, 241, 241);
-  /* dark neutral text */
-  background-color: #39332B;
-  /* soft light background */
+  color: #e5e7eb;
+  background-color: #020617;
   font-family: 'Inter', 'Roboto', 'Segoe UI', sans-serif;
+}
+
+.text-secondary-readable {
+  color: #d1d5db;
+  font-weight: 500;
+}
+
+.text-helper-readable {
+  color: #cbd5e1;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.label-muted-readable {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.detail-readable {
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+.empty-state-readable {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.sidebar-meta-readable {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.muted-readable {
+  color: #cbd5e1;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Strengthen common muted utility classes on dark surfaces */
+.text-slate-400,
+.text-slate-500,
+.text-slate-600,
+.text-gray-500,
+.text-gray-600 {
+  color: #cbd5e1 !important;
+  font-weight: 500;
+}
+
+.practice-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.35rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #818cf8;
+  background: rgba(129, 140, 248, 0.28);
+  color: #e0e7ff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 
@@ -72,7 +131,11 @@ h2,
 h3,
 h4 {
   font-weight: 600;
-  color: #0c0c0c;
+  color: #f1f5f9;
+}
+
+label {
+  color: #e2e8f0;
 }
 
 /* Sidebar adjustments */
@@ -189,8 +252,9 @@ td {
 .page-subtitle {
   margin-top: -0.5rem;
   margin-bottom: 1.5rem;
-  color: #9ca3af;
+  color: #cbd5e1;
   font-size: 0.95rem;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -241,6 +305,11 @@ td {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+}
+
+.layout-sidebar nav a {
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 /* Mobile top bar: hidden on desktop */
@@ -453,6 +522,24 @@ td {
   max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll table thead th {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.table-scroll table tbody td {
+  color: #111827;
+  font-weight: 500;
+}
+
+.table-scroll table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.table-scroll table tbody tr:hover {
+  background: #eef2ff;
 }
 
 /* Mobile-only: touch targets + table min-width + WO controls */

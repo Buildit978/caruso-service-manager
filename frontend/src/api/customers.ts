@@ -10,6 +10,7 @@ export type CustomerPayload = {
     email?: string;
     address?: string;
     notes?: string;
+    isDemo?: boolean;
 };
 
 export type CustomerSortBy = "name" | "createdAt";

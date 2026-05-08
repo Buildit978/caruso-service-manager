@@ -94,7 +94,7 @@ router.get(
         return res.status(400).json({ message: "Invalid from/to date. Use YYYY-MM-DD." });
       }
 
-      const baseMatch = { accountId };
+      const baseMatch = { accountId, isDemo: { $ne: true } };
 
       const [totals] = await Invoice.aggregate([
         { $match: baseMatch },
@@ -390,6 +390,13 @@ router.post(
         .lean();
 
       if (existingInvoice) {
+        if ((workOrder as any).isDemo === true && (existingInvoice as any).isDemo !== true) {
+          await Invoice.updateOne(
+            { _id: existingInvoice._id, accountId },
+            { $set: { isDemo: true } }
+          );
+          (existingInvoice as any).isDemo = true;
+        }
         if (!workOrder.invoiceId) workOrder.invoiceId = existingInvoice._id as any;
         if (workOrder.status !== "invoiced") workOrder.status = "invoiced";
         await workOrder.save();
@@ -535,6 +542,7 @@ router.post(
 
       const invoice = await Invoice.create({
         accountId,
+        isDemo: (workOrder as any).isDemo === true,
         invoiceNumber,
         status: "draft",
         workOrderId: workOrder._id,
@@ -568,7 +576,9 @@ router.post(
         meta: { fromWorkOrder: workOrder._id },
       });
 
-      await trackBetaInvoiceCreated(accountId);
+      if ((workOrder as any).isDemo !== true) {
+        await trackBetaInvoiceCreated(accountId);
+      }
 
       // ✅ return invoice with computed truth attached
       const fin = computeInvoiceFinancials({ total, payments: [] } as any);

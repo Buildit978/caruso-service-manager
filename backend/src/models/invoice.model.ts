@@ -57,6 +57,7 @@ export type InvoiceEmailMeta = {
 
 export interface IInvoice extends Document {
   accountId: Types.ObjectId;
+  isDemo: boolean;
 
   invoiceNumber: string;
   status: InvoiceStatus;
@@ -193,6 +194,7 @@ const InvoiceSchema = new Schema(
       required: true,
       index: true,
     },
+    isDemo: { type: Boolean, default: false, index: true },
 
     invoiceNumber: {
       type: String,
@@ -356,6 +358,7 @@ export type InvoiceDoc = mongoose.HydratedDocument<Invoice>;
 // Indexes
 InvoiceSchema.index({ accountId: 1, invoiceNumber: 1 }, { unique: true });
 InvoiceSchema.index({ accountId: 1, workOrderId: 1 }); // not unique
+InvoiceSchema.index({ accountId: 1, isDemo: 1, createdAt: -1 });
 InvoiceSchema.index({ accountId: 1, createdAt: -1 });
 InvoiceSchema.index({ accountId: 1, status: 1, createdAt: -1 }); // helpful for finance views
 InvoiceSchema.index({ accountId: 1, status: 1, paidAt: -1 });

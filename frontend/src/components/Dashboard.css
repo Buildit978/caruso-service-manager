@@ -26,7 +26,8 @@
 
 .dashboard__subtitle {
     margin-top: 0.25rem;
-    color: #9ca3af;
+    color: #cbd5e1;
+    font-weight: 500;
     font-size: 0.95rem;
 }
 
@@ -121,7 +122,8 @@
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #9ca3af;
+    color: #cbd5e1;
+    font-weight: 600;
 }
 
 .stat-card__value {
@@ -132,7 +134,8 @@
 
 .stat-card__hint {
     font-size: 0.85rem;
-    color: #6b7280;
+    color: #cbd5e1;
+    font-weight: 500;
 }
 
 /* Safety for any white modals */

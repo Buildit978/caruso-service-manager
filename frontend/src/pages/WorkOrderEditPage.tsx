@@ -27,6 +27,15 @@ function parseQuantityInput(raw: string): number {
   return Number.isNaN(num) ? 0 : num;
 }
 
+function formatLabourQuantityClock(hoursValue: number): string {
+  const safeHours = Number(hoursValue ?? 0);
+  if (!Number.isFinite(safeHours)) return "0:00";
+  const totalMinutes = Math.max(0, Math.round(safeHours * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
 export default function WorkOrderEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -83,7 +92,9 @@ function requestNavigation(action: () => void) {
         setQuantityInputs(
           initialLineItems.map((item) =>
             item.quantity !== undefined && item.quantity !== null
-              ? String(item.quantity)
+              ? item.type === "labour"
+                ? formatLabourQuantityClock(Number(item.quantity))
+                : String(item.quantity)
               : ""
           )
         );
@@ -355,7 +366,12 @@ function requestNavigation(action: () => void) {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600 }}>{customerName}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {customerName}{" "}
+                    {workOrder?.isDemo ? (
+                      <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                    ) : null}
+                  </div>
                   <div style={{ color: "#9ca3af" }}>
                     {customer.phone && <>📞 {customer.phone}</>}
                     {customer.phone && customer.email && " · "}

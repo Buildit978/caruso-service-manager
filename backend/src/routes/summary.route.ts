@@ -102,7 +102,7 @@ import { requireRole } from "../middleware/requireRole";
             ] = await Promise.all([
             // 1) Status counts, but only for this account
             WorkOrder.aggregate([
-                { $match: { accountId } },
+                { $match: { accountId, isDemo: { $ne: true } } },
                 {
                 $group: {
                     _id: { $toLower: { $trim: { input: "$status" } } },
@@ -112,11 +112,11 @@ import { requireRole } from "../middleware/requireRole";
             ]),
 
             // 2) Customers for this account only
-            Customer.countDocuments({ accountId }),
+            Customer.countDocuments({ accountId, isDemo: { $ne: true } }),
 
             // 3) ✅ Paid revenue (ALL-TIME) from invoice payments
             InvoiceModel.aggregate([
-                { $match: { accountId } },
+                { $match: { accountId, isDemo: { $ne: true } } },
                 { $unwind: "$payments" },
                 {
                 $group: {
@@ -129,7 +129,7 @@ import { requireRole } from "../middleware/requireRole";
             // 4) ✅ Paid revenue (YTD) + invoiceCount (for avgOrderValueYtd)
             // payments.paidAt is an ISO string, so convert to Date first
            InvoiceModel.aggregate([
-  { $match: { accountId } },
+  { $match: { accountId, isDemo: { $ne: true } } },
   { $unwind: "$payments" },
   { $match: { "payments.paidAt": { $gte: startOfYear } } },
 
@@ -149,6 +149,7 @@ import { requireRole } from "../middleware/requireRole";
                 {
                 $match: {
                     accountId,
+                    isDemo: { $ne: true },
                     completedAt: {
                     $exists: true,
                     $gte: startOfWeek,
@@ -169,7 +170,7 @@ import { requireRole } from "../middleware/requireRole";
             Settings.findOne({ accountId }),
 
             // 7) All work orders for this account (tenant-level total; all statuses)
-            WorkOrder.countDocuments({ accountId }),
+            WorkOrder.countDocuments({ accountId, isDemo: { $ne: true } }),
             ]);
 
             const statusCounts = statusAgg.reduce(

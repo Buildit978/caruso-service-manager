@@ -16,6 +16,7 @@ type CustomerForm = {
   phone: string;
   email: string;
   address: string;
+  isDemo: boolean;
 };
 
 export default function CustomerCreatePage() {
@@ -28,6 +29,7 @@ export default function CustomerCreatePage() {
     phone: "",
     email: "",
     address: "",
+    isDemo: false,
   });
 
   const [saving, setSaving] = useState(false);
@@ -72,6 +74,7 @@ export default function CustomerCreatePage() {
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
         address: form.address.trim() || undefined,
+        isDemo: form.isDemo === true,
       };
 
       const createdCustomer = await createCustomer(customerPayload);
@@ -161,6 +164,9 @@ export default function CustomerCreatePage() {
             Back
           </button>
         </div>
+        <p className="text-helper-readable" style={{ marginTop: "-0.75rem", marginBottom: "1rem" }}>
+          Create a customer now. You can add vehicles now or later.
+        </p>
 
         {/* Card */}
         <div
@@ -192,9 +198,52 @@ export default function CustomerCreatePage() {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "1rem",
+              gap: "1.1rem",
             }}
           >
+            <div
+              style={{
+                border: "1px solid #334155",
+                borderRadius: "0.65rem",
+                padding: "0.9rem 1rem",
+                background: "#0b1220",
+                marginBottom: "0.25rem",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color: "#f1f5f9",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Practice Mode
+              </div>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.3rem",
+                  fontSize: "0.93rem",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 600, color: "#e5e7eb" }}>
+                  <input
+                    type="checkbox"
+                    checked={form.isDemo}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, isDemo: e.target.checked }))
+                    }
+                  />
+                  This is a practice customer
+                </span>
+                <span style={{ color: "#cbd5e1", fontSize: "0.86rem", lineHeight: 1.55, fontWeight: 500 }}>
+                  Practice customers help you safely learn the workflow and won't affect real reports.
+                </span>
+              </label>
+            </div>
+
             {/* First Name */}
             <label
               style={{
@@ -204,7 +253,7 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span>First Name</span>
+              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>First Name</span>
               <input
                 name="firstName"
                 value={form.firstName}
@@ -229,7 +278,7 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span>Last Name</span>
+              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Last Name</span>
               <input
                 name="lastName"
                 value={form.lastName}
@@ -254,7 +303,7 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span>Phone (optional)</span>
+              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Phone (optional)</span>
               <input
                 name="phone"
                 value={form.phone}
@@ -278,7 +327,7 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span>Email (optional)</span>
+              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Email (optional)</span>
               <input
                 name="email"
                 type="email"
@@ -303,7 +352,7 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span>Address (optional)</span>
+              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Address (optional)</span>
               <textarea
                 name="address"
                 value={form.address}

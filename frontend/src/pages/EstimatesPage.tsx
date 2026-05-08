@@ -233,27 +233,27 @@ export default function EstimatesPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading estimates…</p>
+        <p className="text-sm text-helper-readable">Loading estimates…</p>
       ) : displayedEstimates.length === 0 ? (
-        <p className="text-sm text-slate-500">{getEmptyStateText(view)}</p>
+        <p className="text-sm empty-state-readable">{getEmptyStateText(view)}</p>
       ) : (
         <div className="table-scroll">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-semibold text-slate-600">
                   #
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-semibold text-slate-600">
                   Customer
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-semibold text-slate-600">
                   Status
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-semibold text-slate-600">
                   Converted
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-semibold text-slate-600">
                   Created
                 </th>
               </tr>
@@ -273,14 +273,21 @@ export default function EstimatesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
-                    {(est as { kind?: string }).kind === "non_client"
-                      ? (() => {
-                          const first = (est.nonClient?.name ?? "").trim();
-                          const last = (est.nonClient?.lastName ?? "").trim();
-                          const full = `${first} ${last}`.trim();
-                          return full || "Non-client";
-                        })()
-                      : formatCustomerName(est.customerId)}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                      <span>
+                        {(est as { kind?: string }).kind === "non_client"
+                          ? (() => {
+                              const first = (est.nonClient?.name ?? "").trim();
+                              const last = (est.nonClient?.lastName ?? "").trim();
+                              const full = `${first} ${last}`.trim();
+                              return full || "Non-client";
+                            })()
+                          : formatCustomerName(est.customerId)}
+                      </span>
+                      {est.isDemo ? (
+                        <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                      ) : null}
+                    </span>
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <span
@@ -298,10 +305,10 @@ export default function EstimatesPage() {
                         View Work Order
                       </Link>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                    <span className="text-secondary-readable">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
+                  <td className="px-4 py-2 whitespace-nowrap text-xs text-secondary-readable">
                     {est.createdAt
                       ? new Date(est.createdAt).toLocaleDateString("en-CA")
                       : "—"}
@@ -314,7 +321,7 @@ export default function EstimatesPage() {
       )}
 
       {!loading && paging.total > 0 && (
-        <p className="text-sm text-slate-500 mt-2">
+        <p className="text-sm text-helper-readable mt-2">
           Showing {paging.returned} of {paging.total} estimates
         </p>
       )}

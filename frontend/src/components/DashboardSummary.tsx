@@ -142,7 +142,7 @@ useEffect(() => {
                     <div>
                         <h1 className="dashboard__title">Shop Service Manager</h1>
                         {shopName && (
-                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                            <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.25rem', fontWeight: 500 }}>
                                 {shopName}
                             </div>
                         )}
@@ -180,7 +180,7 @@ useEffect(() => {
                     <div>
                         <h1 className="dashboard__title">Shop Service Manager</h1>
                         {shopName && (
-                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                            <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.25rem', fontWeight: 500 }}>
                                 {shopName}
                             </div>
                         )}
@@ -295,7 +295,7 @@ useEffect(() => {
                     <div>
                         <h1 className="dashboard__title">Shop Service Manager</h1>
                         {shopName && (
-                            <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                            <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.25rem', fontWeight: 500 }}>
                                 {shopName}
                             </div>
                         )}
@@ -319,7 +319,7 @@ useEffect(() => {
                     <h2 style={{ marginTop: 0, marginBottom: "0.75rem", color: "#e5e7eb", fontSize: "1.5rem", fontWeight: 600 }}>
                         Welcome to Shop Service Manager
                     </h2>
-                    <p style={{ marginBottom: "1.5rem", color: "#9ca3af", lineHeight: 1.6, fontSize: "1rem" }}>
+                    <p style={{ marginBottom: "1.5rem", color: "#cbd5e1", lineHeight: 1.6, fontSize: "1rem", fontWeight: 500 }}>
                         Let&apos;s create your first work order to get your shop moving.
                     </p>
                     <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
@@ -395,7 +395,7 @@ useEffect(() => {
                 <div>
                     <h1 className="dashboard__title">Shop Service Manager</h1>
                     {shopName && (
-                        <div style={{ fontSize: '0.95rem', color: '#9ca3af', marginTop: '0.25rem', fontWeight: 400 }}>
+                        <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.25rem', fontWeight: 500 }}>
                             {shopName}
                         </div>
                     )}

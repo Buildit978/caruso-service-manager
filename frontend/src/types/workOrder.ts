@@ -19,6 +19,7 @@ export interface WorkOrderVehicle {
 export interface WorkOrder {
     _id: string;
     status: WorkOrderStatus;
+    isDemo?: boolean;
     createdAt: string;
     date?: string;
     odometer?: number;

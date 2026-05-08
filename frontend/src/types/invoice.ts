@@ -35,6 +35,7 @@ export type InvoiceEmailMeta = {
 
 export interface Invoice {
   _id: string;
+  isDemo?: boolean;
   invoiceNumber: string;
 
   // lifecycle

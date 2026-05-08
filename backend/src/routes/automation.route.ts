@@ -70,7 +70,7 @@ async function buildOnboardingList(opts: {
 
   for (const acc of accounts) {
     const id = acc._id as Types.ObjectId;
-    const woCount = await WorkOrder.countDocuments({ accountId: id });
+    const woCount = await WorkOrder.countDocuments({ accountId: id, isDemo: { $ne: true } });
     if (woCount > 0) continue;
 
     const [settings, owner] = await Promise.all([

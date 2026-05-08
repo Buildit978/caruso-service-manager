@@ -7,6 +7,7 @@ import { User } from "../models/user.model";
 import { applyWorkOrderLifecycle } from "../utils/workOrderLifecycle";
 import { computeInvoiceFinancials } from "../utils/invoiceFinancials";
 import Invoice from "../models/invoice.model";
+import { Vehicle } from "../models/vehicle.model";
 import workOrderMessagesRouter from "./workOrderMessages.route";
 import { sanitizeCustomerForActor } from "../utils/customerRedaction";
 import { trackEvent } from "../utils/trackEvent";
@@ -57,21 +58,16 @@ router.get(
       const accountId = req.accountId;
       if (!accountId) return res.status(400).json({ message: "Missing accountId" });
 
-      const base = { accountId };
+      const base = { accountId, isDemo: { $ne: true } };
 
       // ✅ Archive = Paid or Void ONLY (invoice truth)
       const archiveInvoiceIds = await Invoice.find({
         accountId,
+        isDemo: { $ne: true },
         $or: [
           { status: "void" },
-          {
-            $expr: {
-              $and: [
-                { $gt: ["$total", 0] },
-                { $gte: [{ $ifNull: ["$paidAmount", 0] }, "$total"] },
-              ],
-            },
-          },
+          { financialStatus: "paid" },
+          { balanceDue: { $lte: 0.01 } },
         ],
       }).distinct("_id");
 
@@ -97,7 +93,7 @@ router.get(
       ]);
 
       const byStatus = await WorkOrder.aggregate([
-        { $match: { accountId: new Types.ObjectId(accountId) } },
+        { $match: { accountId: new Types.ObjectId(accountId), isDemo: { $ne: true } } },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $project: { _id: 0, status: "$_id", count: 1 } },
       ]);
@@ -196,29 +192,24 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       }
 
       q.status = { $in: ["completed", "invoiced"] };
+      q.isDemo = { $ne: true };
       // TEMP: do not filter by closedAt until we confirm data shape
       q.$or = [{ closedAt: { $exists: false } }, { closedAt: null }];
     } else if (view === "archive") {
       // Archive = Paid or Void ONLY (invoice truth)
       const invoiceIds = await Invoice.find({
         accountId,
+        isDemo: { $ne: true },
         $or: [
           // lifecycle void always archived
           { status: "void" },
-
-          // financially paid: paidAmount >= total (and total > 0)
-          {
-            $expr: {
-              $and: [
-                { $gt: ["$total", 0] },
-                { $gte: [{ $ifNull: ["$paidAmount", 0] }, "$total"] },
-              ],
-            },
-          },
+          { financialStatus: "paid" },
+          { balanceDue: { $lte: 0.01 } },
         ],
       }).distinct("_id");
 
       q.invoiceId = { $in: invoiceIds };
+      q.isDemo = { $ne: true };
     }
 
     // Sorting
@@ -396,6 +387,20 @@ return res.json(result);
         const customer = await Customer.findOne({ _id: customerId, accountId }).lean();
         if (!customer) return res.status(400).json({ message: "Invalid customerId" });
 
+        const customerIsDemo = (customer as any).isDemo === true;
+        let vehicleIsDemo = false;
+        if (vehicle?.vehicleId && Types.ObjectId.isValid(String(vehicle.vehicleId))) {
+          const vehicleDoc = await Vehicle.findOne({
+            _id: vehicle.vehicleId,
+            accountId,
+            customerId,
+          })
+            .select("isDemo")
+            .lean();
+          vehicleIsDemo = vehicleDoc?.isDemo === true;
+        }
+        const isDemo = customerIsDemo || vehicleIsDemo;
+
         // --- ODO DEFAULTING (odometerIn) ---
         const bodyOdoIn = req.body?.odometerIn;
         const bodyOdoLegacy = req.body?.odometer;
@@ -439,6 +444,7 @@ return res.json(result);
           notes,
           vehicle,
           status: "open",
+          isDemo,
           date: new Date(),
 
           // new lifecycle fields (safe even if undefined)
@@ -457,8 +463,8 @@ return res.json(result);
 
         await workOrder.save();
 
-        const workOrderCount = await WorkOrder.countDocuments({ accountId });
-        if (workOrderCount === 1) {
+        const workOrderCount = await WorkOrder.countDocuments({ accountId, isDemo: { $ne: true } });
+        if (!isDemo && workOrderCount === 1) {
           const owner = await User.findOne({
             accountId,
             role: "owner",
@@ -488,7 +494,9 @@ return res.json(result);
           meta: { status: workOrder.status },
         });
 
-        await trackBetaWorkOrderCreated(accountId);
+        if (!isDemo) {
+          await trackBetaWorkOrderCreated(accountId);
+        }
 
         res.status(201).json(workOrder);
       } catch (err) {

@@ -108,6 +108,13 @@ router.post("/", requireActiveBilling, requireRole(["owner", "manager"]), async 
       return res.status(400).json({ message: "make and model are required" });
     }
 
+    const customer = await Customer.findOne({ _id: customerId, accountId })
+      .select("_id isDemo")
+      .lean();
+    if (!customer) {
+      return res.status(400).json({ message: "Invalid customerId" });
+    }
+
     let currentOdometer: number | null = null;
     if (odometer !== undefined && odometer !== null && odometer !== "") {
       const n = Number(String(odometer).replace(/,/g, "").trim());
@@ -127,6 +134,7 @@ router.post("/", requireActiveBilling, requireRole(["owner", "manager"]), async 
       color,
       notes,
       currentOdometer,
+      isDemo: customer.isDemo === true,
     });
 
     trackEvent({

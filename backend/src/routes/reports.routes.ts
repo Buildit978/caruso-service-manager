@@ -24,7 +24,7 @@ router.get("/revenue/ytd-monthly", async (req: Request, res: Response) => {
 
     // Sum payments by month (based on payments.paidAt Date)
     const rows = await InvoiceModel.aggregate([
-      { $match: { accountId } },
+      { $match: { accountId, isDemo: { $ne: true } } },
       { $unwind: { path: "$payments", preserveNullAndEmptyArrays: false } },
       { $match: { "payments.paidAt": { $gte: startOfYear } } },
       {

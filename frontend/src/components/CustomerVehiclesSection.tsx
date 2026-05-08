@@ -1,5 +1,5 @@
 // src/components/CustomerVehiclesSection.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
     getCustomerVehicles,
@@ -14,10 +14,12 @@ import { isBillingLockedError } from "../state/billingLock";
 
 interface CustomerVehiclesSectionProps {
     customerId: string;
+    autoOpenAddVehicle?: boolean;
 }
 
 export default function CustomerVehiclesSection({
     customerId,
+    autoOpenAddVehicle = false,
 }: CustomerVehiclesSectionProps) {
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [loading, setLoading] = useState(true);
@@ -25,6 +27,7 @@ export default function CustomerVehiclesSection({
     const [error, setError] = useState<string | null>(null);
 
     const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+    const [showForm, setShowForm] = useState(false);
 
     const [form, setForm] = useState<NewVehiclePayload>({
         customerId,
@@ -37,6 +40,9 @@ export default function CustomerVehiclesSection({
         notes: "",
         odometer: "",
     });
+    const sectionRef = useRef<HTMLElement | null>(null);
+    const addVehicleButtonRef = useRef<HTMLButtonElement | null>(null);
+    const makeInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         if (!customerId) return;
@@ -67,6 +73,20 @@ export default function CustomerVehiclesSection({
         };
     }, [customerId]);
 
+    useEffect(() => {
+        if (!autoOpenAddVehicle) return;
+        setShowForm(true);
+        setEditingVehicleId(null);
+        setTimeout(() => {
+            sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            if (makeInputRef.current) {
+                makeInputRef.current.focus();
+                return;
+            }
+            addVehicleButtonRef.current?.focus();
+        }, 0);
+    }, [autoOpenAddVehicle]);
+
     const resetForm = () => {
         setForm({
             customerId,
@@ -80,6 +100,7 @@ export default function CustomerVehiclesSection({
             odometer: "",
         });
         setEditingVehicleId(null);
+        setShowForm(false);
     };
 
     const handleChange = (
@@ -102,6 +123,7 @@ export default function CustomerVehiclesSection({
 
     const handleEditClick = (vehicle: Vehicle) => {
         setEditingVehicleId(vehicle._id);
+        setShowForm(true);
         setForm({
             customerId,
             year: vehicle.year,
@@ -204,25 +226,55 @@ export default function CustomerVehiclesSection({
     };
 
     return (
-        <section style={{ marginTop: "2rem" }}>
-            <h3 style={{ marginBottom: "0.5rem" }}>Vehicles</h3>
-            <p
+        <section ref={sectionRef} style={{ marginTop: "2rem" }}>
+            <div
                 style={{
-                    fontSize: "0.85rem",
-                    color: "#9ca3af",
-                    marginBottom: "0.75rem",
-                    marginTop: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                    marginBottom: "0.5rem",
                 }}
+            >
+                <h3 style={{ margin: 0 }}>Vehicles</h3>
+                <button
+                    ref={addVehicleButtonRef}
+                    type="button"
+                    onClick={() => setShowForm((prev) => !prev)}
+                    style={{
+                        padding: "0.35rem 0.75rem",
+                        borderRadius: "0.45rem",
+                        border: "1px solid #2563eb",
+                        background: "#2563eb",
+                        color: "#ffffff",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                    }}
+                >
+                    {showForm && !editingVehicleId ? "Hide Form" : "+ Add Vehicle"}
+                </button>
+            </div>
+            <p
+                className="text-helper-readable"
+                style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
+            >
+                Add a vehicle to continue setup for this customer.
+            </p>
+            <p
+                className="text-helper-readable"
+                style={{ fontSize: "0.86rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
             >
                 Tip: Use Edit to update vehicle details. Click the vehicle name to view work orders and status.
             </p>
 
             {loading ? (
-                <p>Loading vehicles…</p>
+                <p className="text-helper-readable" style={{ color: "#d1d5db", fontWeight: 600 }}>Loading vehicles…</p>
             ) : error ? (
                 <p style={{ color: "red" }}>{error}</p>
             ) : vehicles.length === 0 ? (
-                <p>No vehicles on file for this customer yet.</p>
+                <p className="empty-state-readable" style={{ color: "#d1d5db", fontWeight: 600 }}>No vehicles on file for this customer yet.</p>
             ) : (
                             <ul style={{ paddingLeft: "1.25rem", marginBottom: "1rem" }}>
                                 {vehicles.map((v) => (
@@ -237,6 +289,9 @@ export default function CustomerVehiclesSection({
                                                     {v.make} {v.model}
                                                     {v.licensePlate && ` (${v.licensePlate})`}
                                                 </Link>
+                                                {v.isDemo ? (
+                                                    <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                                                ) : null}
                                             </div>
                                             <div className="cust-vehicle-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                                                 <button
@@ -260,8 +315,10 @@ export default function CustomerVehiclesSection({
                             </ul>
                         )} 
 
+            {showForm ? (
+            <>
             <h4 style={{ margin: "1rem 0 0.5rem" }}>
-                {editingVehicleId ? "Edit Vehicle" : "Add Vehicle"}
+                {editingVehicleId ? "Edit Vehicle" : "Add Vehicle for This Customer"}
             </h4>
             <form
                 onSubmit={handleSubmit}
@@ -283,6 +340,7 @@ export default function CustomerVehiclesSection({
                 </div>
                 <div>
                     <input
+                        ref={makeInputRef}
                         type="text"
                         name="make"
                         placeholder="Make (e.g., Honda)"
@@ -370,6 +428,8 @@ export default function CustomerVehiclesSection({
                     )}
                 </div>
             </form>
+            </>
+            ) : null}
         </section>
     );
 }

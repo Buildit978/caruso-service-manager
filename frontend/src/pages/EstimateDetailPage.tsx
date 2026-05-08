@@ -8,6 +8,7 @@ import {
   resendEstimate,
   approveEstimate,
   convertEstimateToWorkOrder,
+  discardEstimateDraft,
   type Estimate,
   type EstimateLineItem,
 } from "../api/estimates";
@@ -74,6 +75,7 @@ export default function EstimateDetailPage() {
   const [approveSuccess, setApproveSuccess] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [dirty, setDirty] = useState(false);
 
@@ -591,12 +593,55 @@ export default function EstimateDetailPage() {
   const canApprove = isSent || isAccepted;
   const isApprovedOrPartially =
     estimate.status === "approved" || estimate.status === "partially_approved";
+  const hasAnyLineItems = Array.isArray(estimate.items) && estimate.items.length > 0;
+  const hasMeaningfulCustomerNotes = String(estimate.customerNotes ?? "").trim().length > 0;
+  const hasMeaningfulInternalNotes = String(estimate.internalNotes ?? "").trim().length > 0;
   const convertedWoId = (() => {
     const raw = estimate.convertedToWorkOrderId;
     if (!raw) return null;
     if (typeof raw === "string") return raw;
     return (raw as { _id?: string })?._id ?? null;
   })();
+  const canDiscardDraft =
+    isDraft &&
+    !isSent &&
+    !isApprovedOrPartially &&
+    !isAccepted &&
+    !convertedWoId &&
+    !hasAnyLineItems &&
+    !hasMeaningfulCustomerNotes &&
+    !hasMeaningfulInternalNotes;
+
+  const handleDiscardDraft = async () => {
+    if (!id || !canDiscardDraft || discarding) return;
+    const confirmed = window.confirm(
+      "Discard this empty draft estimate?\n\nThis cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      setDiscarding(true);
+      setSaveError(null);
+      setSendError(null);
+      setResendError(null);
+      setApproveError(null);
+      setConvertError(null);
+      await discardEstimateDraft(id);
+      navigate("/estimates");
+    } catch (err) {
+      const httpErr = err as HttpError;
+      const apiMessage =
+        httpErr?.data &&
+        typeof httpErr.data === "object" &&
+        "message" in httpErr.data &&
+        typeof (httpErr.data as { message?: unknown }).message === "string"
+          ? (httpErr.data as { message: string }).message
+          : undefined;
+      setSaveError(apiMessage ?? (httpErr as Error).message ?? "Failed to discard draft.");
+    } finally {
+      setDiscarding(false);
+    }
+  };
 
   return (
     <div style={{ padding: "2rem", maxWidth: "960px" }}>
@@ -613,7 +658,12 @@ export default function EstimateDetailPage() {
         }}
       >
         <h2 style={{ margin: 0, color: "#ffffff" }}>
-          Estimate {estimate.estimateNumber}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>Estimate {estimate.estimateNumber}</span>
+            {(estimate as any).isDemo ? (
+              <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+            ) : null}
+          </span>
         </h2>
         {isDraft && (
           <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
@@ -663,6 +713,24 @@ export default function EstimateDetailPage() {
             >
               {sending ? "Sending…" : "Send Estimate"}
             </button>
+            {canDiscardDraft ? (
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                disabled={discarding}
+                style={{
+                  padding: "0.5rem 1.25rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #dc2626",
+                  background: "transparent",
+                  color: "#fca5a5",
+                  fontWeight: 600,
+                  cursor: discarding ? "not-allowed" : "pointer",
+                }}
+              >
+                {discarding ? "Discarding…" : "Discard Draft"}
+              </button>
+            ) : null}
           </div>
         )}
         {/* id="f2-sent-ui-resend-pdf" - sent action buttons */}
@@ -838,7 +906,7 @@ export default function EstimateDetailPage() {
       )}
 
       {(saveError || sendError || resendError || approveError || convertError) && (
-        <p style={{ color: "red", marginBottom: "1rem" }}>
+        <p style={{ color: "#fca5a5", marginBottom: "1rem", fontWeight: 600 }}>
           {saveError ?? sendError ?? resendError ?? approveError ?? convertError}
         </p>
       )}
@@ -849,8 +917,37 @@ export default function EstimateDetailPage() {
       )}
 
       <div style={{ marginTop: "0.75rem" }}>
-        <p style={{ marginBottom: "0.5rem" }}>Customer: {customer || "—"}</p>
-        <p>Status: {estimate.status}</p>
+        <p style={{ marginBottom: "0.5rem", color: "#e2e8f0", fontWeight: 600 }}>
+          Customer: {customer || "—"}{" "}
+          {(estimate as any).isDemo ? (
+            <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+          ) : null}
+        </p>
+        <p style={{ color: "#cbd5e1", fontWeight: 600 }}>Status: {estimate.status}</p>
+        {canDiscardDraft ? (
+          <p style={{ marginTop: "0.4rem", color: "#cbd5e1", fontWeight: 600 }}>
+            This draft has not been saved with any work yet. You can add details or discard it.
+          </p>
+        ) : null}
+        {!isNonClient && !vehicleId && customerId ? (
+          <div style={{ marginTop: "0.5rem" }}>
+            <button
+              type="button"
+              onClick={() => navigate(`/customers/${customerId}?addVehicle=1`)}
+              style={{
+                padding: "0.45rem 0.9rem",
+                borderRadius: "0.45rem",
+                border: "1px solid #2563eb",
+                background: "transparent",
+                color: "#93c5fd",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Add Vehicle for this Customer
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {isDraft ? (
@@ -1064,6 +1161,11 @@ export default function EstimateDetailPage() {
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Vehicle
               </label>
+              {!vehiclesLoading && !vehicleId && vehicles.length > 0 ? (
+                <div style={{ marginBottom: "0.4rem", color: "#93c5fd", fontWeight: 700, fontSize: "0.9rem" }}>
+                  Vehicle now available — select it below and Save.
+                </div>
+              ) : null}
               <select
                 aria-label="Vehicle"
                 value={vehicleId ?? ""}
@@ -1216,7 +1318,7 @@ export default function EstimateDetailPage() {
               </tbody>
             </table>
             {items.length === 0 && (
-              <p style={{ color: "#9ca3af", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+              <p className="empty-state-readable" style={{ fontSize: "0.92rem", marginTop: "0.5rem" }}>
                 No line items. Click Add item to add one.
               </p>
             )}
@@ -1305,7 +1407,7 @@ export default function EstimateDetailPage() {
                 </>
               ) : (
                 <>
-                  <p style={{ color: "#9ca3af", fontSize: "0.9rem" }}>No line items.</p>
+                  <p className="empty-state-readable" style={{ fontSize: "0.92rem" }}>No line items.</p>
                   <div
                     style={{
                       marginTop: "1rem",

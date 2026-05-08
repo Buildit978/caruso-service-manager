@@ -72,6 +72,7 @@ export interface IWorkOrder extends Document {
   notes?: string;
 
   status: WorkOrderStatus;
+  isDemo: boolean;
 
   vehicle?: IWorkOrderVehicle;
 
@@ -181,6 +182,7 @@ const workOrderSchema = new Schema<IWorkOrder>(
       lowercase: true,
       trim: true,
     },
+    isDemo: { type: Boolean, default: false, index: true },
 
     lineItems: { type: [lineItemSchema], default: [] },
     taxRate: { type: Number, default: 13 },
@@ -202,6 +204,7 @@ const workOrderSchema = new Schema<IWorkOrder>(
 workOrderSchema.index({ date: -1 });
 workOrderSchema.index({ accountId: 1, status: 1, createdAt: -1 });
 workOrderSchema.index({ accountId: 1, openedAt: -1 });
+workOrderSchema.index({ accountId: 1, isDemo: 1, createdAt: -1 });
 
 
 /* =========================================================

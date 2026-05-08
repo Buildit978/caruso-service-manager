@@ -93,6 +93,7 @@ interface VehicleBody {
       const matchStage: any = {
         accountId, // 👈 always scope work orders by account
         customerId: { $in: customerIds },
+        isDemo: { $ne: true },
       };
 
       const activeCounts = await WorkOrder.aggregate([
@@ -477,7 +478,7 @@ router.post('/', requireActiveBilling, requireRole(["owner", "manager"]), async 
             return res.status(400).json({ message: "Missing accountId" });
             }
         
-        const { firstName, lastName, phone, email, address, notes } = req.body;
+        const { firstName, lastName, phone, email, address, notes, isDemo } = req.body;
 
         const customer = await Customer.create({
             accountId,
@@ -486,7 +487,8 @@ router.post('/', requireActiveBilling, requireRole(["owner", "manager"]), async 
             phone,
             email,
             address,
-            notes
+            notes,
+            isDemo: isDemo === true,
         });
 
         trackEvent({
@@ -534,6 +536,7 @@ router.post('/', requireActiveBilling, requireRole(["owner", "manager"]), async 
                     licensePlate,
                     color,
                     notes,
+                    isDemo: customer.isDemo === true,
                 });
 
                 res.status(201).json(vehicle);
@@ -623,10 +626,22 @@ router.post('/', requireActiveBilling, requireRole(["owner", "manager"]), async 
                 return res.status(400).json({ message: "Missing accountId" });
                 }
 
+                const existingCustomer = await Customer.findOne({ _id: req.params.id, accountId })
+                  .select("isDemo")
+                  .lean();
+                if (!existingCustomer) {
+                  return res.status(404).json({ message: "Customer not found" });
+                }
+
+                const updateBody = {
+                  ...req.body,
+                  isDemo: existingCustomer.isDemo === true || req.body?.isDemo === true,
+                };
+
                 const customer = await Customer.findOneAndUpdate(
-                { _id: req.params.id, accountId },
-                req.body,
-                { new: true }
+                  { _id: req.params.id, accountId },
+                  updateBody,
+                  { new: true }
                 );
 
                 if (!customer) {

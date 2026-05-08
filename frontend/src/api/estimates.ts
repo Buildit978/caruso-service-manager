@@ -24,6 +24,7 @@ export interface EstimateLineItem {
 export interface Estimate {
   _id: string;
   accountId: string;
+  isDemo?: boolean;
   estimateNumber: string;
   kind?: "client" | "non_client";
   customerId?: string | { _id: string; firstName?: string; lastName?: string };
@@ -168,4 +169,10 @@ export async function convertEstimateToWorkOrder(id: string): Promise<{
       method: "POST",
     }
   );
+}
+
+export async function discardEstimateDraft(id: string): Promise<{ ok: boolean }> {
+  return await http<{ ok: boolean }>(`/estimates/${id}`, {
+    method: "DELETE",
+  });
 }

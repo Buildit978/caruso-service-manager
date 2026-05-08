@@ -145,7 +145,8 @@ function Layout() {
     marginBottom: '0.25rem',
     borderRadius: '4px',
     textDecoration: 'none',
-    fontSize: '0.9rem',
+    fontSize: '0.95rem',
+    fontWeight: 600,
     color: location.pathname === path ? '#fff' : '#e5e7eb',
     background: location.pathname === path ? '#1f74d4' : 'transparent',
   })
@@ -254,11 +255,7 @@ function Layout() {
             </div>
           )}
           {shopName && (
-            <div style={{
-              fontSize: '0.75rem',
-              color: '#9ca3af',
-              fontWeight: 400,
-            }}>
+            <div className="sidebar-meta-readable" style={{ fontSize: '0.78rem' }}>
               {shopName}
             </div>
           )}
@@ -266,13 +263,15 @@ function Layout() {
 
         {/* Session badge */}
         {me && (
-          <div style={{
-            fontSize: "0.75rem",
-            color: "#9ca3af",
-            marginBottom: "1rem",
-            paddingBottom: "0.75rem",
-            borderBottom: "1px solid #1f2937",
-          }}>
+          <div
+            className="sidebar-meta-readable"
+            style={{
+              fontSize: "0.78rem",
+              marginBottom: "1rem",
+              paddingBottom: "0.75rem",
+              borderBottom: "1px solid #1f2937",
+            }}
+          >
             {me.email || me.name || "Unknown"} • {me.role}
           </div>
         )}
@@ -311,9 +310,10 @@ function Layout() {
             rel="noreferrer"
             style={{
               display: 'block',
-              color: '#7589bb',
+              color: '#93c5fd',
               textDecoration: 'none',
               marginBottom: '0.35rem',
+              fontWeight: 600,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
             onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
@@ -326,8 +326,9 @@ function Layout() {
             rel="noreferrer"
             style={{
               display: 'block',
-              color: '#7589bb',
+              color: '#93c5fd',
               textDecoration: 'none',
+              fontWeight: 600,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
             onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}

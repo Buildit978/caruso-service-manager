@@ -34,6 +34,7 @@ export interface IEstimateLineItem {
 
 export interface IEstimate extends Document {
   accountId: Types.ObjectId;
+  isDemo: boolean;
 
   estimateNumber: string;
 
@@ -196,6 +197,7 @@ const estimateSchema = new Schema<IEstimate>(
       required: true,
       index: true,
     },
+    isDemo: { type: Boolean, default: false, index: true },
 
     estimateNumber: {
       type: String,
@@ -306,6 +308,7 @@ const estimateSchema = new Schema<IEstimate>(
 estimateSchema.index({ accountId: 1, updatedAt: -1 });
 estimateSchema.index({ accountId: 1, customerId: 1 });
 estimateSchema.index({ accountId: 1, vehicleId: 1 });
+estimateSchema.index({ accountId: 1, isDemo: 1, createdAt: -1 });
 
 /* =========================================================
    Model export

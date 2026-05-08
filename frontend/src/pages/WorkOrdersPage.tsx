@@ -393,7 +393,7 @@ const title =
       </h1>
 
       {view === "this-week" ? (
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-slate-300" style={{ fontWeight: 500 }}>
           Completed work orders for the current week (Mon–Sun), based on{" "}
           <span className="font-medium">completedAt</span>.
         </div>
@@ -496,7 +496,7 @@ const title =
 </div>
 
       {displayedWorkOrders.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-300" style={{ fontWeight: 500 }}>
           {customerId
             ? "No work orders found for this customer yet."
             : "No work orders found yet."}
@@ -506,22 +506,22 @@ const title =
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-medium text-slate-700">
                   ID
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-medium text-slate-700">
                   Customer
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-medium text-slate-700">
                   View
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-medium text-slate-700">
                   Status
                 </th>
-                <th className="text-right px-4 py-2 font-medium text-slate-600">
+                <th className="text-right px-4 py-2 font-medium text-slate-700">
                   Total
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-slate-600">
+                <th className="text-left px-4 py-2 font-medium text-slate-700">
                   Created
                 </th>
               </tr>
@@ -554,12 +554,17 @@ const title =
                     key={wo._id}
                     className="border-b border-slate-100 hover:bg-slate-50"
                   >
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500 font-mono">
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-secondary-readable font-mono">
                       {wo._id}
                     </td>
 
                     <td className="px-4 py-2 whitespace-nowrap">
-                      {formatCustomerName(wo.customer)}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                        <span>{formatCustomerName(wo.customer)}</span>
+                        {wo?.isDemo ? (
+                          <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                        ) : null}
+                      </span>
                     </td>
 
                     <td className="px-4 py-2 whitespace-nowrap">
@@ -618,12 +623,10 @@ const title =
                           )}
 
                           {/* ✅ Monetary text - separate element */}
-                          {detail ? (
-                            <span className="text-slate-600">{detail}</span>
-                          ) : null}
+                          {detail ? <span className="text-secondary-readable">{detail}</span> : null}
                         </div>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-secondary-readable">—</span>
                       )}
                     </td>
 
@@ -631,7 +634,7 @@ const title =
                       {formatMoney(wo.total ?? 0)}
                     </td>
 
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-secondary-readable">
                       {wo.createdAt
                         ? new Date(wo.createdAt).toLocaleDateString("en-CA")
                         : "—"}

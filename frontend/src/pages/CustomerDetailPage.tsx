@@ -1,6 +1,6 @@
 // frontend/src/pages/CustomerDetailPage.tsx
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import CustomerVehiclesSection from "../components/CustomerVehiclesSection";
 import CustomerEstimatesSection from "../components/CustomerEstimatesSection";
 import type { Customer } from "../types/customer";
@@ -16,6 +16,8 @@ export default function CustomerDetailPage() {
     const [estimateError, setEstimateError] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
+    const autoOpenAddVehicle = new URLSearchParams(location.search).get("addVehicle") === "1";
 
     async function handleNewEstimate() {
         if (!customer?._id) return;
@@ -103,7 +105,12 @@ export default function CustomerDetailPage() {
                         </button>
                     </div>
                     <h2 style={{ marginBottom: "0.5rem", fontSize: "1.6rem", fontWeight: 600, color: "#ffffff" }}>
-                        {name}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span>{name}</span>
+                          {customer.isDemo ? (
+                            <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                          ) : null}
+                        </span>
                     </h2>
                 </div>
 
@@ -152,14 +159,17 @@ export default function CustomerDetailPage() {
 
             {/* Contact info */}
             <div style={{ marginBottom: "1rem" }}>
-                {customer.phone && <p>Phone: {customer.phone}</p>}
-                {customer.email && <p>Email: {customer.email}</p>}
-                {customer.address && <p>Address: {customer.address}</p>}
-                {customer.notes && <p>Notes: {customer.notes}</p>}
+                {customer.phone && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Phone: {customer.phone}</p>}
+                {customer.email && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Email: {customer.email}</p>}
+                {customer.address && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Address: {customer.address}</p>}
+                {customer.notes && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Notes: {customer.notes}</p>}
             </div>
 
             {/* Vehicles for this customer */}
-            <CustomerVehiclesSection customerId={customer._id} />
+            <CustomerVehiclesSection
+                customerId={customer._id}
+                autoOpenAddVehicle={autoOpenAddVehicle}
+            />
 
             {/* Estimates for this customer */}
             <CustomerEstimatesSection customerId={customer._id} />

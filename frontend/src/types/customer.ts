@@ -10,6 +10,7 @@ export interface Customer {
     email?: string;
     address?: string;
     notes?: string;
+    isDemo?: boolean;
 
     openWorkOrders?: number;
     openWorkOrdersCount?: number;

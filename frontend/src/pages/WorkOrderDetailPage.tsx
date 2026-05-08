@@ -31,6 +31,15 @@ type TimelineItem = {
   done: boolean;
 };
 
+function formatLabourQuantityClock(hoursValue: number): string {
+  const safeHours = Number(hoursValue ?? 0);
+  if (!Number.isFinite(safeHours)) return "0:00";
+  const totalMinutes = Math.max(0, Math.round(safeHours * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
 function formatDateTime(d?: string | Date | null) {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
@@ -54,7 +63,7 @@ function TimelineBlock({ items }: { items: TimelineItem[] }) {
         background: "rgba(17,24,39,0.6)",
       }}
     >
-      <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "#9ca3af" }}>
+      <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "#cbd5e1", fontWeight: 600 }}>
         Timeline
       </div>
 
@@ -426,7 +435,11 @@ export default function WorkOrderDetailPage() {
           description: item?.description ?? "",
           rawQuantity:
             item?.rawQuantity ??
-            (item?.quantity !== undefined && item?.quantity !== null ? String(item.quantity) : ""),
+            (item?.quantity !== undefined && item?.quantity !== null
+              ? item?.type === "labour"
+                ? formatLabourQuantityClock(Number(item.quantity))
+                : String(item.quantity)
+              : ""),
           rawUnitPrice:
             item?.rawUnitPrice ??
             (item?.unitPrice !== undefined && item?.unitPrice !== null ? String(item.unitPrice) : ""),
@@ -646,10 +659,15 @@ export default function WorkOrderDetailPage() {
         {/* Left: Title + meta + status */}
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: "2rem", lineHeight: 1.15 }}>
-            Work Order #{workOrder._id.slice(-6)}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+              <span>Work Order #{workOrder._id.slice(-6)}</span>
+              {workOrder.isDemo ? (
+                <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+              ) : null}
+            </span>
           </h1>
 
-          <div style={{ marginTop: "0.35rem", color: "#9ca3af", fontWeight: 600, fontSize: "0.95rem" }}>
+          <div style={{ marginTop: "0.35rem", color: "#cbd5e1", fontWeight: 600, fontSize: "0.95rem" }}>
             Created {formattedDate || "—"}
           </div>
 
@@ -831,7 +849,10 @@ export default function WorkOrderDetailPage() {
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
           <h3 style={{ marginTop: 0 }}>Customer</h3>
           <p>
-            <strong>Name:</strong> {displayName}
+            <strong>Name:</strong> {displayName}{" "}
+            {workOrder.isDemo ? (
+              <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+            ) : null}
           </p>
           <p>
             <strong>Phone:</strong> {customer?.phone || "—"}
@@ -911,12 +932,12 @@ export default function WorkOrderDetailPage() {
           >
             Schedule in Calendar
           </h3>
-          <p style={{ margin: "0 0 0.85rem", fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.45 }}>
+          <p style={{ margin: "0 0 0.85rem", fontSize: "0.8rem", color: "#cbd5e1", lineHeight: 1.45, fontWeight: 500 }}>
             The shop calendar is the source of truth for when this job runs. Pick a slot there to schedule
             or move it; use Edit Details for technician, duration, and notes on this page.
           </p>
           {scheduleLoading ? (
-            <p style={{ margin: 0, fontSize: "0.9rem", color: "#94a3b8" }}>Loading…</p>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "#cbd5e1", fontWeight: 500 }}>Loading…</p>
           ) : scheduleEntry ? (
             <>
               <div
@@ -944,7 +965,7 @@ export default function WorkOrderDetailPage() {
                     {scheduleEntry.technicianLabel}
                   </p>
                 ) : (
-                  <p style={{ margin: 0, color: "#94a3b8" }}>No technician assigned</p>
+                  <p style={{ margin: 0, color: "#cbd5e1", fontWeight: 500 }}>No technician assigned</p>
                 )}
               </div>
               {canEditSchedule && (

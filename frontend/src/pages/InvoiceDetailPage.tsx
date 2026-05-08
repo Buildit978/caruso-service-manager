@@ -62,6 +62,20 @@ function resolveCustomerId(inv: any): string | null {
     return dates[0] ?? null;
   }
 
+function formatInvoiceItemQuantity(item: { quantity?: number; type?: string }): string {
+  const quantity = Number(item?.quantity ?? 0);
+  if (!Number.isFinite(quantity)) return "";
+
+  if (item?.type === "labour") {
+    const totalMinutes = Math.max(0, Math.round(quantity * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${String(minutes).padStart(2, "0")}`;
+  }
+
+  return String(Number(quantity.toFixed(4)));
+}
+
 
 
 
@@ -135,10 +149,16 @@ async function handleRecordPayment() {
     setPayAmount("");
     setPayRef("");
   } catch (err: any) {
-    // ✅ show the backend message (this is the “truth” for 400s)
-    const msg = err?.response?.data?.message || err?.message || "Payment failed";
+    const backendMessage =
+      (err?.data as { message?: string } | undefined)?.message ||
+      err?.response?.data?.message;
+    const msg =
+      backendMessage ||
+      (err?.status === 400
+        ? "This invoice must be sent before payment can be recorded."
+        : err?.message || "Payment failed");
     setPayError(msg);
-    console.error("[InvoiceDetail] record payment failed:", err?.response?.data || err);
+    console.error("[InvoiceDetail] record payment failed:", err?.data || err?.response?.data || err);
   } finally {
     setPaying(false);
   }
@@ -368,13 +388,22 @@ return (
 
 
       <div style={{ flex: 1 }}>
-        <h2 style={{ margin: 0, color: "#ffffff" }}>Invoice #{invoice.invoiceNumber}</h2>
+        <h2 style={{ margin: 0, color: "#ffffff" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>Invoice #{invoice.invoiceNumber}</span>
+            {invoice.isDemo ? (
+              <span style={{ fontWeight: 800, color: "#111111", background: "#ffffff", padding: "0 0.25rem" }}>
+                [PRACTICE]
+              </span>
+            ) : null}
+          </span>
+        </h2>
 
         {/* NEW: Confidence money line */}
         <div
           style={{
             marginTop: "0.35rem",
-            color: "#9ca3af",
+            color: "#cbd5e1",
             fontWeight: 600,
             fontSize: "0.95rem",
           }}
@@ -472,7 +501,7 @@ const base: CSSProperties = {
           ) : null}
 
           {/* Email meta (unchanged) */}
-          <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+          <span style={{ fontSize: "0.88rem", color: "#94a3b8", fontWeight: 500 }}>
             Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
             {(invoice as any).email?.lastSentAt
               ? ` • Last: ${new Date((invoice as any).email.lastSentAt).toLocaleString()}`
@@ -562,11 +591,11 @@ const base: CSSProperties = {
       </button>
 
       {isReadOnly ? (
-        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#6b7280" }}>
+        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#94a3b8", fontWeight: 500 }}>
           This invoice is read-only ({lifecycleRaw.toUpperCase()}).
         </span>
       ) : (
-        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#6b7280" }}>
+        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#94a3b8", fontWeight: 500 }}>
           Draft invoice — editable until emailed/sent.
         </span>
       )}
@@ -596,7 +625,12 @@ const base: CSSProperties = {
     >
       <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
         <h3 style={{ marginTop: 0 }}>Bill To</h3>
-        <div>{customerName || "Unknown Customer"}</div>
+        <div>
+          {customerName || "Unknown Customer"}{" "}
+          {invoice.isDemo ? (
+            <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+          ) : null}
+        </div>
         {invoice.customerSnapshot?.address ? <div>{invoice.customerSnapshot.address}</div> : null}
         {invoice.customerSnapshot?.phone ? <div>Phone: {invoice.customerSnapshot.phone}</div> : null}
         {truthEmail && <div>Email: {truthEmail}</div>}
@@ -618,7 +652,7 @@ const base: CSSProperties = {
             {invoice.vehicleSnapshot.vin ? <div>VIN: {invoice.vehicleSnapshot.vin}</div> : null}
           </>
         ) : (
-          <div style={{ color: "#6b7280" }}>No vehicle snapshot</div>
+          <div style={{ color: "#94a3b8", fontWeight: 500 }}>No vehicle snapshot</div>
         )}
       </div>
     </div>
@@ -642,7 +676,7 @@ const base: CSSProperties = {
             <tr key={idx}>
               <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
               <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
-                {item.quantity}
+                {formatInvoiceItemQuantity(item)}
               </td>
               <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {Number(item.unitPrice ?? 0).toFixed(2)}
@@ -673,12 +707,12 @@ const base: CSSProperties = {
 
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
         <div>
-          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Paid to date</div>
+            <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Paid to date</div>
           <div style={{ fontWeight: 600 }}>{Number((invoice as any).paidAmount ?? 0).toFixed(2)}</div>
         </div>
 
         <div>
-          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Balance due</div>
+            <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Balance due</div>
           <div style={{ fontWeight: 600 }}>
             {Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0)).toFixed(2)}
           </div>
@@ -687,12 +721,12 @@ const base: CSSProperties = {
        {/* Date paid / Last payment (backend truth) */}
             {isPaid && latestPaymentDate ? (
               <div>
-                <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Date paid</div>
+                <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Date paid</div>
                 <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : isPartial && latestPaymentDate ? (
               <div>
-                <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>Last payment</div>
+                <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Last payment</div>
                 <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : null}
@@ -713,7 +747,7 @@ const base: CSSProperties = {
           </ul>
         </div>
       ) : (
-        <div style={{ fontSize: "0.9rem", color: "#6b7280", marginBottom: "0.75rem" }}>
+        <div style={{ fontSize: "0.9rem", color: "#94a3b8", marginBottom: "0.75rem", fontWeight: 500 }}>
           No payments recorded yet.
         </div>
       )}
@@ -797,7 +831,7 @@ const base: CSSProperties = {
             
             {!locked && lifecycle === "draft" ? (
                     <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
-                      Note: This invoice is still a draft. You can record a payment, but consider sending the invoice first.
+                      This invoice must be sent before payment can be recorded.
                     </div>
                   ) : null}
 

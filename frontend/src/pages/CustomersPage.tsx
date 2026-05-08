@@ -163,6 +163,8 @@ export default function CustomersPage() {
 
             {/* 🔃 Sort */}
             <select
+              aria-label="Sort customers"
+              title="Sort customers"
               value={sort}
               onChange={(e) =>
                 setSort(
@@ -188,9 +190,66 @@ export default function CustomersPage() {
               <option value="createdAt-desc">Created (Newest)</option>
               <option value="createdAt-asc">Created (Oldest)</option>
             </select>
+            <Link
+              to="/customers/new"
+              style={{
+                height: "32px",
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "0 12px",
+                borderRadius: "6px",
+                border: "1px solid #1d4ed8",
+                backgroundColor: "#2563eb",
+                color: "#ffffff",
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              + New Customer
+            </Link>
           </div>
         </div>
       </div>
+
+      {!loading && customers.length === 0 ? (
+        <div
+          style={{
+            maxWidth: "700px",
+            margin: "2rem auto",
+            padding: "1.5rem",
+            border: "1px solid #1f2937",
+            borderRadius: "0.75rem",
+            background: "#020617",
+            textAlign: "center",
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1.35rem" }}>
+            Create your first customer to get started.
+          </h2>
+          <p style={{ margin: "0 0 1rem", color: "#cbd5e1", lineHeight: 1.6, fontWeight: 500 }}>
+            Add customer details now, then attach one or more vehicles.
+          </p>
+          <Link
+            to="/customers/new"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0.55rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid #1d4ed8",
+              background: "#2563eb",
+              color: "#ffffff",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            + New Customer
+          </Link>
+        </div>
+      ) : null}
 
       {/* Table (unchanged content, just wrapped cleanly) */}
       <div className="table-scroll customers-table-scroll">
@@ -223,19 +282,24 @@ export default function CustomersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} style={{ padding: "1.5rem", textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={5} className="text-helper-readable" style={{ padding: "1.5rem", textAlign: "center" }}>
                   Loading customers…
                 </td>
               </tr>
             ) : (
             customers.map((c) => (
               <tr key={c._id}>
-                <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
-                  {c.fullName || `${c.firstName} ${c.lastName}`}
+                <td style={{ padding: "0.5rem 0", paddingLeft: "20px", fontWeight: 600 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                    <span>{c.fullName || `${c.firstName} ${c.lastName}`}</span>
+                    {c.isDemo ? (
+                      <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                    ) : null}
+                  </span>
                 </td>
-                <td className="phone">{c.phone || "-"}</td>
-                <td>{c.email || "-"}</td>
-                <td className="num">{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
+                <td className="phone" style={{ fontWeight: 500 }}>{c.phone || "-"}</td>
+                <td style={{ fontWeight: 500 }}>{c.email || "-"}</td>
+                <td className="num" style={{ fontWeight: 700 }}>{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
                 <td>
                   <Link to={`/customers/${c._id}`}>View</Link>
                 </td>

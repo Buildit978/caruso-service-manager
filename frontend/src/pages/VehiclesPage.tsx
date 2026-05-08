@@ -90,7 +90,7 @@ export default function VehiclesPage() {
       await navigator.clipboard.writeText(vin);
       setCopiedVinId(vehicleId);
       setTimeout(() => setCopiedVinId(null), 1000);
-    } catch (err) {
+    } catch {
       // Fallback for iOS Safari
       try {
         const textarea = document.createElement("textarea");
@@ -156,6 +156,42 @@ export default function VehiclesPage() {
         </div>
       </div>
 
+      <div
+        style={{
+          marginBottom: "1rem",
+          border: "1px solid #1f2937",
+          borderRadius: "0.75rem",
+          padding: "0.9rem 1rem",
+          background: "#020617",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <p className="text-helper-readable" style={{ margin: 0 }}>
+          Vehicles are managed through customer profiles.
+        </p>
+        <Link
+          to="/customers"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0.4rem 0.8rem",
+            borderRadius: "0.45rem",
+            border: "1px solid #2563eb",
+            background: "#2563eb",
+            color: "#ffffff",
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          Go to Customers
+        </Link>
+      </div>
+
       {/* Loading indicator - Below input, doesn't replace it */}
       {loading && (
         <p style={{ marginBottom: "1rem" }}>Loading vehicles…</p>
@@ -168,7 +204,21 @@ export default function VehiclesPage() {
 
       {/* Table */}
       {!loading && vehicles.length === 0 ? (
-        <p>No vehicles found.</p>
+        <div
+          style={{
+            maxWidth: "700px",
+            margin: "1rem auto",
+            padding: "1.25rem",
+            border: "1px solid #1f2937",
+            borderRadius: "0.75rem",
+            background: "#020617",
+            textAlign: "center",
+          }}
+        >
+          <p className="empty-state-readable" style={{ margin: 0 }}>
+            No vehicles yet. Start by creating a customer, then add a vehicle.
+          </p>
+        </div>
       ) : !loading ? (
         <div className="table-scroll customers-table-scroll">
           <table
@@ -213,7 +263,12 @@ export default function VehiclesPage() {
               {vehicles.map((v) => (
                 <tr key={v._id}>
                   <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
-                    {v.make || "-"}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                      <span>{v.make || "-"}</span>
+                      {v.isDemo ? (
+                        <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                      ) : null}
+                    </span>
                   </td>
                   <td>{v.model || "-"}</td>
                   <td>{v.year || "-"}</td>

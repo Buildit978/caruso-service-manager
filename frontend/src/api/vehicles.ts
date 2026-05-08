@@ -16,6 +16,7 @@ export interface Vehicle {
   color?: string;
   notes?: string;
   currentOdometer?: number | null;
+  isDemo?: boolean;
 }
 
 /**

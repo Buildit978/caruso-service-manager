@@ -87,7 +87,9 @@ export default function CustomerDetailPage() {
             >
                 <div>
                     <div style={{ marginBottom: "0.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
-                        <Link to="/customers">&larr; Back to Customers</Link>
+                        <Link to="/customers" className="customer-detail-back-link">
+                            &larr; Back to Customers
+                        </Link>
                         <button
                             type="button"
                             onClick={() => navigate("/vehicles")}
@@ -108,7 +110,7 @@ export default function CustomerDetailPage() {
                         <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
                           <span>{name}</span>
                           {customer.isDemo ? (
-                            <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
+                            <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
                           ) : null}
                         </span>
                     </h2>

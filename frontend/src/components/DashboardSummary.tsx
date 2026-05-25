@@ -172,74 +172,137 @@ useEffect(() => {
         );
     }
 
-    // Handle 401 - Not signed in (similar card styling but different message)
+    // Handle 401 - Not signed in (welcome hero for exploration-first onboarding)
     if (errorStatus === 401) {
         return (
             <div className="dashboard">
-                <header className="dashboard__header">
-                    <div>
-                        <h1 className="dashboard__title">Shop Service Manager</h1>
-                        {shopName && (
-                            <div style={{ fontSize: '0.95rem', color: '#cbd5e1', marginTop: '0.25rem', fontWeight: 500 }}>
-                                {shopName}
-                            </div>
-                        )}
-                        <p className="dashboard__subtitle">
-                            Quick snapshot of the shop&apos;s workload and revenue.
-                        </p>
-                    </div>
-                </header>
-                <div
+                <section
                     style={{
-                        maxWidth: "500px",
-                        margin: "2rem auto",
-                        padding: "1.5rem",
-                        border: "1px solid #4b5563",
-                        borderRadius: "0.5rem",
-                        background: "rgba(75, 85, 99, 0.1)",
+                        maxWidth: "700px",
+                        margin: "0 auto",
+                        padding: "4rem 1.5rem 5rem",
+                        textAlign: "center",
                     }}
                 >
-                    <h2 style={{ marginTop: 0, color: "#e5e7eb", fontSize: "1.2rem" }}>
-                        Start Your Free 30-Day Trial
-                    </h2>
-                    <p style={{ color: "#e5e7eb", lineHeight: 1.6, marginBottom: "1rem" }}>
-                        No credit card required. Create your shop to begin — or sign in if you already have one.
+                    <h1
+                        style={{
+                            margin: "0 0 1rem",
+                            fontSize: "clamp(2rem, 5vw, 2.75rem)",
+                            fontWeight: 700,
+                            lineHeight: 1.15,
+                            letterSpacing: "-0.02em",
+                            color: "#f8fafc",
+                        }}
+                    >
+                        Welcome to Shop Service Manager
+                    </h1>
+
+                    <p
+                        style={{
+                            margin: "0 0 1.75rem",
+                            fontSize: "clamp(1.25rem, 3vw, 1.5rem)",
+                            fontWeight: 600,
+                            lineHeight: 1.4,
+                            color: "#e2e8f0",
+                        }}
+                    >
+                        Come on in. Take a look around.
                     </p>
-                    <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+
+                    <p
+                        style={{
+                            margin: "0 0 1rem",
+                            fontSize: "1.05rem",
+                            lineHeight: 1.65,
+                            color: "#cbd5e1",
+                        }}
+                    >
+                        Start in Practice Mode, or create your shop and get set up in just a couple of minutes.
+                    </p>
+
+                    <p
+                        style={{
+                            margin: "0 0 2.25rem",
+                            fontSize: "1.05rem",
+                            lineHeight: 1.65,
+                            color: "#94a3b8",
+                        }}
+                    >
+                        Explore how it works, click around, and when you&apos;re ready, switch to live and start working.
+                    </p>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            gap: "0.875rem",
+                            justifyContent: "center",
+                            flexWrap: "wrap",
+                            marginBottom: "1.25rem",
+                        }}
+                    >
                         <button
                             type="button"
-                            onClick={() => navigate("/start")}
+                            onClick={() => navigate("/start?mode=practice")}
                             style={{
-                                padding: "0.5rem 1rem",
-                                fontSize: "0.9rem",
+                                padding: "0.875rem 1.75rem",
+                                fontSize: "1.05rem",
                                 fontWeight: 600,
-                                borderRadius: "0.375rem",
+                                borderRadius: "0.5rem",
                                 border: "none",
                                 background: "#2563eb",
                                 color: "#ffffff",
                                 cursor: "pointer",
                             }}
                         >
-                            Create your shop
+                            Start in Practice Mode
                         </button>
                         <button
                             type="button"
-                            onClick={() => navigate("/login")}
+                            onClick={() => navigate("/start")}
                             style={{
-                                padding: "0.5rem 1rem",
-                                fontSize: "0.9rem",
-                                fontWeight: 400,
-                                borderRadius: "0.375rem",
-                                border: "1px solid #374151",
+                                padding: "0.875rem 1.75rem",
+                                fontSize: "1.05rem",
+                                fontWeight: 600,
+                                borderRadius: "0.5rem",
+                                border: "1px solid #475569",
                                 background: "transparent",
-                                color: "#e5e7eb",
+                                color: "#e2e8f0",
                                 cursor: "pointer",
                             }}
                         >
-                            Sign in
+                            Create Your Shop
                         </button>
                     </div>
-                </div>
+
+                    <button
+                        type="button"
+                        onClick={() => navigate("/login")}
+                        style={{
+                            padding: 0,
+                            fontSize: "0.95rem",
+                            fontWeight: 500,
+                            border: "none",
+                            background: "transparent",
+                            color: "#94a3b8",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            textUnderlineOffset: "0.2em",
+                        }}
+                    >
+                        Sign In
+                    </button>
+
+                    <p
+                        style={{
+                            margin: "2rem 0 0",
+                            fontSize: "0.95rem",
+                            fontWeight: 500,
+                            color: "#64748b",
+                        }}
+                    >
+                        Free for 30 days • No credit card required
+                    </p>
+                </section>
             </div>
         );
     }

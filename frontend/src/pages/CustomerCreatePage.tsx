@@ -9,6 +9,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { createCustomer } from "../api/customers";
 import { createVehicle, type NewVehiclePayload } from "../api/vehicles";
 import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
+import { useRequireAuth } from "../auth/useRequireAuth";
 
 type CustomerForm = {
   firstName: string;
@@ -22,6 +23,7 @@ type CustomerForm = {
 export default function CustomerCreatePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const authed = useRequireAuth();
 
   const [form, setForm] = useState<CustomerForm>({
     firstName: "",
@@ -38,6 +40,13 @@ export default function CustomerCreatePage() {
   useEffect(() => {
     return subscribe((s) => setBillingLocked(s.billingLocked));
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("practice") === "1") {
+      setForm((prev) => ({ ...prev, isDemo: true }));
+    }
+  }, [location.search]);
 
   const [showVehicleForm, setShowVehicleForm] = useState(false);
 
@@ -125,6 +134,10 @@ export default function CustomerCreatePage() {
       setSaving(false);
     }
   };
+
+  if (!authed) {
+    return null;
+  }
 
   return (
     <div

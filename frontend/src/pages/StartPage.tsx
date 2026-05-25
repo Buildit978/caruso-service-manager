@@ -1,7 +1,7 @@
 // frontend/src/pages/StartPage.tsx
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
 import { setToken } from "../api/http";
 import type { HttpError } from "../api/http";
@@ -16,6 +16,8 @@ export default function StartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isPracticeMode = searchParams.get("mode") === "practice";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -42,16 +44,20 @@ export default function StartPage() {
       setToken(response.token);
 
       const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
-      const navigateToWelcome = () => {
-        navigate("/welcome", { replace: true });
+      const navigateAfterSignup = () => {
+        if (isPracticeMode) {
+          navigate("/customers/new?practice=1", { replace: true });
+        } else {
+          navigate("/welcome", { replace: true });
+        }
       };
 
       if (gtag) {
         gtag("event", "ads_conversion_signup");
         const GA_REDIRECT_DELAY_MS = 400;
-        setTimeout(navigateToWelcome, GA_REDIRECT_DELAY_MS);
+        setTimeout(navigateAfterSignup, GA_REDIRECT_DELAY_MS);
       } else {
-        navigateToWelcome();
+        navigateAfterSignup();
       }
     } catch (err) {
       setLoading(false);
@@ -101,8 +107,22 @@ export default function StartPage() {
             textAlign: "center",
           }}
         >
-          Create Your Shop
+          {isPracticeMode ? "Start in Practice Mode" : "Create Your Shop"}
         </h1>
+        {isPracticeMode && (
+          <p
+            style={{
+              marginTop: "-0.75rem",
+              marginBottom: "1.5rem",
+              fontSize: "0.95rem",
+              lineHeight: 1.5,
+              color: "#cbd5e1",
+              textAlign: "center",
+            }}
+          >
+            Create your free account to explore safely — practice data won&apos;t affect live reports.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           {error && (
@@ -325,7 +345,7 @@ export default function StartPage() {
               marginBottom: "1rem",
             }}
           >
-            {loading ? "Creating..." : "Create Shop"}
+            {loading ? "Creating..." : isPracticeMode ? "Start Practice Mode" : "Create Shop"}
           </button>
 
           <div style={{ textAlign: "center", fontSize: "0.9rem", color: "#9ca3af" }}>

@@ -7,6 +7,7 @@ import { fetchCustomers } from "../api/customers";
 import { createWorkOrder } from "../api/workOrders";
 import type { Customer } from "../types/customer";
 import { getBillingLockState, subscribe, isBillingLockedError } from "../state/billingLock";
+import { useRequireAuth } from "../auth/useRequireAuth";
 
 // If this already exists elsewhere in the file, keep that one and remove this.
 // I'm adding it here in case it was missing.
@@ -23,6 +24,7 @@ export default function WorkOrderCreatePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const authed = useRequireAuth();
 
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -416,6 +418,9 @@ export default function WorkOrderCreatePage() {
 
 
 
+  if (!authed) {
+    return null;
+  }
 
   return (
     <div

@@ -289,7 +289,7 @@ export default function CustomersPage() {
             ) : (
             customers.map((c) => (
               <tr key={c._id}>
-                <td style={{ padding: "0.5rem 0", paddingLeft: "20px", fontWeight: 600 }}>
+                <td className="table-data-primary" style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
                     <span>{c.fullName || `${c.firstName} ${c.lastName}`}</span>
                     {c.isDemo ? (
@@ -297,9 +297,9 @@ export default function CustomersPage() {
                     ) : null}
                   </span>
                 </td>
-                <td className="phone" style={{ fontWeight: 500 }}>{c.phone || "-"}</td>
-                <td style={{ fontWeight: 500 }}>{c.email || "-"}</td>
-                <td className="num" style={{ fontWeight: 700 }}>{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
+                <td className="phone table-data-primary">{c.phone || "-"}</td>
+                <td className="table-data-primary">{c.email || "-"}</td>
+                <td className="num table-data-money">{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
                 <td>
                   <Link to={`/customers/${c._id}`}>View</Link>
                 </td>

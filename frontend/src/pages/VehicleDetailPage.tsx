@@ -108,10 +108,20 @@ export default function VehicleDetailPage() {
         </span>
       </h1>
 
-      <div className="detail-readable vehicle-detail__meta" style={{ marginBottom: "1rem" }}>
-        {vehicle.licensePlate ? `Plate: ${vehicle.licensePlate}` : ""}
+      <div className="vehicle-detail__meta" style={{ marginBottom: "1rem" }}>
+        {vehicle.licensePlate ? (
+          <>
+            <span className="data-label">Plate:</span>{" "}
+            <span className="data-value">{vehicle.licensePlate}</span>
+          </>
+        ) : null}
         {vehicle.licensePlate && vehicle.vin ? " • " : ""}
-        {vehicle.vin ? `VIN: ${vehicle.vin}` : ""}
+        {vehicle.vin ? (
+          <>
+            <span className="data-label">VIN:</span>{" "}
+            <span className="data-value">{vehicle.vin}</span>
+          </>
+        ) : null}
       </div>
 
       <div style={{ display: "flex", gap: "0.5rem" }}>

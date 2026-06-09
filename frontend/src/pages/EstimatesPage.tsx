@@ -264,7 +264,7 @@ export default function EstimatesPage() {
                   key={est._id}
                   className="border-b border-slate-100 hover:bg-slate-50"
                 >
-                  <td className="px-4 py-2 whitespace-nowrap font-mono text-slate-700">
+                  <td className="px-4 py-2 whitespace-nowrap font-mono table-data-meta">
                     <Link
                       to={`/estimates/${est._id}`}
                       style={{ color: "#2563eb", textDecoration: "underline" }}
@@ -274,7 +274,7 @@ export default function EstimatesPage() {
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                      <span>
+                      <span className="table-data-primary">
                         {(est as { kind?: string }).kind === "non_client"
                           ? (() => {
                               const first = (est.nonClient?.name ?? "").trim();
@@ -290,9 +290,7 @@ export default function EstimatesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-300"
-                    >
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 table-data-primary">
                       {est.status}
                     </span>
                   </td>
@@ -308,7 +306,7 @@ export default function EstimatesPage() {
                     <span className="text-secondary-readable">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-xs text-secondary-readable">
+                  <td className="px-4 py-2 whitespace-nowrap table-data-meta">
                     {est.createdAt
                       ? new Date(est.createdAt).toLocaleDateString("en-CA")
                       : "—"}

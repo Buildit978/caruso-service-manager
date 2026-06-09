@@ -130,7 +130,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
   if (loading) {
     return (
       <div style={{ padding: "1rem", border: "1px solid #eee", borderRadius: "12px" }}>
-        <p>Loading messages...</p>
+        <p className="wo-instruction" style={{ margin: 0, fontSize: "0.9rem" }}>Loading messages...</p>
       </div>
     );
   }
@@ -155,42 +155,23 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
         padding: "1rem",
       }}
     >
-      <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Messages</h3>
+      <h3 className="wo-section-title" style={{ marginTop: 0, marginBottom: "1rem" }}>Messages</h3>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", borderBottom: "1px solid #e5e7eb" }}>
         <button
           type="button"
+          className={`wo-msg-tab${activeTab === "internal" ? " is-active" : ""}`}
           onClick={() => setActiveTab("internal")}
-          style={{
-            padding: "0.5rem 1rem",
-            border: "none",
-            borderBottom: activeTab === "internal" ? "2px solid #1d4ed8" : "2px solid transparent",
-            background: "transparent",
-            color: activeTab === "internal" ? "#1d4ed8" : "#6b7280",
-            fontWeight: activeTab === "internal" ? 600 : 400,
-            cursor: "pointer",
-            fontSize: "0.9rem",
-          }}
         >
           Internal
         </button>
         {showCustomerTab && (
           <button
             type="button"
+            className={`wo-msg-tab${activeTab === "customer" ? " is-active" : ""}`}
             onClick={() => setActiveTab("customer")}
             disabled={canPostCustomer === false}
-            style={{
-              padding: "0.5rem 1rem",
-              border: "none",
-              borderBottom: activeTab === "customer" ? "2px solid #1d4ed8" : "2px solid transparent",
-              background: "transparent",
-              color: activeTab === "customer" ? "#1d4ed8" : canPostCustomer === false ? "#9ca3af" : "#6b7280",
-              fontWeight: activeTab === "customer" ? 600 : 400,
-              cursor: canPostCustomer === false ? "not-allowed" : "pointer",
-              fontSize: "0.9rem",
-              opacity: canPostCustomer === false ? 0.6 : 1,
-            }}
           >
             Customer
           </button>
@@ -216,7 +197,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
       {/* Messages list */}
       <div style={{ marginBottom: "1rem", maxHeight: "400px", overflowY: "auto" }}>
         {filteredMessages.length === 0 ? (
-          <p style={{ color: "#6b7280", fontStyle: "italic" }}>
+          <p className="wo-msg-empty">
             No {activeTab} messages yet.
           </p>
         ) : (
@@ -246,10 +227,10 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                         {msg.actor?.nameSnapshot || msg.actor?.email || "Unknown User"}
                       </span>
                       <span
+                        className="wo-instruction"
                         style={{
                           marginLeft: "0.5rem",
                           fontSize: "0.85rem",
-                          color: "#9ca3af",
                         }}
                       >
                         ({formatRole(msg.actor?.roleSnapshot || "technician")})
@@ -270,7 +251,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: "0.85rem", color: "#9ca3af" }}>
+                    <span className="wo-instruction" style={{ fontSize: "0.85rem" }}>
                       {formatTimestamp(msg.createdAt)}
                     </span>
                   </div>
@@ -291,16 +272,10 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
           paddingTop: "1rem",
         }}
       >
-        <style>{`
-          .message-compose-textarea::placeholder {
-            color: #9ca3af;
-            opacity: 1;
-          }
-        `}</style>
         {/* Visibility toggle - only show if can post customer or unknown */}
         {canPostCustomer !== false && (
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#e5e7eb" }}>
+          <div style={{ marginBottom: "0.5rem", display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+            <label className="wo-msg-control">
               <input
                 type="radio"
                 checked={activeTab === "internal"}
@@ -310,13 +285,20 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
               Internal
             </label>
             {showCustomerTab && (
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", marginLeft: "1rem", color: "#e5e7eb" }}>
+              <label
+                className="wo-msg-control"
+                style={{
+                  marginLeft: 0,
+                  opacity: canPostCustomer === true ? 1 : 0.55,
+                  cursor: canPostCustomer === true ? "pointer" : "not-allowed",
+                }}
+              >
                 <input
                   type="radio"
                   checked={activeTab === "customer"}
                   onChange={() => setActiveTab("customer")}
                   disabled={!(canPostCustomer === true)}
-                  style={{ cursor: !(canPostCustomer === true) ? "not-allowed" : "pointer" }}
+                  style={{ cursor: canPostCustomer === true ? "pointer" : "not-allowed" }}
                 />
                 Customer
               </label>
@@ -347,23 +329,17 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
                   fontFamily: "inherit",
                   cursor: posting || (activeTab === "customer" && !canPost) ? "not-allowed" : "text",
                 }}
-                className="message-compose-textarea"
+                className="wo-msg-compose"
               />
 
               <div style={{ marginTop: "0.5rem", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   type="button"
+                  className="wo-btn-primary"
                   onClick={handlePostMessage}
                   disabled={posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost)}
                   style={{
-                    padding: "0.5rem 1rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid #1d4ed8",
-                    background: posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "#9ca3af" : "#1d4ed8",
-                    color: "#ffffff",
-                    fontSize: "0.9rem",
-                    fontWeight: 600,
-                    cursor: posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "default" : "pointer",
+                    cursor: posting || billingLocked || !newMessageBody.trim() || (activeTab === "customer" && !canPost) ? "not-allowed" : "pointer",
                   }}
                 >
                   {posting ? "Posting..." : "Post Message"}
@@ -373,7 +349,7 @@ export default function WorkOrderMessages({ workOrderId }: WorkOrderMessagesProp
           );
         })()}
 
-        <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+        <p className="wo-instruction" style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>
           Tip: Press Cmd/Ctrl + Enter to send
         </p>
       </div>

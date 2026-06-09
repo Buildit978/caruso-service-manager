@@ -48,60 +48,233 @@ html {
   color: #888;
 }
 
+/* === Shared text tokens === */
+:root {
+  --color-text-primary: #f1f5f9;
+  --color-text-body: #e5e7eb;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #b8c4d0;
+  --color-text-label: #e2e8f0;
+  --color-table-text: #111827;
+  --color-table-header: #1f2937;
+}
 
 /* === Global Readability Enhancements === */
 body {
   font-size: 18px;
   line-height: 1.6;
-  color: #e5e7eb;
+  color: var(--color-text-body);
   background-color: #020617;
   font-family: 'Inter', 'Roboto', 'Segoe UI', sans-serif;
 }
 
 .text-secondary-readable {
-  color: #d1d5db;
+  color: var(--color-text-secondary);
   font-weight: 500;
 }
 
 .text-helper-readable {
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   font-weight: 500;
   line-height: 1.55;
 }
 
 .label-muted-readable {
-  color: #cbd5e1;
+  color: var(--color-text-label);
   font-weight: 600;
 }
 
 .detail-readable {
-  color: #e5e7eb;
-  font-weight: 500;
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .empty-state-readable {
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
 .sidebar-meta-readable {
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   font-weight: 500;
 }
 
 .muted-readable {
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   font-weight: 500;
   line-height: 1.5;
 }
 
-/* Strengthen common muted utility classes on dark surfaces */
-.text-slate-400,
-.text-slate-500,
-.text-slate-600,
-.text-gray-500,
-.text-gray-600 {
-  color: #cbd5e1 !important;
+/* Strengthen common muted utility classes on dark surfaces (app shell only) */
+.layout-main .text-slate-400,
+.layout-main .text-slate-500,
+.layout-main .text-slate-600,
+.layout-main .text-gray-500,
+.layout-main .text-gray-600,
+.layout-sidebar .text-slate-400,
+.layout-sidebar .text-slate-500,
+.layout-sidebar .text-slate-600,
+.layout-sidebar .text-gray-500,
+.layout-sidebar .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+  font-weight: 500;
+}
+
+/* Restore contrast for Tailwind slate/gray utilities inside white list tables */
+.table-scroll .text-slate-400,
+.table-scroll .text-slate-500,
+.table-scroll .text-slate-600,
+.table-scroll .text-gray-500,
+.table-scroll .text-gray-600 {
+  color: var(--color-table-header) !important;
+  font-weight: 600;
+}
+
+/* === Business data emphasis (Phase 2) === */
+.data-row {
+  margin: 0 0 0.35rem;
+}
+
+.data-label {
+  color: var(--color-text-label);
+  font-weight: 600;
+}
+
+.data-value {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.data-value-money {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.table-data-primary {
+  color: var(--color-table-text);
+  font-weight: 600;
+}
+
+.table-data-money {
+  color: var(--color-table-text);
+  font-weight: 700;
+}
+
+.table-data-meta {
+  color: var(--color-table-text);
+  font-weight: 600;
+}
+
+/* Work Order Detail — readability reference standard (scoped) */
+.work-order-detail .data-row .data-label,
+.work-order-detail .data-label {
+  margin-right: 0.5rem;
+}
+
+.work-order-detail .wo-section-title {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.work-order-detail .wo-micro-heading {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.work-order-detail .wo-instruction {
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.work-order-detail .wo-btn {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.work-order-detail .wo-btn-primary {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.work-order-detail .wo-btn-danger {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #dc2626;
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.work-order-detail .wo-btn:disabled,
+.work-order-detail .wo-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.work-order-detail .wo-msg-tab {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-label);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.work-order-detail .wo-msg-tab.is-active {
+  color: #93c5fd;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.work-order-detail .wo-msg-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.work-order-detail .wo-msg-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-label);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.work-order-detail .wo-msg-empty {
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.work-order-detail .wo-msg-compose::placeholder {
+  color: var(--color-text-label);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.work-order-detail .wo-table-empty {
+  color: #374151;
   font-weight: 500;
 }
 
@@ -150,7 +323,8 @@ h4 {
 }
 
 label {
-  color: #e2e8f0;
+  color: var(--color-text-label);
+  font-weight: 600;
 }
 
 /* Sidebar adjustments */
@@ -267,7 +441,7 @@ td {
 .page-subtitle {
   margin-top: -0.5rem;
   margin-bottom: 1.5rem;
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   font-size: 0.95rem;
   font-weight: 500;
   text-align: center;
@@ -300,7 +474,7 @@ td {
   min-height: 100vh;
   width: 100%;
   background: #020617;
-  color: #e5e7eb;
+  color: var(--color-text-body);
 }
 
 .layout-main {
@@ -545,7 +719,7 @@ td {
 }
 
 .table-scroll table tbody td {
-  color: #111827;
+  color: var(--color-table-text);
   font-weight: 500;
 }
 
@@ -708,7 +882,8 @@ td {
 }
 .vehicle-detail .vehicle-detail__text,
 .vehicle-detail .vehicle-detail__meta {
-  color: #d1d5db;
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 .vehicle-detail .vehicle-detail__wo-link,
 .vehicle-detail .vehicle-detail__owner-link,

@@ -161,10 +161,30 @@ export default function CustomerDetailPage() {
 
             {/* Contact info */}
             <div style={{ marginBottom: "1rem" }}>
-                {customer.phone && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Phone: {customer.phone}</p>}
-                {customer.email && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Email: {customer.email}</p>}
-                {customer.address && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Address: {customer.address}</p>}
-                {customer.notes && <p className="detail-readable" style={{ color: "#e2e8f0", fontWeight: 600 }}>Notes: {customer.notes}</p>}
+                {customer.phone && (
+                    <p className="data-row">
+                        <span className="data-label">Phone:</span>{" "}
+                        <span className="data-value">{customer.phone}</span>
+                    </p>
+                )}
+                {customer.email && (
+                    <p className="data-row">
+                        <span className="data-label">Email:</span>{" "}
+                        <span className="data-value">{customer.email}</span>
+                    </p>
+                )}
+                {customer.address && (
+                    <p className="data-row">
+                        <span className="data-label">Address:</span>{" "}
+                        <span className="data-value">{customer.address}</span>
+                    </p>
+                )}
+                {customer.notes && (
+                    <p className="data-row">
+                        <span className="data-label">Notes:</span>{" "}
+                        <span className="data-value">{customer.notes}</span>
+                    </p>
+                )}
             </div>
 
             {/* Vehicles for this customer */}

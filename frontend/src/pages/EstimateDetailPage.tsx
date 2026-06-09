@@ -858,38 +858,38 @@ export default function EstimateDetailPage() {
         >
           {(estimate as any).sentAt && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+              <div className="data-label" style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>
                 Issued
               </div>
-              <div style={{ color: "#e5e7eb" }}>
+              <div className="data-value">
                 {new Date((estimate as any).sentAt).toLocaleString()}
               </div>
             </div>
           )}
           {(estimate as any).emailSentAt && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+              <div className="data-label" style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>
                 Email sent
               </div>
-              <div style={{ color: "#e5e7eb" }}>
+              <div className="data-value">
                 {new Date((estimate as any).emailSentAt).toLocaleString()}
               </div>
             </div>
           )}
           {(estimate as any).emailAttemptCount != null && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+              <div className="data-label" style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>
                 Email attempts
               </div>
-              <div style={{ color: "#e5e7eb" }}>{(estimate as any).emailAttemptCount}</div>
+              <div className="data-value">{(estimate as any).emailAttemptCount}</div>
             </div>
           )}
           {(estimate as any).emailLastAttemptAt && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem", fontSize: "0.85rem", color: "#9ca3af" }}>
+              <div className="data-label" style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>
                 Last attempt
               </div>
-              <div style={{ color: "#e5e7eb" }}>
+              <div className="data-value">
                 {new Date((estimate as any).emailLastAttemptAt).toLocaleString()}
               </div>
             </div>
@@ -917,13 +917,19 @@ export default function EstimateDetailPage() {
       )}
 
       <div style={{ marginTop: "0.75rem" }}>
-        <p style={{ marginBottom: "0.5rem", color: "#e2e8f0", fontWeight: 600 }}>
-          Customer: {customer || "—"}{" "}
-          {(estimate as any).isDemo ? (
-            <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
-          ) : null}
+        <p className="data-row">
+          <span className="data-label">Customer:</span>{" "}
+          <span className="data-value">
+            {customer || "—"}{" "}
+            {(estimate as any).isDemo ? (
+              <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+            ) : null}
+          </span>
         </p>
-        <p style={{ color: "#cbd5e1", fontWeight: 600 }}>Status: {estimate.status}</p>
+        <p className="data-row">
+          <span className="data-label">Status:</span>{" "}
+          <span className="data-value">{estimate.status}</span>
+        </p>
         {canDiscardDraft ? (
           <p style={{ marginTop: "0.4rem", color: "#cbd5e1", fontWeight: 600 }}>
             This draft has not been saved with any work yet. You can add details or discard it.
@@ -1333,9 +1339,18 @@ export default function EstimateDetailPage() {
                   fontSize: "0.9rem",
                 }}
               >
-                <div>Subtotal: {formatMoney(subtotal)}</div>
-                <div>Tax ({taxRate}%): {formatMoney(taxAmount)}</div>
-                <div style={{ fontWeight: 600 }}>Total: {formatMoney(total)}</div>
+                <div className="data-row">
+                  <span className="data-label">Subtotal:</span>{" "}
+                  <span className="data-value-money">{formatMoney(subtotal)}</span>
+                </div>
+                <div className="data-row">
+                  <span className="data-label">Tax ({taxRate}%):</span>{" "}
+                  <span className="data-value-money">{formatMoney(taxAmount)}</span>
+                </div>
+                <div className="data-row">
+                  <span className="data-label">Total:</span>{" "}
+                  <span className="data-value-money">{formatMoney(total)}</span>
+                </div>
               </div>
             )}
           </div>
@@ -1344,8 +1359,8 @@ export default function EstimateDetailPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginTop: "1.5rem" }}>
           {formatVehicleSummary(estimate.vehicleId) && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Vehicle</div>
-              <div style={{ color: "#e5e7eb" }}>{formatVehicleSummary(estimate.vehicleId)}</div>
+              <div className="data-label" style={{ marginBottom: "0.25rem" }}>Vehicle</div>
+              <div className="data-value">{formatVehicleSummary(estimate.vehicleId)}</div>
             </div>
           )}
 
@@ -1371,9 +1386,9 @@ export default function EstimateDetailPage() {
                         return (
                           <tr key={idx} style={{ borderBottom: "1px solid #1f2937" }}>
                             <td style={{ padding: "8px" }}>{item.description ?? "—"}</td>
-                            <td style={{ padding: "8px", textAlign: "right" }}>{qty}</td>
-                            <td style={{ padding: "8px", textAlign: "right" }}>{formatMoney(price)}</td>
-                            <td style={{ padding: "8px", textAlign: "right" }}>{formatMoney(lineTotal)}</td>
+                            <td className="data-value" style={{ padding: "8px", textAlign: "right" }}>{qty}</td>
+                            <td className="data-value-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(price)}</td>
+                            <td className="data-value-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(lineTotal)}</td>
                           </tr>
                         );
                       })}
@@ -1398,9 +1413,18 @@ export default function EstimateDetailPage() {
                           fontSize: "0.9rem",
                         }}
                       >
-                        <div>Subtotal: {formatMoney(readOnlySubtotal)}</div>
-                        <div>Tax ({readOnlyTaxRate}%): {formatMoney(readOnlyTaxAmount)}</div>
-                        <div style={{ fontWeight: 600 }}>Total: {formatMoney(readOnlyTotal)}</div>
+                        <div className="data-row">
+                          <span className="data-label">Subtotal:</span>{" "}
+                          <span className="data-value-money">{formatMoney(readOnlySubtotal)}</span>
+                        </div>
+                        <div className="data-row">
+                          <span className="data-label">Tax ({readOnlyTaxRate}%):</span>{" "}
+                          <span className="data-value-money">{formatMoney(readOnlyTaxAmount)}</span>
+                        </div>
+                        <div className="data-row">
+                          <span className="data-label">Total:</span>{" "}
+                          <span className="data-value-money">{formatMoney(readOnlyTotal)}</span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -1418,9 +1442,18 @@ export default function EstimateDetailPage() {
                       fontSize: "0.9rem",
                     }}
                   >
-                    <div>Subtotal: {formatMoney(0)}</div>
-                    <div>Tax ({estimate.taxRate ?? 13}%): {formatMoney(0)}</div>
-                    <div style={{ fontWeight: 600 }}>Total: {formatMoney(0)}</div>
+                    <div className="data-row">
+                      <span className="data-label">Subtotal:</span>{" "}
+                      <span className="data-value-money">{formatMoney(0)}</span>
+                    </div>
+                    <div className="data-row">
+                      <span className="data-label">Tax ({estimate.taxRate ?? 13}%):</span>{" "}
+                      <span className="data-value-money">{formatMoney(0)}</span>
+                    </div>
+                    <div className="data-row">
+                      <span className="data-label">Total:</span>{" "}
+                      <span className="data-value-money">{formatMoney(0)}</span>
+                    </div>
                   </div>
                 </>
               )}
@@ -1431,14 +1464,14 @@ export default function EstimateDetailPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {estimate.customerNotes && (
                 <div>
-                  <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Customer notes</div>
-                  <div style={{ color: "#e5e7eb" }}>{estimate.customerNotes}</div>
+                  <div className="data-label" style={{ marginBottom: "0.25rem" }}>Customer notes</div>
+                  <div className="data-value">{estimate.customerNotes}</div>
                 </div>
               )}
               {estimate.internalNotes && (
                 <div>
-                  <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Internal notes</div>
-                  <div style={{ color: "#e5e7eb" }}>{estimate.internalNotes}</div>
+                  <div className="data-label" style={{ marginBottom: "0.25rem" }}>Internal notes</div>
+                  <div className="data-value">{estimate.internalNotes}</div>
                 </div>
               )}
             </div>

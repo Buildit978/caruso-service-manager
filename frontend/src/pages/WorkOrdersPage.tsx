@@ -560,7 +560,7 @@ const title =
 
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                        <span>{formatCustomerName(wo.customer)}</span>
+                        <span className="table-data-primary">{formatCustomerName(wo.customer)}</span>
                         {wo?.isDemo ? (
                           <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
                         ) : null}
@@ -623,18 +623,18 @@ const title =
                           )}
 
                           {/* ✅ Monetary text - separate element */}
-                          {detail ? <span className="text-secondary-readable">{detail}</span> : null}
+                          {detail ? <span className="table-data-money">{detail}</span> : null}
                         </div>
                       ) : (
                         <span className="text-secondary-readable">—</span>
                       )}
                     </td>
 
-                    <td className="px-4 py-2 whitespace-nowrap text-right">
+                    <td className="px-4 py-2 whitespace-nowrap text-right table-data-money">
                       {formatMoney(wo.total ?? 0)}
                     </td>
 
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-secondary-readable">
+                    <td className="px-4 py-2 whitespace-nowrap table-data-meta">
                       {wo.createdAt
                         ? new Date(wo.createdAt).toLocaleDateString("en-CA")
                         : "—"}

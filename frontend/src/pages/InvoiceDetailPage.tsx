@@ -403,16 +403,17 @@ return (
         <div
           style={{
             marginTop: "0.35rem",
-            color: "#cbd5e1",
-            fontWeight: 600,
             fontSize: "0.95rem",
           }}
         >
-          Total {Number(invoice.total ?? 0).toFixed(2)}{" "}
+          <span className="data-label">Total</span>{" "}
+          <span className="data-value-money">{Number(invoice.total ?? 0).toFixed(2)}</span>{" "}
           <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
-          Paid {paidAmountNum.toFixed(2)}{" "}
+          <span className="data-label">Paid</span>{" "}
+          <span className="data-value-money">{paidAmountNum.toFixed(2)}</span>{" "}
           <span style={{ color: "#6b7280", fontWeight: 500 }}>•</span>{" "}
-          Balance {balanceDueNum.toFixed(2)}
+          <span className="data-label">Balance</span>{" "}
+          <span className="data-value-money">{balanceDueNum.toFixed(2)}</span>
         </div>
 
         {/* Status + paid/last payment + email meta */}
@@ -604,12 +605,15 @@ const base: CSSProperties = {
 
     {/* Dates row */}
     <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
-      <strong>Issue Date:</strong>{" "}
-      {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}
+      <span className="data-label">Issue Date:</span>{" "}
+      <span className="data-value">
+        {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}
+      </span>
       {invoice.dueDate ? (
         <>
           {" "}
-          • <strong>Due Date:</strong> {new Date(invoice.dueDate).toLocaleDateString()}
+          • <span className="data-label">Due Date:</span>{" "}
+          <span className="data-value">{new Date(invoice.dueDate).toLocaleDateString()}</span>
         </>
       ) : null}
     </div>
@@ -625,15 +629,27 @@ const base: CSSProperties = {
     >
       <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
         <h3 style={{ marginTop: 0 }}>Bill To</h3>
-        <div>
+        <div className="data-value">
           {customerName || "Unknown Customer"}{" "}
           {invoice.isDemo ? (
             <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
           ) : null}
         </div>
-        {invoice.customerSnapshot?.address ? <div>{invoice.customerSnapshot.address}</div> : null}
-        {invoice.customerSnapshot?.phone ? <div>Phone: {invoice.customerSnapshot.phone}</div> : null}
-        {truthEmail && <div>Email: {truthEmail}</div>}
+        {invoice.customerSnapshot?.address ? (
+          <div className="data-row data-value">{invoice.customerSnapshot.address}</div>
+        ) : null}
+        {invoice.customerSnapshot?.phone ? (
+          <div className="data-row">
+            <span className="data-label">Phone:</span>{" "}
+            <span className="data-value">{invoice.customerSnapshot.phone}</span>
+          </div>
+        ) : null}
+        {truthEmail && (
+          <div className="data-row">
+            <span className="data-label">Email:</span>{" "}
+            <span className="data-value">{truthEmail}</span>
+          </div>
+        )}
         {emailMismatch && (
           <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
             On invoice: {snapshotEmail}
@@ -645,14 +661,24 @@ const base: CSSProperties = {
         <h3 style={{ marginTop: 0 }}>Vehicle</h3>
         {invoice.vehicleSnapshot ? (
           <>
-            <div>
+            <div className="data-value">
               {invoice.vehicleSnapshot.year} {invoice.vehicleSnapshot.make} {invoice.vehicleSnapshot.model}
             </div>
-            {invoice.vehicleSnapshot.licensePlate ? <div>Plate: {invoice.vehicleSnapshot.licensePlate}</div> : null}
-            {invoice.vehicleSnapshot.vin ? <div>VIN: {invoice.vehicleSnapshot.vin}</div> : null}
+            {invoice.vehicleSnapshot.licensePlate ? (
+              <div className="data-row">
+                <span className="data-label">Plate:</span>{" "}
+                <span className="data-value">{invoice.vehicleSnapshot.licensePlate}</span>
+              </div>
+            ) : null}
+            {invoice.vehicleSnapshot.vin ? (
+              <div className="data-row">
+                <span className="data-label">VIN:</span>{" "}
+                <span className="data-value">{invoice.vehicleSnapshot.vin}</span>
+              </div>
+            ) : null}
           </>
         ) : (
-          <div style={{ color: "#94a3b8", fontWeight: 500 }}>No vehicle snapshot</div>
+          <div className="data-label">No vehicle snapshot</div>
         )}
       </div>
     </div>
@@ -678,10 +704,10 @@ const base: CSSProperties = {
               <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {formatInvoiceItemQuantity(item)}
               </td>
-              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+              <td className="data-value-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {Number(item.unitPrice ?? 0).toFixed(2)}
               </td>
-              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+              <td className="data-value-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {Number(item.lineTotal ?? 0).toFixed(2)}
               </td>
             </tr>
@@ -692,12 +718,17 @@ const base: CSSProperties = {
 
     {/* Totals */}
     <div style={{ marginTop: "1rem", textAlign: "right" }}>
-      <div>Subtotal: {Number(invoice.subtotal ?? 0).toFixed(2)}</div>
-      <div>
-        Tax ({Number(invoice.taxRate ?? 0)}%): {Number(invoice.taxAmount ?? 0).toFixed(2)}
+      <div className="data-row">
+        <span className="data-label">Subtotal:</span>{" "}
+        <span className="data-value-money">{Number(invoice.subtotal ?? 0).toFixed(2)}</span>
       </div>
-      <div style={{ fontWeight: "bold", marginTop: "0.5rem" }}>
-        Total: {Number(invoice.total ?? 0).toFixed(2)}
+      <div className="data-row">
+        <span className="data-label">Tax ({Number(invoice.taxRate ?? 0)}%):</span>{" "}
+        <span className="data-value-money">{Number(invoice.taxAmount ?? 0).toFixed(2)}</span>
+      </div>
+      <div className="data-row" style={{ marginTop: "0.5rem" }}>
+        <span className="data-label">Total:</span>{" "}
+        <span className="data-value-money">{Number(invoice.total ?? 0).toFixed(2)}</span>
       </div>
     </div>
 
@@ -707,13 +738,13 @@ const base: CSSProperties = {
 
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
         <div>
-            <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Paid to date</div>
-          <div style={{ fontWeight: 600 }}>{Number((invoice as any).paidAmount ?? 0).toFixed(2)}</div>
+            <div className="data-label" style={{ fontSize: "0.85rem" }}>Paid to date</div>
+          <div className="data-value-money">{Number((invoice as any).paidAmount ?? 0).toFixed(2)}</div>
         </div>
 
         <div>
-            <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Balance due</div>
-          <div style={{ fontWeight: 600 }}>
+            <div className="data-label" style={{ fontSize: "0.85rem" }}>Balance due</div>
+          <div className="data-value-money">
             {Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0)).toFixed(2)}
           </div>
         </div>
@@ -721,13 +752,13 @@ const base: CSSProperties = {
        {/* Date paid / Last payment (backend truth) */}
             {isPaid && latestPaymentDate ? (
               <div>
-                <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Date paid</div>
-                <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
+                <div className="data-label" style={{ fontSize: "0.85rem" }}>Date paid</div>
+                <div className="data-value">{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : isPartial && latestPaymentDate ? (
               <div>
-                <div style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 500 }}>Last payment</div>
-                <div style={{ fontWeight: 600 }}>{fmtDateTime(latestPaymentDate)}</div>
+                <div className="data-label" style={{ fontSize: "0.85rem" }}>Last payment</div>
+                <div className="data-value">{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : null}
 

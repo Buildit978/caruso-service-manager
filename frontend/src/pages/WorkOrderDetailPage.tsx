@@ -63,7 +63,7 @@ function TimelineBlock({ items }: { items: TimelineItem[] }) {
         background: "rgba(17,24,39,0.6)",
       }}
     >
-      <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "#cbd5e1", fontWeight: 600 }}>
+      <div className="wo-micro-heading">
         Timeline
       </div>
 
@@ -93,10 +93,10 @@ function TimelineBlock({ items }: { items: TimelineItem[] }) {
                   display: "inline-block",
                 }}
               />
-              <span style={{ fontWeight: 600 }}>{it.label}</span>
+              <span className="data-label">{it.label}</span>
             </div>
 
-            <span style={{ color: "#cbd5e1", fontSize: 13 }}>{formatDateTime(it.date)}</span>
+            <span className="data-value" style={{ fontSize: 13 }}>{formatDateTime(it.date)}</span>
           </div>
         ))}
       </div>
@@ -645,7 +645,7 @@ export default function WorkOrderDetailPage() {
   const formattedDate = workOrder.date ? new Date(workOrder.date).toLocaleDateString() : "";
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
+    <div className="work-order-detail" style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
       {/* HEADER (InvoiceDetail pattern) */}
       <div
         style={{
@@ -667,8 +667,9 @@ export default function WorkOrderDetailPage() {
             </span>
           </h1>
 
-          <div style={{ marginTop: "0.35rem", color: "#cbd5e1", fontWeight: 600, fontSize: "0.95rem" }}>
-            Created {formattedDate || "—"}
+          <div className="data-row" style={{ marginTop: "0.35rem", fontSize: "0.95rem" }}>
+            <span className="data-label">Created</span>
+            <span className="data-value">{formattedDate || "—"}</span>
           </div>
 
           <div style={{ marginTop: "0.6rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -766,7 +767,7 @@ export default function WorkOrderDetailPage() {
 
         {/* Right: Nav/actions */}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button type="button" onClick={() => navigate("/work-orders")}>
+          <button type="button" className="wo-btn" onClick={() => navigate("/work-orders")}>
             Back to Work Orders
           </button>
 
@@ -774,13 +775,14 @@ export default function WorkOrderDetailPage() {
           {INVOICE_ENABLED && (
             <>
               {resolvedInvoiceId ? (
-                <button type="button" onClick={() => navigate(`/invoices/${resolvedInvoiceId}`)}>
+                <button type="button" className="wo-btn-primary" onClick={() => navigate(`/invoices/${resolvedInvoiceId}`)}>
                   View Invoice
                 </button>
               ) : isCompleted ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                   <button
                     type="button"
+                    className="wo-btn-primary"
                     onClick={handleCreateInvoice}
                     disabled={!canCreateInvoice || billingLocked}
                     title={billingLocked ? "Billing is inactive. Update billing to create invoices." : "Create an invoice for this work order."}
@@ -794,26 +796,18 @@ export default function WorkOrderDetailPage() {
                   )}
                 </span>
               ) : (
-                <button type="button" disabled title="Complete the work order before creating an invoice.">
+                <button type="button" className="wo-btn" disabled title="Complete the work order before creating an invoice.">
                   Create Invoice
                 </button>
               )}
             </>
           )}
 
-          <button type="button" onClick={handleEdit}>
+          <button type="button" className="wo-btn" onClick={handleEdit}>
             Edit
           </button>
 
-          <button
-            type="button"
-            onClick={handleDelete}
-            style={{
-              border: "1px solid #b91c1c",
-              color: "#b91c1c",
-              background: "transparent",
-            }}
-          >
+          <button type="button" className="wo-btn-danger" onClick={handleDelete}>
             Delete
           </button>
         </div>
@@ -847,68 +841,100 @@ export default function WorkOrderDetailPage() {
       >
         {/* Customer card */}
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Customer</h3>
-          <p>
-            <strong>Name:</strong> {displayName}{" "}
-            {workOrder.isDemo ? (
-              <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
-            ) : null}
+          <h3 className="wo-section-title" style={{ marginTop: 0 }}>Customer</h3>
+          <p className="data-row">
+            <span className="data-label">Name:</span>
+            <span className="data-value">
+              {displayName}{" "}
+              {workOrder.isDemo ? (
+                <span style={{ fontWeight: 800, color: "#f8fafc" }}>[PRACTICE]</span>
+              ) : null}
+            </span>
           </p>
-          <p>
-            <strong>Phone:</strong> {customer?.phone || "—"}
+          <p className="data-row">
+            <span className="data-label">Phone:</span>
+            <span className="data-value">{customer?.phone || "—"}</span>
           </p>
-          <p>
-            <strong>Email:</strong> {customer?.email || "—"}
+          <p className="data-row">
+            <span className="data-label">Email:</span>
+            <span className="data-value">{customer?.email || "—"}</span>
           </p>
-          <p>
-            <strong>Address:</strong> {customer?.address || "—"}
+          <p className="data-row">
+            <span className="data-label">Address:</span>
+            <span className="data-value">{customer?.address || "—"}</span>
           </p>
         </div>
 
         {/* Work Order card */}
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Work Order</h3>
+          <h3 className="wo-section-title" style={{ marginTop: 0 }}>Work Order</h3>
 
-          <p>
-            <strong>Date:</strong> {formattedDate || "—"}
+          <p className="data-row">
+            <span className="data-label">Date:</span>
+            <span className="data-value">{formattedDate || "—"}</span>
           </p>
-          <p>
-            <strong>Odometer:</strong> {workOrder.odometer?.toLocaleString() ?? "—"}
+          <p className="data-row">
+            <span className="data-label">Odometer:</span>
+            <span className="data-value">{workOrder.odometer?.toLocaleString() ?? "—"}</span>
           </p>
-          <p>
-            <strong>Complaint:</strong> {workOrder.complaint}
+          <p className="data-row">
+            <span className="data-label">Complaint:</span>
+            <span className="data-value">{workOrder.complaint}</span>
           </p>
-          <p>
-            <strong>Diagnosis:</strong> {workOrder.diagnosis || "—"}
+          <p className="data-row">
+            <span className="data-label">Diagnosis:</span>
+            <span className="data-value">{workOrder.diagnosis || "—"}</span>
           </p>
-          <p>
-            <strong>Notes:</strong> {workOrder.notes || "—"}
+          <p className="data-row">
+            <span className="data-label">Notes:</span>
+            <span className="data-value">{workOrder.notes || "—"}</span>
           </p>
 
           {workOrder.vehicle && (
             <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #eee" }}>
-              <div style={{ fontWeight: 700, marginBottom: "0.25rem" }}>Vehicle</div>
+              <div className="data-label" style={{ marginBottom: "0.25rem" }}>Vehicle</div>
 
-              <div>
+              <div className="data-value">
                 {workOrder.vehicle.year && `${workOrder.vehicle.year} `}
                 {workOrder.vehicle.make} {workOrder.vehicle.model}
               </div>
 
-              {workOrder.vehicle.licensePlate ? <div>Plate: {workOrder.vehicle.licensePlate}</div> : null}
-              {workOrder.vehicle.vin ? <div>VIN: {workOrder.vehicle.vin}</div> : null}
-              {workOrder.vehicle.color ? <div>Color: {workOrder.vehicle.color}</div> : null}
-              {workOrder.vehicle.notes ? <div>Notes: {workOrder.vehicle.notes}</div> : null}
+              {workOrder.vehicle.licensePlate ? (
+                <div className="data-row">
+                  <span className="data-label">Plate:</span>
+                  <span className="data-value">{workOrder.vehicle.licensePlate}</span>
+                </div>
+              ) : null}
+              {workOrder.vehicle.vin ? (
+                <div className="data-row">
+                  <span className="data-label">VIN:</span>
+                  <span className="data-value">{workOrder.vehicle.vin}</span>
+                </div>
+              ) : null}
+              {workOrder.vehicle.color ? (
+                <div className="data-row">
+                  <span className="data-label">Color:</span>
+                  <span className="data-value">{workOrder.vehicle.color}</span>
+                </div>
+              ) : null}
+              {workOrder.vehicle.notes ? (
+                <div className="data-row">
+                  <span className="data-label">Notes:</span>
+                  <span className="data-value">{workOrder.vehicle.notes}</span>
+                </div>
+              ) : null}
             </div>
           )}
 
-          <p style={{ marginTop: "0.75rem" }}>
-            <strong>Total:</strong> ${displayTotal.toFixed(2)}
+          <p className="data-row" style={{ marginTop: "0.75rem" }}>
+            <span className="data-label">Total:</span>
+            <span className="data-value-money">${displayTotal.toFixed(2)}</span>
           </p>
         </div>
 
         {/* Timeline card */}
         <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Timeline</h3>
+          <h3 className="wo-section-title" style={{ marginTop: 0 }}>Timeline</h3>
           <TimelineBlock items={timelineItems} />
         </div>
 
@@ -922,22 +948,21 @@ export default function WorkOrderDetailPage() {
           }}
         >
           <h3
+            className="wo-section-title"
             style={{
               marginTop: 0,
               marginBottom: "0.35rem",
-              color: "#f8fafc",
               fontSize: "1rem",
-              fontWeight: 600,
             }}
           >
             Schedule in Calendar
           </h3>
-          <p style={{ margin: "0 0 0.85rem", fontSize: "0.8rem", color: "#cbd5e1", lineHeight: 1.45, fontWeight: 500 }}>
+          <p className="wo-instruction" style={{ margin: "0 0 0.85rem", fontSize: "0.875rem" }}>
             The shop calendar is the source of truth for when this job runs. Pick a slot there to schedule
             or move it; use Edit Details for technician, duration, and notes on this page.
           </p>
           {scheduleLoading ? (
-            <p style={{ margin: 0, fontSize: "0.9rem", color: "#cbd5e1", fontWeight: 500 }}>Loading…</p>
+            <p className="wo-instruction" style={{ margin: 0, fontSize: "0.9rem" }}>Loading…</p>
           ) : scheduleEntry ? (
             <>
               <div
@@ -951,21 +976,21 @@ export default function WorkOrderDetailPage() {
                   color: "#e5e7eb",
                 }}
               >
-                <p style={{ margin: "0 0 0.4rem" }}>
-                  <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Day:</strong>{" "}
-                  {formatScheduleLocalDayFromStartAt(scheduleEntry.startAt)}
+                <p className="data-row" style={{ margin: "0 0 0.4rem" }}>
+                  <span className="data-label">Day:</span>
+                  <span className="data-value">{formatScheduleLocalDayFromStartAt(scheduleEntry.startAt)}</span>
                 </p>
-                <p style={{ margin: "0 0 0.4rem" }}>
-                  <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Time:</strong>{" "}
-                  {formatTimeRangeDisplay(scheduleEntry.startAt, scheduleEntry.endAt)}
+                <p className="data-row" style={{ margin: "0 0 0.4rem" }}>
+                  <span className="data-label">Time:</span>
+                  <span className="data-value">{formatTimeRangeDisplay(scheduleEntry.startAt, scheduleEntry.endAt)}</span>
                 </p>
                 {scheduleEntry.technicianLabel ? (
-                  <p style={{ margin: 0 }}>
-                    <strong style={{ color: "#f1f5f9", fontWeight: 600 }}>Technician:</strong>{" "}
-                    {scheduleEntry.technicianLabel}
+                  <p className="data-row" style={{ margin: 0 }}>
+                    <span className="data-label">Technician:</span>
+                    <span className="data-value">{scheduleEntry.technicianLabel}</span>
                   </p>
                 ) : (
-                  <p style={{ margin: 0, color: "#cbd5e1", fontWeight: 500 }}>No technician assigned</p>
+                  <p className="wo-instruction" style={{ margin: 0, fontSize: "0.9rem" }}>No technician assigned</p>
                 )}
               </div>
               {canEditSchedule && (
@@ -1027,7 +1052,7 @@ export default function WorkOrderDetailPage() {
             </>
           ) : (
             <>
-              <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "#cbd5e1" }}>
+              <p className="wo-instruction" style={{ margin: "0 0 0.75rem", fontSize: "0.9rem" }}>
                 No schedule set yet
               </p>
               {canEditSchedule && (
@@ -1068,19 +1093,14 @@ export default function WorkOrderDetailPage() {
       {/* LINE ITEMS */}
       <div style={{ marginTop: "1.25rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-          <h3 style={{ margin: 0 }}>Line Items</h3>
+          <h3 className="wo-section-title" style={{ margin: 0 }}>Line Items</h3>
 
           <button
             type="button"
+            className="wo-btn-primary"
             onClick={handleAddLineItem}
             disabled={billingLocked}
             style={{
-              padding: "8px 14px",
-              borderRadius: "10px",
-              border: "1px solid #111827",
-              backgroundColor: billingLocked ? "#6b7280" : "#111827",
-              color: "#ffffff",
-              fontSize: "0.9rem",
               cursor: billingLocked ? "not-allowed" : "pointer",
             }}
           >
@@ -1113,7 +1133,7 @@ export default function WorkOrderDetailPage() {
             <tbody>
               {normalizedLineItems.length === 0 && (
                 <tr>
-                  <td colSpan={canSeePricing ? 6 : 4} style={{ padding: "12px", textAlign: "center", color: "#6b7280" }}>
+                  <td colSpan={canSeePricing ? 6 : 4} className="wo-table-empty" style={{ padding: "12px", textAlign: "center" }}>
                     No line items yet. Click "Add Line" to get started.
                   </td>
                 </tr>
@@ -1193,8 +1213,8 @@ export default function WorkOrderDetailPage() {
                     </>
                   ) : (
                     <>
-                      <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", color: "#6b7280" }}>—</td>
+                      <td className="wo-table-empty" style={{ padding: "8px 12px", textAlign: "right" }}>—</td>
+                      <td className="wo-table-empty" style={{ padding: "8px 12px", textAlign: "right" }}>—</td>
                     </>
                   )}
 
@@ -1224,12 +1244,12 @@ export default function WorkOrderDetailPage() {
           <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
             <div style={{ minWidth: "300px", textAlign: "right" }}>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-                <span style={{ fontWeight: 600 }}>Subtotal:</span>
-                <span>${displaySubtotal.toFixed(2)}</span>
+                <span className="data-label">Subtotal:</span>
+                <span className="data-value-money">${displaySubtotal.toFixed(2)}</span>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center", marginTop: "6px" }}>
-                <span style={{ fontWeight: 600 }}>Tax Rate:</span>
+                <span className="data-label">Tax Rate:</span>
                 <input
                   type="number"
                   min={0}
@@ -1249,13 +1269,13 @@ export default function WorkOrderDetailPage() {
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "6px" }}>
-                <span style={{ fontWeight: 600 }}>Tax Amount:</span>
-                <span>${displayTaxAmount.toFixed(2)}</span>
+                <span className="data-label">Tax Amount:</span>
+                <span className="data-value-money">${displayTaxAmount.toFixed(2)}</span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", fontWeight: 800, fontSize: "1rem", marginTop: "8px" }}>
-                <span>Total:</span>
-                <span>${displayTotal.toFixed(2)}</span>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", fontSize: "1rem", marginTop: "8px" }}>
+                <span className="data-label">Total:</span>
+                <span className="data-value-money">${displayTotal.toFixed(2)}</span>
               </div>
 
               <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px" }}>
@@ -1277,16 +1297,11 @@ export default function WorkOrderDetailPage() {
 
               <button
                 type="button"
+                className="wo-btn-primary"
                 onClick={handleSaveLineItems}
                 disabled={saving || billingLocked}
                 style={{
-                  padding: "10px 16px",
-                  borderRadius: "10px",
-                  border: "1px solid #4b5563",
-                  backgroundColor: saving || billingLocked ? "#e5e7eb" : "#111827",
-                  color: saving || billingLocked ? "#6b7280" : "#ffffff",
-                  fontSize: "0.95rem",
-                  cursor: saving || billingLocked ? "default" : "pointer",
+                  cursor: saving || billingLocked ? "not-allowed" : "pointer",
                 }}
               >
                 {saving ? "Saving..." : "Save Line Items"}

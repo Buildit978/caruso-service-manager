@@ -283,7 +283,8 @@ export default function CustomerVehiclesSection({
                                             <div className="cust-vehicle-info">
                                                 <Link
                                                     to={`/vehicles/${v._id}`}
-                                                    style={{ textDecoration: "none", color: "inherit" }}
+                                                    className="data-value"
+                                                    style={{ textDecoration: "none" }}
                                                 >
                                                     {v.year && `${v.year} `}
                                                     {v.make} {v.model}

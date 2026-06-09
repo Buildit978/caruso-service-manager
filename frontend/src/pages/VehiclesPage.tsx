@@ -264,21 +264,21 @@ export default function VehiclesPage() {
                 <tr key={v._id}>
                   <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                      <span>{v.make || "-"}</span>
+                      <span className="table-data-primary">{v.make || "-"}</span>
                       {v.isDemo ? (
                         <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
                       ) : null}
                     </span>
                   </td>
-                  <td>{v.model || "-"}</td>
-                  <td>{v.year || "-"}</td>
-                  <td>{v.licensePlate || "-"}</td>
-                  <td className="num">
+                  <td className="table-data-primary">{v.model || "-"}</td>
+                  <td className="table-data-primary">{v.year || "-"}</td>
+                  <td className="table-data-primary">{v.licensePlate || "-"}</td>
+                  <td className="num table-data-primary">
                     {v.currentOdometer != null
                       ? v.currentOdometer.toLocaleString()
                       : "-"}
                   </td>
-                  <td>
+                  <td className="table-data-primary">
                     {v.vin ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                         <button
@@ -332,8 +332,8 @@ export default function VehiclesPage() {
                       "-"
                     )}
                   </td>
-                  <td>{v.color || "-"}</td>
-                  <td>
+                  <td className="table-data-primary">{v.color || "-"}</td>
+                  <td className="table-data-primary">
                     {v.notes ? (
                       <div style={{ display: "flex", alignItems: "flex-start", gap: "0.25rem", flexWrap: "wrap" }}>
                         <span style={{ flex: "1 1 auto", minWidth: 0 }}>

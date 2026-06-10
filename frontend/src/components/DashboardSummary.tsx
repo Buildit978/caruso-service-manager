@@ -466,10 +466,10 @@ useEffect(() => {
                         Quick snapshot of the shop&apos;s workload and revenue.
           </p>
                 </div>
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                <button onClick={() => setPaidScope("today")}>Today</button>
-                <button onClick={() => setPaidScope("week")}>This Week</button>
-                <button onClick={() => setPaidScope("month")}>This Month</button>
+                <div className="dashboard__scope-controls" style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+                <button type="button" onClick={() => setPaidScope("today")}>Today</button>
+                <button type="button" onClick={() => setPaidScope("week")}>This Week</button>
+                <button type="button" onClick={() => setPaidScope("month")}>This Month</button>
                 </div>
 
         </header>

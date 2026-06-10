@@ -85,6 +85,7 @@ export default function SchedulerToolbar({
 
   return (
     <div
+      className="scheduler-toolbar"
       style={{
         display: "flex",
         alignItems: "center",
@@ -117,7 +118,7 @@ export default function SchedulerToolbar({
         }}
         style={inp}
       />
-      <span style={{ fontSize: "0.95rem", color: "#94a3b8" }}>{dateStr}</span>
+      <span className="scheduler-toolbar-date">{dateStr}</span>
       {!hideViewToggle && (
         <div style={{ display: "flex", gap: "0.25rem" }}>
           <button
@@ -143,6 +144,7 @@ export default function SchedulerToolbar({
         </div>
       )}
       <select
+        className="scheduler-form-control"
         value={technicianId}
         onChange={(e) => onTechnicianChange(e.target.value)}
         style={{

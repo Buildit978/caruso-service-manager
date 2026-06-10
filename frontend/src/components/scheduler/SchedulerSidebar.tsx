@@ -63,17 +63,16 @@ export default function SchedulerSidebar({
         <input
           type="text"
           placeholder="Search…"
+          className="scheduler-form-control"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           style={{
             marginTop: "0.5rem",
             width: "100%",
             padding: "0.5rem 0.75rem",
-            fontSize: "0.9rem",
             borderRadius: "6px",
             border: "1px solid #475569",
             background: "#020617",
-            color: "#e5e7eb",
             boxSizing: "border-box",
           }}
         />
@@ -118,7 +117,7 @@ export default function SchedulerSidebar({
                 {truncateText(getWorkOrderTitle(wo), 50)}
               </div>
               {formatSecondaryLine(wo) && (
-                <div style={{ color: "#94a3b8", lineHeight: 1.3, fontSize: "0.8rem" }}>
+                <div className="scheduler-wo-detail">
                   {formatSecondaryLine(wo)}
                 </div>
               )}

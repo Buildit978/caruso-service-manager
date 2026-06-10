@@ -241,30 +241,26 @@ export default function CustomerVehiclesSection({
                 <button
                     ref={addVehicleButtonRef}
                     type="button"
+                    className="wo-btn-primary"
                     onClick={() => setShowForm((prev) => !prev)}
                     style={{
                         padding: "0.35rem 0.75rem",
                         borderRadius: "0.45rem",
-                        border: "1px solid #2563eb",
-                        background: "#2563eb",
-                        color: "#ffffff",
                         fontSize: "0.85rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
                     }}
                 >
                     {showForm && !editingVehicleId ? "Hide Form" : "+ Add Vehicle"}
                 </button>
             </div>
             <p
-                className="text-helper-readable"
-                style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
+                className="customer-detail-instruction"
+                style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0 }}
             >
                 Add a vehicle to continue setup for this customer.
             </p>
             <p
-                className="text-helper-readable"
-                style={{ fontSize: "0.86rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
+                className="customer-detail-instruction"
+                style={{ fontSize: "0.86rem", marginBottom: "0.75rem", marginTop: 0 }}
             >
                 Tip: Use Edit to update vehicle details. Click the vehicle name to view work orders and status.
             </p>
@@ -297,14 +293,14 @@ export default function CustomerVehiclesSection({
                                             <div className="cust-vehicle-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                                                 <button
                                                     type="button"
-                                                    style={{ marginLeft: "0.5rem" }}
+                                                    className="wo-btn"
                                                     onClick={() => handleEditClick(v)}
                                                 >
                                                     Edit
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    style={{ marginLeft: "0.5rem" }}
+                                                    className="wo-btn-danger"
                                                     onClick={() => handleDeleteClick(v._id)}
                                                 >
                                                     Delete
@@ -411,8 +407,13 @@ export default function CustomerVehiclesSection({
                     />
                 </div>
 
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <button type="submit" disabled={saving}>
+                <div className="vehicle-form-actions" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <button
+                        type="submit"
+                        className="wo-btn-primary"
+                        disabled={saving}
+                        style={{ padding: "0.6em 1.2em", fontSize: "1em" }}
+                    >
                         {saving
                             ? editingVehicleId
                                 ? "Saving…"
@@ -423,7 +424,12 @@ export default function CustomerVehiclesSection({
                     </button>
 
                     {editingVehicleId && (
-                        <button type="button" onClick={resetForm}>
+                        <button
+                            type="button"
+                            className="wo-btn"
+                            onClick={resetForm}
+                            style={{ padding: "0.6em 1.2em", fontSize: "1em" }}
+                        >
                             Cancel
                         </button>
                     )}

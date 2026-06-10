@@ -54,8 +54,8 @@ export default function CustomerEstimatesSection({
     <section style={{ marginTop: "2rem" }}>
       <h3 style={{ marginBottom: "0.5rem" }}>Estimates</h3>
       <p
-        className="text-helper-readable"
-        style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0, color: "#d1d5db", fontWeight: 600 }}
+        className="customer-detail-instruction"
+        style={{ fontSize: "0.9rem", marginBottom: "0.75rem", marginTop: 0 }}
       >
         Estimates for this customer. Convert approved estimates to work orders from the Estimates page.
       </p>
@@ -79,7 +79,7 @@ export default function CustomerEstimatesSection({
                   <div className="cust-estimate-info">
                     <Link
                       to={`/estimates/${est._id}`}
-                      style={{ color: "#3b82f6", textDecoration: "underline" }}
+                      className="customer-detail-action-link"
                     >
                       {est.estimateNumber} — {est.status}
                     </Link>
@@ -94,11 +94,8 @@ export default function CustomerEstimatesSection({
                     {woId ? (
                       <Link
                         to={`/work-orders/${woId}`}
-                        style={{
-                          marginLeft: "0.5rem",
-                          fontSize: "0.85rem",
-                          color: "#3b82f6",
-                        }}
+                        className="customer-detail-action-link"
+                        style={{ marginLeft: "0.5rem" }}
                       >
                         View Work Order
                       </Link>

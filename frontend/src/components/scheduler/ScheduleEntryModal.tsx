@@ -367,12 +367,10 @@ export default function ScheduleEntryModal({
             {viewWorkOrderId && (
               <Link
                 to={`/work-orders/${viewWorkOrderId}`}
+                className="scheduler-modal-action-link"
                 style={{
                   display: "inline-block",
                   marginTop: "0.5rem",
-                  fontSize: "0.85rem",
-                  color: "#60a5fa",
-                  textDecoration: "none",
                 }}
               >
                 View Work Order →

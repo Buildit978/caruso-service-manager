@@ -255,7 +255,7 @@ function Layout() {
             </div>
           )}
           {shopName && (
-            <div className="sidebar-meta-readable" style={{ fontSize: '0.78rem' }}>
+            <div className="sidebar-shop-name" style={{ fontSize: '0.78rem' }}>
               {shopName}
             </div>
           )}
@@ -264,7 +264,7 @@ function Layout() {
         {/* Session badge */}
         {me && (
           <div
-            className="sidebar-meta-readable"
+            className="sidebar-user-meta"
             style={{
               fontSize: "0.78rem",
               marginBottom: "1rem",
@@ -342,13 +342,12 @@ function Layout() {
           {me ? (
             <button
               type="button"
+              className="sidebar-logout-btn"
               onClick={handleLogout}
               style={{
                 width: '100%',
                 padding: '0.5rem 0.75rem',
                 fontSize: '0.85rem',
-                fontWeight: 500,
-                color: '#e5e7eb',
                 background: 'transparent',
                 border: '1px solid #4b5563',
                 borderRadius: '0.375rem',

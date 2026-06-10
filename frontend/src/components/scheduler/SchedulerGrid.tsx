@@ -88,6 +88,7 @@ export default function SchedulerGrid({
 
   return (
     <div
+      className="scheduler-grid"
       style={{
         flex: 1,
         overflow: "auto",
@@ -101,15 +102,12 @@ export default function SchedulerGrid({
           minWidth: "600px",
         }}
       >
-        <div style={{ borderRight: "1px solid #1f2937" }} />
+        <div className="scheduler-grid-col-border" />
         {days.map((d) => (
           <div
             key={d.toISOString()}
+            className="scheduler-day-heading scheduler-grid-col-border"
             style={{
-              borderRight: "1px solid #1f2937",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              color: "#94a3b8",
               padding: "0.25rem 0",
               textAlign: "center",
             }}
@@ -129,18 +127,17 @@ export default function SchedulerGrid({
         }}
       >
         <div
+          className="scheduler-grid-col-border"
           style={{
-            borderRight: "1px solid #1f2937",
             paddingTop: "0.25rem",
           }}
         >
           {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => (
             <div
               key={i}
+              className="scheduler-time-label"
               style={{
                 height: SLOT_HEIGHT,
-                fontSize: "0.75rem",
-                color: "#64748b",
                 paddingRight: "0.5rem",
                 textAlign: "right",
               }}
@@ -152,8 +149,8 @@ export default function SchedulerGrid({
         {days.map((day) => (
           <div
             key={day.toISOString()}
+            className="scheduler-grid-col-border"
             style={{
-              borderRight: "1px solid #1f2937",
               position: "relative",
               height: (HOURS_END - HOURS_START) * SLOT_HEIGHT,
             }}
@@ -161,9 +158,9 @@ export default function SchedulerGrid({
             {Array.from({ length: HOURS_END - HOURS_START }, (_, i) => (
               <div
                 key={i}
+                className="scheduler-grid-hour-line"
                 style={{
                   height: SLOT_HEIGHT,
-                  borderBottom: "1px solid #1e293b",
                 }}
               >
                 {canEdit && (

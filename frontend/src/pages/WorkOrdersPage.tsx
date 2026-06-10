@@ -630,14 +630,16 @@ const title =
                       )}
                     </td>
 
-                    <td className="px-4 py-2 whitespace-nowrap text-right table-data-money">
-                      {formatMoney(wo.total ?? 0)}
+                    <td className="px-4 py-2 whitespace-nowrap text-right">
+                      <span className="table-data-money">{formatMoney(wo.total ?? 0)}</span>
                     </td>
 
-                    <td className="px-4 py-2 whitespace-nowrap table-data-meta">
-                      {wo.createdAt
-                        ? new Date(wo.createdAt).toLocaleDateString("en-CA")
-                        : "—"}
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span className="table-data-meta">
+                        {wo.createdAt
+                          ? new Date(wo.createdAt).toLocaleDateString("en-CA")
+                          : "—"}
+                      </span>
                     </td>
                   </tr>
                 );

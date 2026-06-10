@@ -373,7 +373,7 @@ function isSameOriginUrl(url: string) {
  
  
 return (
-  <div style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
+  <div className="work-order-detail" style={{ padding: "1.5rem", maxWidth: "900px", margin: "0 auto" }}>
     {/* Header */}
     <div
       style={{
@@ -496,13 +496,13 @@ const base: CSSProperties = {
 
           {/* NEW: Paid/Last payment line (truth = payments[]) */}
           {paidOrLastPaymentLine ? (
-            <span style={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
+            <span className="data-label" style={{ fontSize: "0.9rem" }}>
               {paidOrLastPaymentLine}
             </span>
           ) : null}
 
           {/* Email meta (unchanged) */}
-          <span style={{ fontSize: "0.88rem", color: "#94a3b8", fontWeight: 500 }}>
+          <span className="data-label" style={{ fontSize: "0.9rem" }}>
             Email: {((invoice as any).email?.status ?? "never_sent").replace("_", " ")}
             {(invoice as any).email?.lastSentAt
               ? ` • Last: ${new Date((invoice as any).email.lastSentAt).toLocaleString()}`
@@ -519,6 +519,7 @@ const base: CSSProperties = {
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
         <button
           type="button"
+          className="wo-btn"
           disabled={!resolvedWorkOrderId}
           onClick={() => resolvedWorkOrderId && navigate(`/work-orders/${resolvedWorkOrderId}`)}
         >
@@ -526,7 +527,7 @@ const base: CSSProperties = {
         </button>
         <div>
       <div className="flex items-center justify-between">
-        <button onClick={handleBack} className="btn">
+        <button type="button" onClick={handleBack} className="wo-btn">
           ← Back
         </button>
 
@@ -536,7 +537,7 @@ const base: CSSProperties = {
       {/* rest of invoice detail */}
     </div>
 
-        <button type="button" disabled={isEmailing} onClick={handleSendOrResend}>
+        <button type="button" className="wo-btn-primary" disabled={isEmailing} onClick={handleSendOrResend}>
           {isEmailing
             ? "Sending..."
             : (invoice as any).email?.status && (invoice as any).email.status !== "never_sent"
@@ -546,6 +547,7 @@ const base: CSSProperties = {
 
         <button
           type="button"
+          className="wo-btn"
           disabled={isLoadingPdf}
           onClick={async () => {
             if (!invoice?._id) return;
@@ -579,24 +581,20 @@ const base: CSSProperties = {
     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
       <button
         type="button"
+        className="wo-btn-danger"
         disabled={isSaving || isPaid || isVoid}
         onClick={handleVoidInvoice}
-        style={{
-          border: "1px solid #dc2626",
-          color: "#dc2626",
-          background: "white",
-        }}
         title={isPaid ? "Paid invoices cannot be voided" : isVoid ? "Invoice is already void" : "Void this invoice"}
       >
         Void Invoice
       </button>
 
       {isReadOnly ? (
-        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#94a3b8", fontWeight: 500 }}>
+        <span className="data-label" style={{ alignSelf: "center", fontSize: "0.9rem" }}>
           This invoice is read-only ({lifecycleRaw.toUpperCase()}).
         </span>
       ) : (
-        <span style={{ alignSelf: "center", fontSize: "0.9rem", color: "#94a3b8", fontWeight: 500 }}>
+        <span className="data-label" style={{ alignSelf: "center", fontSize: "0.9rem" }}>
           Draft invoice — editable until emailed/sent.
         </span>
       )}
@@ -651,7 +649,7 @@ const base: CSSProperties = {
           </div>
         )}
         {emailMismatch && (
-          <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+          <div className="data-label" style={{ fontSize: "0.9rem" }}>
             On invoice: {snapshotEmail}
           </div>
         )}
@@ -700,14 +698,14 @@ const base: CSSProperties = {
         <tbody>
           {invoice.lineItems?.map((item: any, idx: number) => (
             <tr key={idx}>
-              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
-              <td style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+              <td className="table-data-primary" style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>{item.description}</td>
+              <td className="table-data-meta" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {formatInvoiceItemQuantity(item)}
               </td>
-              <td className="data-value-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+              <td className="table-data-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {Number(item.unitPrice ?? 0).toFixed(2)}
               </td>
-              <td className="data-value-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
+              <td className="table-data-money" style={{ padding: "0.5rem", borderBottom: "1px solid #eee", textAlign: "right" }}>
                 {Number(item.lineTotal ?? 0).toFixed(2)}
               </td>
             </tr>
@@ -738,12 +736,12 @@ const base: CSSProperties = {
 
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
         <div>
-            <div className="data-label" style={{ fontSize: "0.85rem" }}>Paid to date</div>
+            <div className="data-label" style={{ fontSize: "0.9rem" }}>Paid to date</div>
           <div className="data-value-money">{Number((invoice as any).paidAmount ?? 0).toFixed(2)}</div>
         </div>
 
         <div>
-            <div className="data-label" style={{ fontSize: "0.85rem" }}>Balance due</div>
+            <div className="data-label" style={{ fontSize: "0.9rem" }}>Balance due</div>
           <div className="data-value-money">
             {Number((invoice as any).balanceDue ?? Number(invoice.total ?? 0)).toFixed(2)}
           </div>
@@ -752,12 +750,12 @@ const base: CSSProperties = {
        {/* Date paid / Last payment (backend truth) */}
             {isPaid && latestPaymentDate ? (
               <div>
-                <div className="data-label" style={{ fontSize: "0.85rem" }}>Date paid</div>
+                <div className="data-label" style={{ fontSize: "0.9rem" }}>Date paid</div>
                 <div className="data-value">{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : isPartial && latestPaymentDate ? (
               <div>
-                <div className="data-label" style={{ fontSize: "0.85rem" }}>Last payment</div>
+                <div className="data-label" style={{ fontSize: "0.9rem" }}>Last payment</div>
                 <div className="data-value">{fmtDateTime(latestPaymentDate)}</div>
               </div>
             ) : null}
@@ -767,10 +765,10 @@ const base: CSSProperties = {
       {/* Payment history (optional but useful now that you have payments[]) */}
       {Array.isArray((invoice as any).payments) && (invoice as any).payments.length > 0 ? (
         <div style={{ marginBottom: "0.75rem" }}>
-          <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.25rem" }}>History</div>
+          <div className="data-label" style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>History</div>
           <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
             {(invoice as any).payments.map((p: any, idx: number) => (
-              <li key={idx} style={{ marginBottom: "0.25rem" }}>
+              <li key={idx} className="data-value" style={{ marginBottom: "0.25rem" }}>
                 {new Date(p.paidAt).toLocaleString()} • {p.method} • ${Number(p.amount ?? 0).toFixed(2)}
                 {p.reference ? ` • ${p.reference}` : ""}
               </li>
@@ -778,7 +776,7 @@ const base: CSSProperties = {
           </ul>
         </div>
       ) : (
-        <div style={{ fontSize: "0.9rem", color: "#94a3b8", marginBottom: "0.75rem", fontWeight: 500 }}>
+        <div className="data-label" style={{ fontSize: "0.9rem", marginBottom: "0.75rem" }}>
           No payments recorded yet.
         </div>
       )}
@@ -805,7 +803,7 @@ const base: CSSProperties = {
           <div style={{ border: "1px solid #eee", borderRadius: "12px", padding: "0.75rem" }}>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Amount</label>
+                <label className="data-label" style={{ fontSize: "0.9rem" }}>Amount</label>
                 <input
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
@@ -817,7 +815,7 @@ const base: CSSProperties = {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Method</label>
+                <label className="data-label" style={{ fontSize: "0.9rem" }}>Method</label>
                 <select
                   value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value as any)}
@@ -832,7 +830,7 @@ const base: CSSProperties = {
               </div>
 
               <div style={{ flex: 1, minWidth: "220px", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.85rem", color: "#6b7280" }}>Reference (optional)</label>
+                <label className="data-label" style={{ fontSize: "0.9rem" }}>Reference (optional)</label>
                 <input
                   value={payRef}
                   onChange={(e) => setPayRef(e.target.value)}
@@ -844,16 +842,16 @@ const base: CSSProperties = {
 
               <button
                 type="button"
+                className="wo-btn-primary"
                 onClick={handleRecordPayment}
                 disabled={locked || paying}
-                style={{ padding: "0.55rem 0.9rem" }}
               >
                 {paying ? "Recording..." : "Record Payment"}
               </button>
             </div>
 
             {locked ? (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                    <div className="data-label" style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
                       {lifecycle === "void"
                         ? "Invoice is voided."
                         : "Invoice is fully paid."}
@@ -861,7 +859,7 @@ const base: CSSProperties = {
             ) : null}
             
             {!locked && lifecycle === "draft" ? (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                    <div className="data-label" style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
                       This invoice must be sent before payment can be recorded.
                     </div>
                   ) : null}
@@ -879,7 +877,7 @@ const base: CSSProperties = {
     {invoice.notes ? (
       <div style={{ marginTop: "1rem" }}>
         <h3>Notes</h3>
-        <p>{invoice.notes}</p>
+        <p className="data-value">{invoice.notes}</p>
       </div>
     ) : null}
   </div>

@@ -165,6 +165,24 @@ body {
   font-weight: 600;
 }
 
+/* Work Orders list — Total money column + Created dates */
+.wo-page .table-scroll table tbody td:nth-child(5),
+.wo-page .table-scroll table thead th:nth-child(5) {
+  text-align: right;
+}
+
+.wo-page .table-scroll table tbody td:nth-child(5) span.table-data-money {
+  color: #020617;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.wo-page .table-scroll table tbody td:nth-child(6) span.table-data-meta {
+  color: #020617;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Work Order Detail — readability reference standard (scoped) */
 .work-order-detail .data-row .data-label,
 .work-order-detail .data-label {
@@ -224,7 +242,8 @@ body {
 }
 
 .work-order-detail .wo-btn:disabled,
-.work-order-detail .wo-btn-primary:disabled {
+.work-order-detail .wo-btn-primary:disabled,
+.work-order-detail .wo-btn-danger:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

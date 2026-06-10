@@ -99,6 +99,21 @@ body {
   font-weight: 500;
 }
 
+.layout-sidebar .sidebar-shop-name {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.layout-sidebar .sidebar-user-meta {
+  color: var(--color-text-label);
+  font-weight: 600;
+}
+
+.layout-sidebar .sidebar-logout-btn {
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
 .muted-readable {
   color: var(--color-text-secondary);
   font-weight: 500;
@@ -221,6 +236,115 @@ body {
 
 .estimates-page .estimates-toolbar select {
   font-weight: 600;
+}
+
+/* Scheduler — operational readability */
+.scheduler-page .scheduler-form-control {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.scheduler-page .scheduler-form-control::placeholder {
+  color: var(--color-text-label);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.scheduler-page .scheduler-toolbar-date {
+  color: var(--color-text-label);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.scheduler-page .scheduler-wo-detail {
+  color: #e2e8f0;
+  font-weight: 600;
+  line-height: 1.3;
+  font-size: 0.8rem;
+}
+
+.scheduler-page .scheduler-toolbar button {
+  font-weight: 600;
+}
+
+.scheduler-page .scheduler-toolbar select {
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.scheduler-page .scheduler-day-heading {
+  color: var(--color-text-label);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.scheduler-page .scheduler-time-label {
+  color: #cbd5e1;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.scheduler-page .scheduler-grid-col-border {
+  border-right: 1px solid #334155;
+}
+
+.scheduler-page .scheduler-grid-hour-line {
+  border-bottom: 1px solid #334155;
+}
+
+.scheduler-page .scheduler-modal-action-link {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: 0.85rem;
+}
+
+/* Customer detail — instructions + vehicle action buttons */
+.customer-detail-page .customer-detail-instruction {
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.customer-detail-page .cust-vehicle-actions .wo-btn,
+.customer-detail-page .cust-vehicle-actions .wo-btn-danger {
+  margin-left: 0.5rem;
+}
+
+/* Vehicles list — intro + table readability */
+.vehicles-page .vehicles-intro {
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.vehicles-page .table-scroll table tbody td span.table-data-primary {
+  color: #020617;
+  font-weight: 700;
+}
+
+.vehicles-page .table-scroll table tbody td.num span.table-data-primary {
+  font-variant-numeric: tabular-nums;
+}
+
+.vehicles-page .table-scroll table tbody td span.vehicles-empty-value {
+  color: #374151;
+  font-weight: 600;
+}
+
+.vehicles-page .table-scroll table tbody td:nth-child(9) a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.vehicles-page .table-scroll table tbody td .vehicles-vin-toggle {
+  color: #020617;
+  font-weight: 700;
+  font-size: inherit;
+  font-family: inherit;
 }
 
 /* Estimate detail — form readability */
@@ -568,6 +692,116 @@ td {
   border: 1px solid #1f2937;
   border-radius: 0.75rem;
   background: #020617;
+}
+
+/* Settings page — readability */
+.settings-page .page-subtitle {
+  color: var(--color-text-label);
+  font-weight: 600;
+}
+
+.settings-page .settings-card-helper {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.settings-page .settings-form-helper {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
+.settings-page .settings-form-label {
+  color: var(--color-text-label);
+  font-weight: 600;
+}
+
+.settings-page input:not([type="checkbox"]):not([type="radio"]),
+.settings-page select,
+.settings-page textarea {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.settings-page input:not([type="checkbox"]):not([type="radio"])::placeholder,
+.settings-page textarea::placeholder {
+  color: var(--color-text-label);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.settings-page .settings-readonly-value {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.settings-page .settings-payment-meta {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.settings-page .settings-billing-info {
+  font-weight: 600;
+}
+
+.settings-page .wo-btn-primary,
+.settings-page .wo-btn {
+  font-size: inherit;
+}
+
+.settings-page .settings-checkbox-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.settings-page .settings-checkbox-desc {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-top: 0.25rem;
+}
+
+.settings-page .settings-section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-label);
+  margin-bottom: 0.75rem;
+}
+
+.settings-page .settings-danger-helper {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.settings-page .settings-legal-link {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: 0.95rem;
+}
+
+.settings-page input[type="file"] {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.settings-page .settings-danger-input {
+  border: 1px solid #dc2626;
+}
+
+.settings-page .settings-deactivate-btn.wo-btn-danger:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
 }
 
 /* === Tenant layout: desktop + mobile drawer === */

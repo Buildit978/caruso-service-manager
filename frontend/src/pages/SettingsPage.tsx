@@ -280,13 +280,12 @@ export default function SettingsPage() {
             borderRadius: "0.375rem",
             border: "1px solid #4b5563",
             background: "#020617",
-            color: "#e5e7eb",
         };
-        const labelStyle = { display: "block" as const, fontSize: "0.9rem", marginBottom: "0.35rem", color: "#e5e7eb" };
-        const helperStyle = { fontSize: "0.8rem", color: "#6b7280", marginTop: "0.25rem" };
+        const labelStyle = { display: "block" as const, fontSize: "0.9rem", marginBottom: "0.35rem" };
+        const helperClass = "settings-form-helper";
         return (
             <div style={{ marginBottom: "1rem" }}>
-                <label htmlFor={id} style={labelStyle}>{label}</label>
+                <label htmlFor={id} className="settings-form-label" style={labelStyle}>{label}</label>
                 {isOwner ? (
                     <input
                         id={id}
@@ -296,9 +295,9 @@ export default function SettingsPage() {
                         style={inputStyle}
                     />
                 ) : (
-                    <div style={{ ...inputStyle, background: "#111827", color: "#9ca3af" }}>{value || "—"}</div>
+                    <div className="settings-readonly-value" style={{ ...inputStyle, background: "#111827" }}>{value || "—"}</div>
                 )}
-                {helper && <p style={helperStyle}>{helper}</p>}
+                {helper && <p className={helperClass}>{helper}</p>}
             </div>
         );
     }
@@ -356,7 +355,7 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="page">
+        <div className="page settings-page work-order-detail">
             <h1 className="page-title">Shop Settings</h1>
             <p className="page-subtitle">
                 Configure your shop name, tax rate, and default discount behavior. These
@@ -369,11 +368,11 @@ export default function SettingsPage() {
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         My profile
                     </h2>
-                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "0.75rem" }}>
+                    <p className="settings-card-helper" style={{ marginBottom: "0.75rem" }}>
                         Shown on internal notes and activity (e.g., Mikey (Account owner)).
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        <label htmlFor="displayName" style={{ display: "block", fontSize: "0.9rem", color: "#e5e7eb" }}>
+                        <label htmlFor="displayName" className="settings-form-label" style={{ display: "block", fontSize: "0.9rem" }}>
                             Display name (nickname)
                         </label>
                         <input
@@ -390,11 +389,11 @@ export default function SettingsPage() {
                                 borderRadius: "0.375rem",
                                 border: "1px solid #4b5563",
                                 background: "#020617",
-                                color: "#e5e7eb",
                             }}
                         />
                         <button
                             type="button"
+                            className="wo-btn-primary"
                             disabled={savingDisplayName}
                             onClick={async () => {
                                 setSavingDisplayName(true);
@@ -413,11 +412,6 @@ export default function SettingsPage() {
                                 alignSelf: "flex-start",
                                 padding: "0.5rem 0.75rem",
                                 borderRadius: "0.375rem",
-                                border: "1px solid #4b5563",
-                                background: savingDisplayName ? "#4b5563" : "#1d4ed8",
-                                color: "#e5e7eb",
-                                fontWeight: 600,
-                                cursor: savingDisplayName ? "default" : "pointer",
                             }}
                         >
                             {savingDisplayName ? "Saving…" : "Save name"}
@@ -430,7 +424,7 @@ export default function SettingsPage() {
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Invoice Profile
                     </h2>
-                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.25rem" }}>
+                    <p className="settings-card-helper" style={{ marginBottom: "1.25rem" }}>
                         Branding and contact info shown on invoice PDFs.
                     </p>
                     {invoiceProfile !== null && (
@@ -475,16 +469,12 @@ export default function SettingsPage() {
                             {isOwner && (
                                 <button
                                     type="submit"
+                                    className="wo-btn-primary"
                                     disabled={savingInvoiceProfile}
                                     style={{
                                         marginTop: "0.5rem",
                                         padding: "0.55rem 0.9rem",
                                         borderRadius: "0.5rem",
-                                        border: "none",
-                                        background: savingInvoiceProfile ? "#4b5563" : "#1d4ed8",
-                                        color: "#e5e7eb",
-                                        fontWeight: 600,
-                                        cursor: savingInvoiceProfile ? "default" : "pointer",
                                     }}
                                 >
                                     {savingInvoiceProfile ? "Saving…" : "Save Invoice Profile"}
@@ -509,11 +499,11 @@ export default function SettingsPage() {
                     <div>
                         <label
                             htmlFor="shopCode"
+                            className="settings-form-label"
                             style={{
                                 display: "block",
                                 fontSize: "0.9rem",
                                 marginBottom: "0.25rem",
-                                color: "#e5e7eb",
                             }}
                         >
                             Shop Code
@@ -537,6 +527,7 @@ export default function SettingsPage() {
                             </div>
                             <button
                                 type="button"
+                                className="wo-btn-primary"
                                 onClick={async () => {
                                     if (!window.confirm("Regenerate Shop Code? Staff will need the new code for future logins.")) {
                                         return;
@@ -562,12 +553,7 @@ export default function SettingsPage() {
                                 style={{
                                     padding: "0.5rem 0.75rem",
                                     borderRadius: "0.375rem",
-                                    border: "1px solid #4b5563",
-                                    background: regeneratingShopCode ? "#4b5563" : "#1d4ed8",
-                                    color: "#e5e7eb",
                                     fontSize: "0.85rem",
-                                    fontWeight: 600,
-                                    cursor: regeneratingShopCode ? "not-allowed" : "pointer",
                                     whiteSpace: "nowrap",
                                 }}
                             >
@@ -576,6 +562,7 @@ export default function SettingsPage() {
                             {shopCode && (
                                 <button
                                     type="button"
+                                    className="wo-btn"
                                     onClick={async () => {
                                         try {
                                             await navigator.clipboard.writeText(shopCode);
@@ -600,12 +587,7 @@ export default function SettingsPage() {
                                     style={{
                                         padding: "0.5rem 0.75rem",
                                         borderRadius: "0.375rem",
-                                        border: "1px solid #4b5563",
-                                        background: "transparent",
-                                        color: "#e5e7eb",
                                         fontSize: "0.85rem",
-                                        fontWeight: 600,
-                                        cursor: "pointer",
                                         whiteSpace: "nowrap",
                                     }}
                                 >
@@ -613,13 +595,7 @@ export default function SettingsPage() {
                                 </button>
                             )}
                         </div>
-                        <p
-                            style={{
-                                fontSize: "0.8rem",
-                                color: "#6b7280",
-                                marginTop: "0.25rem",
-                            }}
-                        >
+                        <p className="settings-form-helper">
                             Share this code with your staff. They'll need it to sign in.
                         </p>
                     </div>
@@ -629,6 +605,7 @@ export default function SettingsPage() {
                 <div>
                     <label
                         htmlFor="shopName"
+                        className="settings-form-label"
                         style={{
                             display: "block",
                             fontSize: "0.9rem",
@@ -649,18 +626,17 @@ export default function SettingsPage() {
                                 borderRadius: "0.375rem",
                                 border: "1px solid #4b5563",
                                 background: "#020617",
-                                color: "#e5e7eb",
                             }}
                         />
                     ) : (
                         <div
+                            className="settings-readonly-value"
                             style={{
                                 width: "100%",
                                 padding: "0.5rem 0.6rem",
                                 borderRadius: "0.375rem",
                                 border: "1px solid #4b5563",
                                 background: "#111827",
-                                color: "#9ca3af",
                             }}
                         >
                             {shopName || "—"}
@@ -672,6 +648,7 @@ export default function SettingsPage() {
                 <div>
                     <label
                         htmlFor="taxRate"
+                        className="settings-form-label"
                         style={{
                             display: "block",
                             fontSize: "0.9rem",
@@ -697,16 +674,9 @@ export default function SettingsPage() {
                             borderRadius: "0.375rem",
                             border: "1px solid #4b5563",
                             background: "#020617",
-                            color: "#e5e7eb",
                         }}
                     />
-                    <p
-                        style={{
-                            fontSize: "0.8rem",
-                            color: "#6b7280",
-                            marginTop: "0.25rem",
-                        }}
-                    >
+                    <p className="settings-form-helper">
                         Example: enter <strong>13</strong> for 13% HST.
           </p>
                 </div>
@@ -715,6 +685,7 @@ export default function SettingsPage() {
                 <div>
                     <label
                         htmlFor="discountType"
+                        className="settings-form-label"
                         style={{
                             display: "block",
                             fontSize: "0.9rem",
@@ -733,7 +704,6 @@ export default function SettingsPage() {
                             borderRadius: "0.375rem",
                             border: "1px solid #4b5563",
                             background: "#020617",
-                            color: "#e5e7eb",
                         }}
                     >
                         <option value="none">None</option>
@@ -746,6 +716,7 @@ export default function SettingsPage() {
                 <div>
                     <label
                         htmlFor="discountValue"
+                        className="settings-form-label"
                         style={{
                             display: "block",
                             fontSize: "0.9rem",
@@ -770,16 +741,9 @@ export default function SettingsPage() {
                             borderRadius: "0.375rem",
                             border: "1px solid #4b5563",
                             background: "#020617",
-                            color: "#e5e7eb",
                         }}
                     />
-                    <p
-                        style={{
-                            fontSize: "0.8rem",
-                            color: "#6b7280",
-                            marginTop: "0.25rem",
-                        }}
-                    >
+                    <p className="settings-form-helper">
                         If type is <strong>Percent</strong>, this is a % (e.g. 10 for 10%).
             If <strong>Flat</strong>, this is a dollar amount in CAD.
           </p>
@@ -797,16 +761,12 @@ export default function SettingsPage() {
 
                 <button
                     type="submit"
+                    className="wo-btn-primary"
                     disabled={saving}
                     style={{
                         marginTop: "0.5rem",
                         padding: "0.55rem 0.9rem",
                         borderRadius: "0.5rem",
-                        border: "none",
-                        background: saving ? "#4b5563" : "#1d4ed8",
-                        color: "#e5e7eb",
-                        fontWeight: 600,
-                        cursor: saving ? "default" : "pointer",
                     }}
                 >
                     {saving ? "Saving…" : "Save Settings"}
@@ -821,7 +781,7 @@ export default function SettingsPage() {
                         Payment
                     </h2>
                     {loadingBillingStatus ? (
-                        <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Loading billing status…</div>
+                        <div className="settings-payment-meta">Loading billing status…</div>
                     ) : billingStatus ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                             {(() => {
@@ -841,7 +801,7 @@ export default function SettingsPage() {
 
                                 if (isExemptOrDemo) {
                                     return (
-                                        <div style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#1e3a5f", border: "1px solid #3b82f6", fontSize: "0.9rem", color: "#93c5fd" }}>
+                                        <div className="settings-billing-info" style={{ padding: "0.75rem", borderRadius: "0.5rem", background: "#1e3a5f", border: "1px solid #3b82f6", fontSize: "0.9rem", color: "#93c5fd" }}>
                                             Demo plan / billing exempt
                                         </div>
                                     );
@@ -855,7 +815,7 @@ export default function SettingsPage() {
                                     <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
                                         Billing is inactive
                                     </div>
-                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                    <div className="settings-billing-info" style={{ fontSize: "0.9rem", color: "#fecaca" }}>
                                         {billingStatus.lockedContext === "trial_ended"
                                             ? "Your trial has ended. Update billing to continue."
                                             : "Update billing to continue."}
@@ -870,7 +830,7 @@ export default function SettingsPage() {
                                                 ? "Your billing will lock soon"
                                                 : "Billing will lock in the coming days"}
                                     </div>
-                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                    <div className="settings-billing-info" style={{ fontSize: "0.9rem", color: "#fecaca" }}>
                                         {billingStatus.warning === "grace"
                                             ? (typeof billingStatus.daysRemaining === "number"
                                                 ? `Grace ends in ${billingStatus.daysRemaining} day${billingStatus.daysRemaining !== 1 ? "s" : ""}. Update billing to continue.`
@@ -885,7 +845,7 @@ export default function SettingsPage() {
                                     <div style={{ fontWeight: 600, color: "#cafeca", marginBottom: "0.5rem" }}>
                                         Billing is active
                                     </div>
-                                    <div style={{ fontSize: "0.9rem", color: "#cafeca" }}>
+                                    <div className="settings-billing-info" style={{ fontSize: "0.9rem", color: "#cafeca" }}>
                                         Your subscription is active and up to date.
                                     </div>
                                 </div>
@@ -894,7 +854,7 @@ export default function SettingsPage() {
                                     <div style={{ fontWeight: 600, color: "#cafeca", marginBottom: "0.5rem" }}>
                                         Trial active
                                     </div>
-                                    <div style={{ fontSize: "0.9rem", color: "#cafeca" }}>
+                                    <div className="settings-billing-info" style={{ fontSize: "0.9rem", color: "#cafeca" }}>
                                         {billingStatus.daysUntilLock !== null 
                                             ? `Your trial has ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} remaining.`
                                             : "Your trial is active."}
@@ -905,7 +865,7 @@ export default function SettingsPage() {
                                     <div style={{ fontWeight: 600, color: "#fecaca", marginBottom: "0.5rem" }}>
                                         Grace period active
                                     </div>
-                                    <div style={{ fontSize: "0.9rem", color: "#fecaca" }}>
+                                    <div className="settings-billing-info" style={{ fontSize: "0.9rem", color: "#fecaca" }}>
                                         {billingStatus.daysUntilLock !== null 
                                             ? `You have ${billingStatus.daysUntilLock} day${billingStatus.daysUntilLock !== 1 ? "s" : ""} remaining in your grace period.`
                                             : "Your subscription is past due. Update billing to continue."}
@@ -1166,7 +1126,7 @@ export default function SettingsPage() {
                             })()}
                         </div>
                     ) : (
-                        <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>Unable to load billing status.</div>
+                        <div className="settings-payment-meta">Unable to load billing status.</div>
                     )}
                 </div>
             )}
@@ -1179,7 +1139,7 @@ export default function SettingsPage() {
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Role Access
                     </h2>
-                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                    <p className="settings-card-helper" style={{ marginBottom: "1.5rem" }}>
                         Control access for all managers and technicians in your account. When disabled, users cannot login and existing sessions are blocked.
                     </p>
 
@@ -1198,8 +1158,8 @@ export default function SettingsPage() {
                                     style={{ cursor: "pointer", width: "18px", height: "18px" }}
                                 />
                                 <div>
-                                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Managers</div>
-                                    <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                    <div className="settings-checkbox-label">Enable Managers</div>
+                                    <div className="settings-checkbox-desc">
                                         Allow all managers to login and access the system
                                     </div>
                                 </div>
@@ -1218,8 +1178,8 @@ export default function SettingsPage() {
                                     style={{ cursor: "pointer", width: "18px", height: "18px" }}
                                 />
                                 <div>
-                                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Technicians</div>
-                                    <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                    <div className="settings-checkbox-label">Enable Technicians</div>
+                                    <div className="settings-checkbox-desc">
                                         Allow all technicians to login and access the system
                                     </div>
                                 </div>
@@ -1238,16 +1198,12 @@ export default function SettingsPage() {
 
                         <button
                             type="submit"
+                            className="wo-btn-primary"
                             disabled={savingRoleAccess}
                             style={{
                                 marginTop: "0.5rem",
                                 padding: "0.55rem 0.9rem",
                                 borderRadius: "0.5rem",
-                                border: "none",
-                                background: savingRoleAccess ? "#4b5563" : "#1d4ed8",
-                                color: "#e5e7eb",
-                                fontWeight: 600,
-                                cursor: savingRoleAccess ? "default" : "pointer",
                             }}
                         >
                             {savingRoleAccess ? "Saving…" : "Save Role Access"}
@@ -1272,8 +1228,8 @@ export default function SettingsPage() {
                                 style={{ width: "18px", height: "18px", cursor: "not-allowed" }}
                             />
                             <div>
-                                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Managers</div>
-                                <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                <div className="settings-checkbox-label">Enable Managers</div>
+                                <div className="settings-checkbox-desc">
                                     {roleAccess.managersEnabled ? "Enabled" : "Disabled"}
                                 </div>
                             </div>
@@ -1288,8 +1244,8 @@ export default function SettingsPage() {
                                 style={{ width: "18px", height: "18px", cursor: "not-allowed" }}
                             />
                             <div>
-                                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e5e7eb" }}>Enable Technicians</div>
-                                <div style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                                <div className="settings-checkbox-label">Enable Technicians</div>
+                                <div className="settings-checkbox-desc">
                                     {roleAccess.techniciansEnabled ? "Enabled" : "Disabled"}
                                 </div>
                             </div>
@@ -1304,17 +1260,18 @@ export default function SettingsPage() {
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#e5e7eb" }}>
                         Data Tools
                     </h2>
-                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                    <p className="settings-card-helper" style={{ marginBottom: "1.5rem" }}>
                         Export and import customer data in CSV format.
                     </p>
 
                     {/* Export Section */}
                     <div style={{ marginBottom: "2rem" }}>
-                        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.75rem" }}>
+                        <h3 className="settings-section-heading" style={{ marginTop: 0 }}>
                             Export Customers
                         </h3>
                         <button
                             type="button"
+                            className="wo-btn-primary"
                             onClick={async () => {
                                 setExporting(true);
                                 setExportError(null);
@@ -1339,11 +1296,6 @@ export default function SettingsPage() {
                             style={{
                                 padding: "0.55rem 0.9rem",
                                 borderRadius: "0.5rem",
-                                border: "none",
-                                background: exporting || billingLocked ? "#4b5563" : "#1d4ed8",
-                                color: "#e5e7eb",
-                                fontWeight: 600,
-                                cursor: exporting ? "default" : "pointer",
                             }}
                         >
                             {exporting ? "Exporting…" : "Export Customers (CSV)"}
@@ -1355,12 +1307,13 @@ export default function SettingsPage() {
 
                     {/* Import Section */}
                     <div>
-                        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#e5e7eb", marginBottom: "0.75rem" }}>
+                        <h3 className="settings-section-heading" style={{ marginTop: 0 }}>
                             Import Customers
                         </h3>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
                             <button
                                 type="button"
+                                className="wo-btn"
                                 onClick={() => {
                                     const headers = ["firstName", "lastName", "phone", "email", "address", "notes"];
                                     const sampleRow = ["Jane", "Doe", "8685551234", "jane@example.com", "Scarborough", "VIP customer"];
@@ -1378,11 +1331,6 @@ export default function SettingsPage() {
                                 style={{
                                     padding: "0.55rem 0.9rem",
                                     borderRadius: "0.5rem",
-                                    border: "1px solid #4b5563",
-                                    background: "transparent",
-                                    color: "#e5e7eb",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
                                 }}
                             >
                                 Download CSV Template
@@ -1402,11 +1350,11 @@ export default function SettingsPage() {
                                     borderRadius: "0.5rem",
                                     border: "1px solid #4b5563",
                                     background: "#020617",
-                                    color: "#e5e7eb",
                                 }}
                             />
                             <button
                                 type="button"
+                                className="wo-btn-primary"
                                 onClick={async () => {
                                     if (!importFile) {
                                         setImportError("Please select a CSV file");
@@ -1434,11 +1382,6 @@ export default function SettingsPage() {
                                 style={{
                                     padding: "0.55rem 0.9rem",
                                     borderRadius: "0.5rem",
-                                    border: "none",
-                                    background: importing || !importFile || billingLocked ? "#4b5563" : "#1d4ed8",
-                                    color: "#e5e7eb",
-                                    fontWeight: 600,
-                                    cursor: importing || !importFile || billingLocked ? "default" : "pointer",
                                 }}
                             >
                                 {importing ? "Importing…" : "Import CSV"}
@@ -1502,7 +1445,7 @@ export default function SettingsPage() {
                     <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", fontWeight: 600, color: "#dc2626" }}>
                         Danger Zone
                     </h2>
-                    <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: "1.5rem" }}>
+                    <p className="settings-danger-helper" style={{ marginBottom: "1.5rem" }}>
                         Deactivating your shop will immediately log out all users and prevent any login attempts. You can reactivate your shop at any time by logging in with your owner credentials.
                     </p>
 
@@ -1510,11 +1453,11 @@ export default function SettingsPage() {
                         <div>
                             <label
                                 htmlFor="deactivateConfirm"
+                                className="settings-form-label"
                                 style={{
                                     display: "block",
                                     fontSize: "0.9rem",
                                     marginBottom: "0.5rem",
-                                    color: "#e5e7eb",
                                 }}
                             >
                                 Type <strong style={{ color: "#dc2626" }}>DEACTIVATE</strong> to confirm:
@@ -1522,6 +1465,7 @@ export default function SettingsPage() {
                             <input
                                 id="deactivateConfirm"
                                 type="text"
+                                className="settings-danger-input"
                                 value={deactivateConfirm}
                                 onChange={(e) => setDeactivateConfirm(e.target.value)}
                                 disabled={deactivating}
@@ -1529,9 +1473,7 @@ export default function SettingsPage() {
                                     width: "100%",
                                     padding: "0.5rem 0.6rem",
                                     borderRadius: "0.375rem",
-                                    border: "1px solid #dc2626",
                                     background: "#020617",
-                                    color: "#e5e7eb",
                                 }}
                             />
                         </div>
@@ -1542,6 +1484,7 @@ export default function SettingsPage() {
 
                         <button
                             type="button"
+                            className="wo-btn-danger settings-deactivate-btn"
                             onClick={async () => {
                                 if (deactivateConfirm !== "DEACTIVATE") {
                                     setDeactivateError("Please type DEACTIVATE to confirm");
@@ -1567,11 +1510,6 @@ export default function SettingsPage() {
                             style={{
                                 padding: "0.55rem 0.9rem",
                                 borderRadius: "0.5rem",
-                                border: "none",
-                                background: deactivating || deactivateConfirm !== "DEACTIVATE" ? "#4b5563" : "#dc2626",
-                                color: "#ffffff",
-                                fontWeight: 600,
-                                cursor: deactivating || deactivateConfirm !== "DEACTIVATE" || billingLocked ? "not-allowed" : "pointer",
                             }}
                         >
                             {deactivating ? "Deactivating…" : "Deactivate Shop"}
@@ -1590,7 +1528,7 @@ export default function SettingsPage() {
                         href="https://shopservicemanager.com/terms"
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.95rem" }}
+                        className="settings-legal-link"
                     >
                         Terms of Service
                     </a>
@@ -1598,7 +1536,7 @@ export default function SettingsPage() {
                         href="https://shopservicemanager.com/privacy"
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.95rem" }}
+                        className="settings-legal-link"
                     >
                         Privacy Policy
                     </a>

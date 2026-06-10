@@ -455,6 +455,7 @@ export default function SchedulerPage() {
 
   return (
     <div
+      className="scheduler-page"
       style={{
         display: "flex",
         flexDirection: "column",

@@ -112,7 +112,7 @@ export default function EstimatesPage() {
   const displayedEstimates = estimates;
 
   return (
-    <div className="page">
+    <div className="page estimates-page work-order-detail">
       <div
         style={{
           marginBottom: "40px",
@@ -136,6 +136,7 @@ export default function EstimatesPage() {
           </h1>
 
           <div
+            className="estimates-toolbar"
             style={{
               display: "flex",
               alignItems: "center",
@@ -161,18 +162,9 @@ export default function EstimatesPage() {
 
             <button
               type="button"
+              className="wo-btn-primary"
               onClick={handleCreateNonClient}
               disabled={creatingNonClient}
-              style={{
-                height: "32px",
-                padding: "0 12px",
-                fontSize: "0.9rem",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: creatingNonClient ? "#e2e8f0" : "white",
-                color: creatingNonClient ? "#94a3b8" : "#111827",
-                cursor: creatingNonClient ? "not-allowed" : "pointer",
-              }}
             >
               + Non-Client Estimate
             </button>
@@ -264,11 +256,8 @@ export default function EstimatesPage() {
                   key={est._id}
                   className="border-b border-slate-100 hover:bg-slate-50"
                 >
-                  <td className="px-4 py-2 whitespace-nowrap font-mono table-data-meta">
-                    <Link
-                      to={`/estimates/${est._id}`}
-                      style={{ color: "#2563eb", textDecoration: "underline" }}
-                    >
+                  <td className="px-4 py-2 whitespace-nowrap font-mono">
+                    <Link to={`/estimates/${est._id}`}>
                       {est.estimateNumber}
                     </Link>
                   </td>
@@ -298,18 +287,19 @@ export default function EstimatesPage() {
                     {est.convertedToWorkOrderId ? (
                       <Link
                         to={`/work-orders/${typeof est.convertedToWorkOrderId === "string" ? est.convertedToWorkOrderId : (est.convertedToWorkOrderId as any)?._id ?? ""}`}
-                        style={{ color: "#2563eb", textDecoration: "underline" }}
                       >
                         View Work Order
                       </Link>
                     ) : (
-                    <span className="text-secondary-readable">—</span>
+                    <span className="estimates-converted-empty">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap table-data-meta">
-                    {est.createdAt
-                      ? new Date(est.createdAt).toLocaleDateString("en-CA")
-                      : "—"}
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <span className="table-data-meta">
+                      {est.createdAt
+                        ? new Date(est.createdAt).toLocaleDateString("en-CA")
+                        : "—"}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -319,7 +309,7 @@ export default function EstimatesPage() {
       )}
 
       {!loading && paging.total > 0 && (
-        <p className="text-sm text-helper-readable mt-2">
+        <p className="estimates-paging">
           Showing {paging.returned} of {paging.total} estimates
         </p>
       )}

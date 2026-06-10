@@ -644,9 +644,11 @@ export default function EstimateDetailPage() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "960px" }}>
+    <div className="work-order-detail estimate-detail-page" style={{ padding: "2rem", maxWidth: "960px" }}>
       <div style={{ marginBottom: "1rem" }}>
-        <Link to="/estimates">&larr; Back to Estimates</Link>
+        <Link to="/estimates" className="wo-btn estimate-top-action">
+          &larr; Back to Estimates
+        </Link>
       </div>
 
       <div
@@ -669,63 +671,36 @@ export default function EstimateDetailPage() {
           <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
             <button
               type="button"
+              className="wo-btn-primary estimate-top-action"
               onClick={handleSave}
               disabled={
                 !dirty ||
                 saving ||
                 (isNonClient ? !nonClientComplete : !vehicleId)
               }
-              style={{
-                padding: "0.5rem 1.25rem",
-                borderRadius: "0.5rem",
-                border: "none",
-                background:
-                  dirty &&
-                  !saving &&
-                  (isNonClient ? nonClientComplete : !!vehicleId)
-                    ? "#2563eb"
-                    : "#4b5563",
-                color: "#fff",
-                fontWeight: 500,
-                cursor:
-                  dirty &&
-                  !saving &&
-                  (isNonClient ? nonClientComplete : !!vehicleId)
-                    ? "pointer"
-                    : "not-allowed",
-              }}
+              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem" }}
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
+              className="wo-btn-success estimate-top-action"
               onClick={handleSend}
               disabled={sending || dirty || saving}
-              style={{
-                padding: "0.5rem 1.25rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #059669",
-                background: sending ? "#4b5563" : "#059669",
-                color: "#fff",
-                fontWeight: 500,
-                cursor: sending ? "not-allowed" : "pointer",
-              }}
+              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem" }}
             >
               {sending ? "Sending…" : "Send Estimate"}
             </button>
             {canDiscardDraft ? (
               <button
                 type="button"
+                className="wo-btn-danger estimate-top-action"
                 onClick={handleDiscardDraft}
                 disabled={discarding}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",
-                  border: "1px solid #dc2626",
                   background: "transparent",
-                  color: "#fca5a5",
-                  fontWeight: 600,
-                  cursor: discarding ? "not-allowed" : "pointer",
                 }}
               >
                 {discarding ? "Discarding…" : "Discard Draft"}
@@ -959,11 +934,12 @@ export default function EstimateDetailPage() {
       {isDraft ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", marginTop: "1.5rem" }}>
           <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+            <label className="data-label" style={{ display: "block", marginBottom: "0.25rem" }}>
               Customer notes (visible to customer)
             </label>
             <textarea
               aria-label="Customer notes (visible to customer)"
+              className="estimate-form-control"
               value={customerNotes}
               onChange={(e) => setCustomerNotes(e.target.value)}
               rows={2}
@@ -974,16 +950,16 @@ export default function EstimateDetailPage() {
                 borderRadius: "4px",
                 border: "1px solid #4b5563",
                 background: "#0f172a",
-                color: "#e5e7eb",
               }}
             />
           </div>
           <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+            <label className="data-label" style={{ display: "block", marginBottom: "0.25rem" }}>
               Internal notes (internal only)
             </label>
             <textarea
               aria-label="Internal notes (internal only)"
+              className="estimate-form-control"
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
               rows={2}
@@ -994,7 +970,6 @@ export default function EstimateDetailPage() {
                 borderRadius: "4px",
                 border: "1px solid #4b5563",
                 background: "#0f172a",
-                color: "#e5e7eb",
               }}
             />
           </div>
@@ -1164,7 +1139,7 @@ export default function EstimateDetailPage() {
 
           {!isNonClient && (
             <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+              <label className="data-label" style={{ display: "block", marginBottom: "0.25rem" }}>
                 Vehicle
               </label>
               {!vehiclesLoading && !vehicleId && vehicles.length > 0 ? (
@@ -1174,6 +1149,7 @@ export default function EstimateDetailPage() {
               ) : null}
               <select
                 aria-label="Vehicle"
+                className="estimate-form-control"
                 value={vehicleId ?? ""}
                 onChange={(e) => setVehicleId(e.target.value === "" ? null : e.target.value)}
                 disabled={vehiclesLoading}
@@ -1182,7 +1158,6 @@ export default function EstimateDetailPage() {
                   borderRadius: "4px",
                   border: "1px solid #4b5563",
                   background: "#0f172a",
-                  color: "#e5e7eb",
                   minWidth: "200px",
                 }}
               >
@@ -1199,19 +1174,11 @@ export default function EstimateDetailPage() {
 
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-              <label style={{ fontWeight: 500 }}>Line items</label>
+              <label className="data-label">Line items</label>
               <button
                 type="button"
+                className="wo-btn-primary"
                 onClick={handleAddItem}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  fontSize: "0.85rem",
-                  border: "1px solid #4b5563",
-                  borderRadius: "4px",
-                  background: "transparent",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
-                }}
               >
                 + Add item
               </button>
@@ -1233,6 +1200,7 @@ export default function EstimateDetailPage() {
                     <td style={{ padding: "8px" }}>
                       <select
                         aria-label="Line item type"
+                        className="estimate-form-control"
                         value={item.type ?? "service"}
                         onChange={(e) => handleItemChange(idx, "type", e.target.value)}
                         style={{
@@ -1240,7 +1208,6 @@ export default function EstimateDetailPage() {
                           borderRadius: "4px",
                           border: "1px solid #4b5563",
                           background: "#0f172a",
-                          color: "#e5e7eb",
                         }}
                       >
                         <option value="labour">Labour</option>
@@ -1252,6 +1219,7 @@ export default function EstimateDetailPage() {
                       <input
                         type="text"
                         aria-label="Description"
+                        className="estimate-form-control"
                         value={item.description ?? ""}
                         onChange={(e) => handleItemChange(idx, "description", e.target.value)}
                         placeholder="Description"
@@ -1261,7 +1229,6 @@ export default function EstimateDetailPage() {
                           borderRadius: "4px",
                           border: "1px solid #4b5563",
                           background: "#0f172a",
-                          color: "#e5e7eb",
                         }}
                       />
                     </td>
@@ -1269,6 +1236,7 @@ export default function EstimateDetailPage() {
                       <input
                         type="text"
                         aria-label="Quantity"
+                        className="estimate-form-control"
                         value={rawQuantities[idx] ?? ""}
                         onChange={(e) => handleRawQuantityChange(idx, e.target.value)}
                         placeholder={item.type === "labour" ? "e.g. 1:25" : "Qty"}
@@ -1278,7 +1246,6 @@ export default function EstimateDetailPage() {
                           borderRadius: "4px",
                           border: "1px solid #4b5563",
                           background: "#0f172a",
-                          color: "#e5e7eb",
                           textAlign: "right",
                         }}
                       />
@@ -1287,6 +1254,7 @@ export default function EstimateDetailPage() {
                       <input
                         type="text"
                         aria-label="Unit price"
+                        className="estimate-form-control"
                         value={rawUnitPrices[idx] ?? ""}
                         onChange={(e) => handleUnitPriceChange(idx, e.target.value)}
                         placeholder="0.00"
@@ -1296,25 +1264,18 @@ export default function EstimateDetailPage() {
                           borderRadius: "4px",
                           border: "1px solid #4b5563",
                           background: "#0f172a",
-                          color: "#e5e7eb",
                           textAlign: "right",
                         }}
                       />
                     </td>
-                    <td style={{ padding: "8px", textAlign: "right" }}>
+                    <td className="estimate-line-total" style={{ padding: "8px", textAlign: "right" }}>
                       {formatMoney(item.lineTotal ?? 0)}
                     </td>
                     <td style={{ padding: "8px" }}>
                       <button
                         type="button"
+                        className="wo-btn-danger wo-btn-remove"
                         onClick={() => handleRemoveItem(idx)}
-                        style={{
-                          border: "none",
-                          background: "none",
-                          color: "#f97373",
-                          fontSize: "0.8rem",
-                          cursor: "pointer",
-                        }}
                       >
                         Remove
                       </button>
@@ -1366,7 +1327,7 @@ export default function EstimateDetailPage() {
 
           {Array.isArray(estimate.items) && (
             <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Line items</div>
+              <div className="data-label" style={{ marginBottom: "0.5rem" }}>Line items</div>
               {estimate.items.length > 0 ? (
                 <>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>

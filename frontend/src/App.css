@@ -183,6 +183,68 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Estimates list — table readability + paging feedback */
+.estimates-page .table-scroll table tbody td:nth-child(1) a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.estimates-page .table-scroll table tbody td:nth-child(4) a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.estimates-page .table-scroll table tbody td:nth-child(4) span.estimates-converted-empty {
+  color: #374151;
+  font-weight: 600;
+}
+
+.estimates-page .table-scroll table tbody td:nth-child(5) span.table-data-meta {
+  color: #020617;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.estimates-page .estimates-paging {
+  color: var(--color-text-label);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-top: 0.5rem;
+}
+
+.estimates-page .estimates-toolbar [role="tablist"] button {
+  font-weight: 600;
+}
+
+.estimates-page .estimates-toolbar select {
+  font-weight: 600;
+}
+
+/* Estimate detail — form readability */
+.estimate-detail-page a.wo-btn {
+  text-decoration: none;
+  display: inline-block;
+}
+
+.estimate-detail-page .estimate-form-control {
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.estimate-detail-page .estimate-line-total {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.estimate-detail-page .wo-btn-remove {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
+
 /* Work Order Detail — readability reference standard (scoped) */
 .work-order-detail .data-row .data-label,
 .work-order-detail .data-label {
@@ -241,11 +303,32 @@ body {
   cursor: pointer;
 }
 
+.work-order-detail .wo-btn-success {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #059669;
+  background: #059669;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .work-order-detail .wo-btn:disabled,
 .work-order-detail .wo-btn-primary:disabled,
-.work-order-detail .wo-btn-danger:disabled {
+.work-order-detail .wo-btn-danger:disabled,
+.work-order-detail .wo-btn-success:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.estimate-detail-page .estimate-top-action,
+.estimate-detail-page .estimate-top-action.wo-btn,
+.estimate-detail-page .estimate-top-action.wo-btn-primary,
+.estimate-detail-page .estimate-top-action.wo-btn-success,
+.estimate-detail-page .estimate-top-action.wo-btn-danger {
+  font-size: 1em;
+  font-weight: 600;
 }
 
 .work-order-detail .wo-msg-tab {

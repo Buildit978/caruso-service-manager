@@ -141,6 +141,7 @@ export default function CustomerCreatePage() {
 
   return (
     <div
+      className="work-order-detail customer-create-page"
       style={{
         padding: "2rem",
         display: "flex",
@@ -163,21 +164,19 @@ export default function CustomerCreatePage() {
 
           <button
             type="button"
+            className="wo-btn"
             onClick={() => navigate(-1)}
             style={{
               fontSize: "0.9rem",
               padding: "0.4rem 0.9rem",
               borderRadius: "0.4rem",
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              color: "#0f172a",
             }}
             disabled={saving}
           >
             Back
           </button>
         </div>
-        <p className="text-helper-readable" style={{ marginTop: "-0.75rem", marginBottom: "1rem" }}>
+        <p className="customer-create-intro" style={{ marginTop: "-0.75rem", marginBottom: "1rem" }}>
           Create a customer now. You can add vehicles now or later.
         </p>
 
@@ -241,7 +240,7 @@ export default function CustomerCreatePage() {
                   fontSize: "0.93rem",
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 600, color: "#e5e7eb" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }} className="customer-create-label">
                   <input
                     type="checkbox"
                     checked={form.isDemo}
@@ -251,7 +250,7 @@ export default function CustomerCreatePage() {
                   />
                   This is a practice customer
                 </span>
-                <span style={{ color: "#cbd5e1", fontSize: "0.86rem", lineHeight: 1.55, fontWeight: 500 }}>
+                <span className="customer-create-card-helper" style={{ fontSize: "0.86rem" }}>
                   Practice customers help you safely learn the workflow and won't affect real reports.
                 </span>
               </label>
@@ -266,9 +265,10 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>First Name</span>
+              <span className="customer-create-label">First Name</span>
               <input
                 name="firstName"
+                className="customer-create-form-control"
                 value={form.firstName}
                 onChange={handleChange}
                 required
@@ -291,9 +291,10 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Last Name</span>
+              <span className="customer-create-label">Last Name</span>
               <input
                 name="lastName"
+                className="customer-create-form-control"
                 value={form.lastName}
                 onChange={handleChange}
                 required
@@ -316,9 +317,10 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Phone (optional)</span>
+              <span className="customer-create-label">Phone (optional)</span>
               <input
                 name="phone"
+                className="customer-create-form-control"
                 value={form.phone}
                 onChange={handleChange}
                 style={{
@@ -340,10 +342,11 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Email (optional)</span>
+              <span className="customer-create-label">Email (optional)</span>
               <input
                 name="email"
                 type="email"
+                className="customer-create-form-control"
                 value={form.email}
                 onChange={handleChange}
                 style={{
@@ -365,9 +368,10 @@ export default function CustomerCreatePage() {
                 fontSize: "0.9rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>Address (optional)</span>
+              <span className="customer-create-label">Address (optional)</span>
               <textarea
                 name="address"
+                className="customer-create-form-control"
                 value={form.address}
                 onChange={handleChange}
                 rows={3}
@@ -399,26 +403,16 @@ export default function CustomerCreatePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                <span
-                  style={{ fontSize: "0.9rem", fontWeight: 500 }}
-                >
+                <span className="customer-create-label" style={{ fontSize: "0.9rem" }}>
                   Vehicle (optional)
                 </span>
 
                 <button
                   type="button"
+                  className="customer-create-action-link"
                   onClick={() =>
                     setShowVehicleForm((prev) => !prev)
                   }
-                  style={{
-                    border: "none",
-                    background: "none",
-                    color: "#60a5fa",
-                    textDecoration: "underline",
-                    fontSize: "0.8rem",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
                 >
                   {showVehicleForm
                     ? "Remove vehicle from this customer"
@@ -445,6 +439,7 @@ export default function CustomerCreatePage() {
                   >
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -455,6 +450,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.year}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -474,6 +470,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -484,6 +481,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.make}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -503,6 +501,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -513,6 +512,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.model}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -532,6 +532,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -542,6 +543,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.licensePlate}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -561,6 +563,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -571,6 +574,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.vin}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -590,6 +594,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -600,6 +605,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="text"
+                        className="customer-create-form-control"
                         value={newVehicle.color}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -619,6 +625,7 @@ export default function CustomerCreatePage() {
 
                     <div>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -629,6 +636,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <input
                         type="number"
+                        className="customer-create-form-control"
                         value={newVehicle.odometer}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -648,6 +656,7 @@ export default function CustomerCreatePage() {
 
                     <div style={{ gridColumn: "1 / -1" }}>
                       <label
+                        className="customer-create-label"
                         style={{
                           display: "block",
                           fontSize: "0.75rem",
@@ -658,6 +667,7 @@ export default function CustomerCreatePage() {
                       </label>
                       <textarea
                         rows={2}
+                        className="customer-create-form-control"
                         value={newVehicle.notes}
                         onChange={(e) =>
                           setNewVehicle((prev) => ({
@@ -690,32 +700,24 @@ export default function CustomerCreatePage() {
             >
               <button
                 type="submit"
+                className="wo-btn-primary"
                 disabled={saving || billingLocked}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",
-                  border: "none",
-                  background: "#2563eb",
-                  color: "#fff",
-                  fontWeight: 500,
                   fontSize: "0.95rem",
-                  opacity: saving || billingLocked ? 0.6 : 1,
-                  cursor: saving || billingLocked ? "default" : "pointer",
                 }}
               >
                 {saving ? "Saving…" : "Save Customer"}
               </button>
               <button
                 type="button"
+                className="wo-btn"
                 onClick={() => navigate(-1)}
                 style={{
                   padding: "0.5rem 1.1rem",
                   borderRadius: "0.5rem",
-                  border: "1px solid #475569",
-                  background: "transparent",
-                  color: "#e5e7eb",
                   fontSize: "0.95rem",
-                  cursor: "pointer",
                 }}
                 disabled={saving}
               >

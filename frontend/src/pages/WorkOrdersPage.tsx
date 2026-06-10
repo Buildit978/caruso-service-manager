@@ -350,7 +350,7 @@ const title =
 
 
   return (
-    <div className="page wo-page">
+    <div className="page wo-page work-order-detail">
       {/* Page Header */}
      <div style={{ marginBottom: "40px" }}>
   <div
@@ -401,7 +401,7 @@ const title =
     </div>
 
     {/* Right: Controls */}
-    <div className="page-actions wo-controls inv-controls" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+    <div className="page-actions wo-controls inv-controls wo-toolbar" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
       {/* 🔍 Search */}
       <input
         type="text"
@@ -482,11 +482,12 @@ const title =
       {/* ➕ Button */}
       <Link
         to="/work-orders/new"
-        className="wo-primary-action"
+        className="wo-btn-primary wo-primary-action"
         style={{
-          backgroundColor: "#2563eb",
-          color: "white",
-          whiteSpace: "nowrap",
+          height: "32px",
+          padding: "0 12px",
+          borderRadius: "6px",
+          fontSize: "0.9rem",
         }}
       >
         + New Work Order

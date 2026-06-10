@@ -110,7 +110,7 @@ export default function VehiclesPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="page vehicles-page p-6 max-w-6xl mx-auto">
       {/* Page Header - Always rendered */}
       <div className="mb-6">
         <div
@@ -170,7 +170,7 @@ export default function VehiclesPage() {
           flexWrap: "wrap",
         }}
       >
-        <p className="text-helper-readable" style={{ margin: 0 }}>
+        <p className="vehicles-intro">
           Vehicles are managed through customer profiles.
         </p>
         <Link
@@ -264,25 +264,44 @@ export default function VehiclesPage() {
                 <tr key={v._id}>
                   <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                      <span className="table-data-primary">{v.make || "-"}</span>
+                      <span className={v.make ? "table-data-primary" : "vehicles-empty-value"}>
+                        {v.make || "-"}
+                      </span>
                       {v.isDemo ? (
                         <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
                       ) : null}
                     </span>
                   </td>
-                  <td className="table-data-primary">{v.model || "-"}</td>
-                  <td className="table-data-primary">{v.year || "-"}</td>
-                  <td className="table-data-primary">{v.licensePlate || "-"}</td>
-                  <td className="num table-data-primary">
-                    {v.currentOdometer != null
-                      ? v.currentOdometer.toLocaleString()
-                      : "-"}
+                  <td>
+                    <span className={v.model ? "table-data-primary" : "vehicles-empty-value"}>
+                      {v.model || "-"}
+                    </span>
                   </td>
-                  <td className="table-data-primary">
+                  <td>
+                    <span className={v.year ? "table-data-primary" : "vehicles-empty-value"}>
+                      {v.year || "-"}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={v.licensePlate ? "table-data-primary" : "vehicles-empty-value"}>
+                      {v.licensePlate || "-"}
+                    </span>
+                  </td>
+                  <td className="num">
+                    {v.currentOdometer != null ? (
+                      <span className="table-data-primary">
+                        {v.currentOdometer.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="vehicles-empty-value">-</span>
+                    )}
+                  </td>
+                  <td>
                     {v.vin ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                         <button
                           type="button"
+                          className="vehicles-vin-toggle"
                           onClick={() => setExpandedVinId(expandedVinId === v._id ? null : v._id)}
                           style={{
                             background: "none",
@@ -291,14 +310,13 @@ export default function VehiclesPage() {
                             margin: 0,
                             cursor: "pointer",
                             textAlign: "left",
-                            color: "inherit",
-                            fontSize: "inherit",
-                            fontFamily: "inherit",
                             appearance: "none",
                             WebkitAppearance: "none",
                           }}
                         >
-                          {expandedVinId === v._id ? v.vin : truncateVIN(v.vin)}
+                          <span className="table-data-primary">
+                            {expandedVinId === v._id ? v.vin : truncateVIN(v.vin)}
+                          </span>
                         </button>
                         <button
                           type="button"
@@ -329,14 +347,18 @@ export default function VehiclesPage() {
                         </button>
                       </div>
                     ) : (
-                      "-"
+                      <span className="vehicles-empty-value">-</span>
                     )}
                   </td>
-                  <td className="table-data-primary">{v.color || "-"}</td>
-                  <td className="table-data-primary">
+                  <td>
+                    <span className={v.color ? "table-data-primary" : "vehicles-empty-value"}>
+                      {v.color || "-"}
+                    </span>
+                  </td>
+                  <td>
                     {v.notes ? (
                       <div style={{ display: "flex", alignItems: "flex-start", gap: "0.25rem", flexWrap: "wrap" }}>
-                        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+                        <span className="table-data-primary" style={{ flex: "1 1 auto", minWidth: 0 }}>
                           {expandedNotesId === v._id ? (
                             v.notes
                           ) : (
@@ -367,7 +389,7 @@ export default function VehiclesPage() {
                         )}
                       </div>
                     ) : (
-                      "-"
+                      <span className="vehicles-empty-value">-</span>
                     )}
                   </td>
                   <td>

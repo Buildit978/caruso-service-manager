@@ -75,7 +75,7 @@ export default function CustomerDetailPage() {
         : `${customer.firstName} ${customer.lastName}`.trim();
 
     return (
-        <div style={{ padding: "2rem" }}>
+        <div className="work-order-detail customer-detail-page" style={{ padding: "2rem" }}>
             {/* Header row: Back + Name + Edit button */}
             <div
                 style={{
@@ -92,15 +92,12 @@ export default function CustomerDetailPage() {
                         </Link>
                         <button
                             type="button"
+                            className="wo-btn"
                             onClick={() => navigate("/vehicles")}
                             style={{
                                 fontSize: "0.9rem",
                                 padding: "0.4rem 0.9rem",
                                 borderRadius: "0.4rem",
-                                border: "1px solid #cbd5e1",
-                                background: "#0f172a",
-                                color: "#e5e7eb",
-                                cursor: "pointer",
                             }}
                         >
                             Back to Vehicles
@@ -119,22 +116,20 @@ export default function CustomerDetailPage() {
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <button
                         type="button"
+                        className="wo-btn-primary"
                         onClick={handleNewEstimate}
                         disabled={creating}
                         style={{
                             fontSize: "0.9rem",
                             padding: "0.4rem 0.9rem",
                             borderRadius: "0.4rem",
-                            border: "1px solid #cbd5e1",
-                            background: "#1d4ed8",
-                            color: "#e5e7eb",
-                            cursor: creating ? "not-allowed" : "pointer",
                         }}
                     >
                         {creating ? "Creating…" : "New Estimate"}
                     </button>
                     <button
                         type="button"
+                        className="wo-btn"
                         onClick={() =>
                             navigate(
                                 `/customers/${customer._id}/edit?returnTo=/customers/${customer._id}`
@@ -144,10 +139,6 @@ export default function CustomerDetailPage() {
                             fontSize: "0.9rem",
                             padding: "0.4rem 0.9rem",
                             borderRadius: "0.4rem",
-                            border: "1px solid #cbd5e1",
-                            background: "#0f172a",
-                            color: "#e5e7eb",
-                            cursor: "pointer",
                         }}
                     >
                         Edit Customer

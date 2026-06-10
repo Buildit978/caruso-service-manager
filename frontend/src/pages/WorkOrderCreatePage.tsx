@@ -424,6 +424,7 @@ export default function WorkOrderCreatePage() {
 
   return (
     <div
+      className="work-order-detail customer-create-page wo-create-page"
       style={{
         padding: "2rem",
         display: "flex",
@@ -446,15 +447,13 @@ export default function WorkOrderCreatePage() {
 
           <button
             type="button"
+            className="wo-btn"
             onClick={() => navigate(-1)}
             disabled={saving}
             style={{
               fontSize: "0.9rem",
               padding: "0.4rem 0.9rem",
               borderRadius: "0.4rem",
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              color: "#0f172a",
             }}
           >
             Back
@@ -568,16 +567,13 @@ export default function WorkOrderCreatePage() {
 
               <button
                 type="button"
+                className="wo-btn-primary wo-create-add-customer"
                 onClick={() => navigate("/customers/new?returnTo=create-work-order")}
                 style={{
                   marginTop: "0.25rem",
                   fontSize: "0.85rem",
                   padding: "0.35rem 0.75rem",
                   borderRadius: "0.4rem",
-                  border: "1px solid #475569",
-                  background: "transparent",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
                   width: "fit-content",
                 }}
               >
@@ -589,15 +585,25 @@ export default function WorkOrderCreatePage() {
             {/* SLOT 2: VEHICLE SELECT + ADD VEHICLE */}
             {/* ================================== */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <label style={{ fontSize: "0.9rem" }}>Vehicle</label>
+              <label className="customer-create-label" style={{ fontSize: "0.9rem" }}>
+                Vehicle
+              </label>
 
-              {vehiclesLoading && <p>Loading vehicles…</p>}
-              {vehiclesError && <p style={{ color: "red" }}>{vehiclesError}</p>}
+              {vehiclesLoading && (
+                <p className="customer-create-card-helper" style={{ fontSize: "0.9rem", margin: 0 }}>
+                  Loading vehicles…
+                </p>
+              )}
+              {vehiclesError && (
+                <p className="wo-create-vehicle-error" style={{ margin: 0 }}>
+                  {vehiclesError}
+                </p>
+              )}
 
               {!vehiclesLoading && !vehiclesError && form.customerId && (
                 <>
                   {vehicles.length === 0 ? (
-                    <p style={{ fontSize: "0.9rem" }}>
+                    <p className="customer-create-card-helper" style={{ fontSize: "0.9rem", margin: 0 }}>
                       No vehicles on file for this customer yet.
                     </p>
                   ) : (
@@ -605,6 +611,7 @@ export default function WorkOrderCreatePage() {
                       name="vehicleId"
                       value={form.vehicleId}
                       onChange={handleVehicleChange}
+                      className="customer-create-form-control wo-create-vehicle-select"
                       style={{
                         width: "100%",
                         padding: "0.5rem 0.75rem",
@@ -627,17 +634,11 @@ export default function WorkOrderCreatePage() {
 
                   <button
                     type="button"
+                    className="customer-create-action-link"
                     onClick={() => setShowNewVehicleForm((prev) => !prev)}
                     disabled={!form.customerId}
                     style={{
-                      border: "none",
-                      background: "none",
-                      color: form.customerId ? "#60a5fa" : "#6b7280",
-                      textDecoration: "underline",
-                      cursor: form.customerId ? "pointer" : "default",
-                      padding: 0,
                       width: "fit-content",
-                      fontSize: "0.85rem",
                     }}
                   >
                     {showNewVehicleForm
@@ -657,12 +658,18 @@ export default function WorkOrderCreatePage() {
                       }}
                     >
                       {!form.customerId ? (
-                        <p style={{ fontSize: "0.85rem", color: "#9ca3af", margin: "0 0 0.5rem 0" }}>
+                        <p
+                          className="customer-create-card-helper"
+                          style={{ fontSize: "0.85rem", margin: "0 0 0.5rem 0" }}
+                        >
                           Please select a customer first.
                         </p>
                       ) : (
                         <>
-                          <p style={{ fontSize: "0.8rem", color: "#9ca3af", margin: "0 0 0.5rem 0" }}>
+                          <p
+                            className="customer-create-card-helper"
+                            style={{ fontSize: "0.8rem", margin: "0 0 0.5rem 0" }}
+                          >
                             This vehicle will be added to the selected customer.
                           </p>
                           <div
@@ -673,9 +680,15 @@ export default function WorkOrderCreatePage() {
                             }}
                           >
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Year</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Year
+                              </label>
                               <input
                                 type="number"
+                                className="customer-create-form-control"
                                 value={newVehicle.year}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, year: e.target.value }))}
                                 placeholder="e.g. 2020"
@@ -683,9 +696,15 @@ export default function WorkOrderCreatePage() {
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Make *</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Make *
+                              </label>
                               <input
                                 type="text"
+                                className="customer-create-form-control"
                                 value={newVehicle.make}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, make: e.target.value }))}
                                 placeholder="e.g. Honda"
@@ -693,9 +712,15 @@ export default function WorkOrderCreatePage() {
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Model *</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Model *
+                              </label>
                               <input
                                 type="text"
+                                className="customer-create-form-control"
                                 value={newVehicle.model}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, model: e.target.value }))}
                                 placeholder="e.g. Civic"
@@ -703,36 +728,60 @@ export default function WorkOrderCreatePage() {
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Plate</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Plate
+                              </label>
                               <input
                                 type="text"
+                                className="customer-create-form-control"
                                 value={newVehicle.licensePlate}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, licensePlate: e.target.value }))}
                                 style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>VIN</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                VIN
+                              </label>
                               <input
                                 type="text"
+                                className="customer-create-form-control"
                                 value={newVehicle.vin}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, vin: e.target.value }))}
                                 style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Color</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Color
+                              </label>
                               <input
                                 type="text"
+                                className="customer-create-form-control"
                                 value={newVehicle.color}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, color: e.target.value }))}
                                 style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.35rem", border: "1px solid #475569", fontSize: "0.8rem" }}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Odometer (optional)</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Odometer (optional)
+                              </label>
                               <input
                                 type="number"
+                                className="customer-create-form-control"
                                 value={newVehicle.odometer}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, odometer: e.target.value }))}
                                 placeholder="e.g. 127000"
@@ -740,8 +789,14 @@ export default function WorkOrderCreatePage() {
                               />
                             </div>
                             <div style={{ gridColumn: "1 / -1" }}>
-                              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}>Notes</label>
+                              <label
+                                className="customer-create-label"
+                                style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.15rem" }}
+                              >
+                                Notes
+                              </label>
                               <textarea
+                                className="customer-create-form-control"
                                 rows={2}
                                 value={newVehicle.notes}
                                 onChange={(e) => setNewVehicle((prev) => ({ ...prev, notes: e.target.value }))}
@@ -752,11 +807,22 @@ export default function WorkOrderCreatePage() {
                         </>
                       )}
                       <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                        <button type="button" onClick={handleCreateVehicle} disabled={vehicleSaving || !form.customerId}>
+                        <button
+                          type="button"
+                          className="wo-btn-primary"
+                          onClick={handleCreateVehicle}
+                          disabled={vehicleSaving || !form.customerId}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            borderRadius: "0.35rem",
+                            fontSize: "0.85rem",
+                          }}
+                        >
                           Save vehicle
                         </button>
                         <button
                           type="button"
+                          className="wo-btn"
                           onClick={() => {
                             setNewVehicle({
                               year: "",
@@ -769,6 +835,11 @@ export default function WorkOrderCreatePage() {
                               odometer: "",
                             });
                             setShowNewVehicleForm(false);
+                          }}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            borderRadius: "0.35rem",
+                            fontSize: "0.85rem",
                           }}
                         >
                           Cancel
@@ -850,17 +921,12 @@ export default function WorkOrderCreatePage() {
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
               <button
                 type="submit"
+                className="wo-btn-primary"
                 disabled={saving || loadingCustomers || billingLocked}
                 style={{
                   padding: "0.5rem 1.25rem",
                   borderRadius: "0.5rem",
-                  border: "none",
-                  background: "#2563eb",
-                  color: "#fff",
-                  fontWeight: 500,
                   fontSize: "0.95rem",
-                  opacity: saving || loadingCustomers ? 0.6 : 1,
-                  cursor: saving || loadingCustomers ? "default" : "pointer",
                 }}
               >
                 {saving ? "Saving…" : "Create Work Order"}

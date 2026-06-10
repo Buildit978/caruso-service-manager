@@ -181,6 +181,24 @@ body {
 }
 
 /* Work Orders list — Total money column + Created dates */
+.wo-page .wo-toolbar input,
+.wo-page .wo-toolbar select {
+  font-weight: 600;
+}
+
+.wo-page .wo-toolbar input::placeholder {
+  color: #374151;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.wo-page a.wo-btn-primary {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
 .wo-page .table-scroll table tbody td:nth-child(5),
 .wo-page .table-scroll table thead th:nth-child(5) {
   text-align: right;
@@ -312,6 +330,22 @@ body {
   margin-left: 0.5rem;
 }
 
+.customer-detail-page .customer-detail-back-link {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.customer-detail-page .customer-detail-action-link {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.customer-detail-page .cust-estimate-actions .customer-detail-action-link {
+  font-size: 0.85rem;
+}
+
 /* Vehicles list — intro + table readability */
 .vehicles-page .vehicles-intro {
   color: var(--color-text-label);
@@ -345,6 +379,112 @@ body {
   font-weight: 700;
   font-size: inherit;
   font-family: inherit;
+}
+
+/* Customers list — table readability + toolbar controls */
+.customers-page .customers-toolbar input,
+.customers-page .customers-toolbar select {
+  font-weight: 600;
+}
+
+.customers-page .customers-toolbar input::placeholder {
+  color: #374151;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.customers-page .table-scroll table tbody td span.table-data-primary {
+  color: #020617;
+  font-weight: 700;
+}
+
+.customers-page .table-scroll table tbody td.num span.table-data-primary {
+  font-variant-numeric: tabular-nums;
+}
+
+.customers-page .table-scroll table tbody td span.customers-empty-value {
+  color: #374151;
+  font-weight: 600;
+}
+
+.customers-page .table-scroll table tbody td:nth-child(5) a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Customer create — form readability */
+.customer-create-page .customer-create-intro {
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.customer-create-page .customer-create-card-helper {
+  color: #cbd5e1;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.customer-create-page .customer-create-label {
+  color: var(--color-text-label);
+  font-weight: 600;
+}
+
+.customer-create-page .customer-create-form-control {
+  color: #f1f5f9;
+  font-weight: 600;
+  background: #0f172a;
+}
+
+.customer-create-page .customer-create-form-control::placeholder {
+  color: var(--color-text-label);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.customer-create-page .customer-create-action-link {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: 0.85rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Work order create — scoped readability */
+.wo-create-page .wo-create-vehicle-select {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.wo-create-page .wo-create-vehicle-select option {
+  color: #f1f5f9;
+  font-weight: 600;
+  background: #0f172a;
+}
+
+.wo-create-page .wo-create-vehicle-error {
+  color: #fca5a5;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.wo-create-page .wo-create-add-customer {
+  cursor: pointer;
+}
+
+.wo-create-page .customer-create-action-link:disabled {
+  color: #374151;
+  cursor: not-allowed;
+  opacity: 0.55;
+  text-decoration: none;
+}
+
+.wo-create-page .customer-create-card-helper {
+  line-height: 1.55;
 }
 
 /* Estimate detail — form readability */

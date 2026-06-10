@@ -117,7 +117,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="page customers-page p-6 max-w-6xl mx-auto">
       {/* Page Header (match Work Orders) */}
       <div className="mb-6">
         <div
@@ -137,6 +137,7 @@ export default function CustomersPage() {
 
           {/* Right: Controls */}
           <div
+            className="customers-toolbar"
             style={{
               display: "flex",
               alignItems: "center",
@@ -289,17 +290,31 @@ export default function CustomersPage() {
             ) : (
             customers.map((c) => (
               <tr key={c._id}>
-                <td className="table-data-primary" style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
+                <td style={{ padding: "0.5rem 0", paddingLeft: "20px" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
-                    <span>{c.fullName || `${c.firstName} ${c.lastName}`}</span>
+                    <span className="table-data-primary">
+                      {c.fullName || `${c.firstName} ${c.lastName}`}
+                    </span>
                     {c.isDemo ? (
                       <span style={{ fontWeight: 800, color: "#111111" }}>[PRACTICE]</span>
                     ) : null}
                   </span>
                 </td>
-                <td className="phone table-data-primary">{c.phone || "-"}</td>
-                <td className="table-data-primary">{c.email || "-"}</td>
-                <td className="num table-data-money">{c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}</td>
+                <td className="phone">
+                  <span className={c.phone ? "table-data-primary" : "customers-empty-value"}>
+                    {c.phone || "-"}
+                  </span>
+                </td>
+                <td>
+                  <span className={c.email ? "table-data-primary" : "customers-empty-value"}>
+                    {c.email || "-"}
+                  </span>
+                </td>
+                <td className="num">
+                  <span className="table-data-primary">
+                    {c.openWorkOrders ?? c.openWorkOrdersCount ?? 0}
+                  </span>
+                </td>
                 <td>
                   <Link to={`/customers/${c._id}`}>View</Link>
                 </td>

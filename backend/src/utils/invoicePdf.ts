@@ -1,5 +1,6 @@
 //  /src/utils/invoicePdf.ts
 import PDFDocument from "pdfkit";
+import { formatLineItemDescriptionForDisplay } from "./lineItemDisplay";
 
 export async function buildInvoicePdfBuffer(args: {
   invoice: any;
@@ -190,7 +191,10 @@ export async function buildInvoicePdfBuffer(args: {
   doc.moveDown(0.5);
 
   items.forEach((it) => {
-    const desc = it.description || it.type || "";
+    const desc = formatLineItemDescriptionForDisplay({
+      type: it.type,
+      description: it.description,
+    });
     const qty = Number(it.quantity ?? 0);
     const unit = Number(it.unitPrice ?? 0);
     const total = typeof it.lineTotal === "number" ? it.lineTotal : qty * unit;

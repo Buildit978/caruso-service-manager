@@ -835,7 +835,14 @@ router.post(
         const safeQty = Number.isFinite(qty) ? qty : 0;
         const safePrice = Number.isFinite(price) ? price : 0;
         const lineTotal = Math.round(safeQty * safePrice * 100) / 100;
+        const rawType = String(it?.type ?? "").trim().toLowerCase();
+        const type =
+          rawType === "labour" || rawType === "part" || rawType === "service"
+            ? rawType
+            : undefined;
+
         return {
+          ...(type ? { type } : {}),
           description: String(it?.description ?? "").trim(),
           quantity: safeQty,
           unitPrice: safePrice,

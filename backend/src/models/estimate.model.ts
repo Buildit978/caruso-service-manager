@@ -84,7 +84,13 @@ export interface IEstimate extends Document {
   sentSnapshot?: {
     customer: { firstName: string; lastName: string; email?: string; phone?: string };
     vehicle?: { year?: number; make?: string; model?: string; licensePlate?: string; vin?: string };
-    items: Array<{ description: string; quantity: number; unitPrice: number; lineTotal: number }>;
+    items: Array<{
+      type?: EstimateLineItemType;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+    }>;
     subtotal: number;
     taxRate: number;
     taxAmount: number;
@@ -139,6 +145,11 @@ const sentSnapshotVehicleSchema = new Schema(
 
 const sentSnapshotItemSchema = new Schema(
   {
+    type: {
+      type: String,
+      enum: ["labour", "part", "service"],
+      required: false,
+    },
     description: { type: String, required: true, default: "" },
     quantity: { type: Number, required: true, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },

@@ -1,5 +1,6 @@
 // backend/src/utils/estimatePdf.ts
 import PDFDocument from "pdfkit";
+import { formatLineItemDescriptionForDisplay } from "./lineItemDisplay";
 
 export interface EstimateSentSnapshot {
   customer: { firstName: string; lastName: string; email?: string; phone?: string };
@@ -11,6 +12,7 @@ export interface EstimateSentSnapshot {
     vin?: string;
   };
   items: Array<{
+    type?: "labour" | "part" | "service";
     description: string;
     quantity: number;
     unitPrice: number;
@@ -132,7 +134,10 @@ export async function buildEstimatePdfBuffer(args: {
   doc.moveDown(0.5);
 
   items.forEach((it) => {
-    const desc = it.description ?? "";
+    const desc = formatLineItemDescriptionForDisplay({
+      type: it.type,
+      description: it.description,
+    });
     const qty = Number(it.quantity ?? 0);
     const unit = Number(it.unitPrice ?? 0);
     const total = Number(it.lineTotal ?? 0);

@@ -509,6 +509,18 @@ body {
   font-size: 0.85rem;
 }
 
+.estimate-detail-page .estimate-action-pdf {
+  border: 1px solid #60a5fa;
+  background: transparent;
+  color: #93c5fd;
+  cursor: pointer;
+}
+
+.estimate-detail-page .estimate-action-pdf:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Work Order Detail — readability reference standard (scoped) */
 .work-order-detail .data-row .data-label,
 .work-order-detail .data-label {

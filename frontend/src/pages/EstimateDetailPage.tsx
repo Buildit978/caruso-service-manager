@@ -715,6 +715,7 @@ export default function EstimateDetailPage() {
               <>
                 <button
                   type="button"
+                  className="estimate-action-pdf estimate-top-action"
                   disabled={loadingPdf}
                   onClick={async () => {
                     if (!id) return;
@@ -733,27 +734,18 @@ export default function EstimateDetailPage() {
                   style={{
                     padding: "0.5rem 1.25rem",
                     borderRadius: "0.5rem",
-                    border: "1px solid #2563eb",
-                    background: loadingPdf ? "#4b5563" : "transparent",
-                    color: "#2563eb",
-                    fontWeight: 500,
-                    cursor: loadingPdf ? "not-allowed" : "pointer",
                   }}
                 >
                   {loadingPdf ? "Loading PDF…" : "View PDF"}
                 </button>
                 <button
                   type="button"
+                  className="wo-btn-success estimate-top-action"
                   onClick={handleResend}
                   disabled={resending}
                   style={{
                     padding: "0.5rem 1.25rem",
                     borderRadius: "0.5rem",
-                    border: "1px solid #059669",
-                    background: resending ? "#4b5563" : "#059669",
-                    color: "#fff",
-                    fontWeight: 500,
-                    cursor: resending ? "not-allowed" : "pointer",
                   }}
                 >
                   {resending ? "Resending…" : "Resend email"}
@@ -762,16 +754,12 @@ export default function EstimateDetailPage() {
             )}
             <button
               type="button"
+              className="wo-btn-success estimate-top-action"
               onClick={handleApprove}
               disabled={approving}
               style={{
                 padding: "0.5rem 1.25rem",
                 borderRadius: "0.5rem",
-                border: "1px solid #16a34a",
-                background: approving ? "#4b5563" : "#16a34a",
-                color: "#fff",
-                fontWeight: 500,
-                cursor: approving ? "not-allowed" : "pointer",
               }}
             >
               {approving ? "Approving…" : "Approve"}
@@ -1346,10 +1334,10 @@ export default function EstimateDetailPage() {
                         const lineTotal = Number((qty * price).toFixed(2));
                         return (
                           <tr key={idx} style={{ borderBottom: "1px solid #1f2937" }}>
-                            <td style={{ padding: "8px" }}>{item.description ?? "—"}</td>
-                            <td className="data-value" style={{ padding: "8px", textAlign: "right" }}>{qty}</td>
-                            <td className="data-value-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(price)}</td>
-                            <td className="data-value-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(lineTotal)}</td>
+                            <td className="table-data-primary" style={{ padding: "8px" }}>{item.description ?? "—"}</td>
+                            <td className="table-data-meta" style={{ padding: "8px", textAlign: "right" }}>{qty}</td>
+                            <td className="table-data-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(price)}</td>
+                            <td className="table-data-money" style={{ padding: "8px", textAlign: "right" }}>{formatMoney(lineTotal)}</td>
                           </tr>
                         );
                       })}

@@ -5,6 +5,7 @@ import adminBetaRouter from "../adminBeta.route";
 import securityRouter from "./security.route";
 import adminUsersRouter from "./adminUsers.route";
 import adminAuthRouter from "./adminAuth.route";
+import foundingPartnersRouter from "./foundingPartners.route";
 import { User } from "../../models/user.model";
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.get("/me", async (req, res) => {
 router.use("/auth", adminAuthRouter);
 router.use("/accounts", requireSuperAdmin, securityRouter);
 router.use("/beta", adminBetaRouter);
+router.use("/founding-partners", foundingPartnersRouter);
 router.use("/admin-users", requireSuperAdmin, adminUsersRouter);
 
 export default router;

@@ -77,7 +77,7 @@ export async function fetchAdminMe(): Promise<AdminMeResponse> {
   return adminFetch<AdminMeResponse>("/me");
 }
 
-async function adminFetch<T>(
+export async function adminFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {

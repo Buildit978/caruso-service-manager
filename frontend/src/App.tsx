@@ -31,6 +31,13 @@ import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminAccountDetailPage from "./pages/admin/AdminAccountDetailPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminGuard from "./pages/admin/AdminGuard";
+import AdminFoundingPartnerDashboardPage from "./pages/admin/foundingPartners/AdminFoundingPartnerDashboardPage";
+import AdminPartnersPage from "./pages/admin/foundingPartners/AdminPartnersPage";
+import AdminPartnerDetailPage from "./pages/admin/foundingPartners/AdminPartnerDetailPage";
+import AdminProspectsPage from "./pages/admin/foundingPartners/AdminProspectsPage";
+import AdminProspectDetailPage from "./pages/admin/foundingPartners/AdminProspectDetailPage";
+import AdminRelationshipProtectionsPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionsPage";
+import AdminRelationshipProtectionDetailPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionDetailPage";
 
 function App() {
   return (
@@ -48,6 +55,16 @@ function App() {
         <Route path="accounts" element={<AdminGuard><AdminAccountsPage /></AdminGuard>} />
         <Route path="accounts/:accountId" element={<AdminGuard><AdminAccountDetailPage /></AdminGuard>} />
         <Route path="users" element={<AdminGuard><AdminUsersPage /></AdminGuard>} />
+        <Route path="founding-partners" element={<AdminGuard><Outlet /></AdminGuard>}>
+          <Route index element={<AdminFoundingPartnerDashboardPage />} />
+          <Route path="partners" element={<AdminPartnersPage />} />
+          <Route path="partners/:id" element={<AdminPartnerDetailPage />} />
+          <Route path="prospects" element={<AdminProspectsPage />} />
+          <Route path="prospects/:id" element={<AdminProspectDetailPage />} />
+          <Route path="relationship-protections" element={<AdminRelationshipProtectionsPage />} />
+          <Route path="relationship-protections/:id" element={<AdminRelationshipProtectionDetailPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
       </Route>
       <Route path="/" element={<Layout />}>
         <Route index element={<DashboardPage />} />

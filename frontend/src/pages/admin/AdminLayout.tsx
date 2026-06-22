@@ -43,6 +43,13 @@ export default function AdminLayout({ children, title = "Admin", showBack }: Adm
           <Link to="/admin/accounts" className="admin-btn admin-btn-secondary">
             Accounts
           </Link>
+          <button
+            type="button"
+            className="admin-btn admin-btn-secondary"
+            onClick={() => navigate("/admin/founding-partners")}
+          >
+            Founding Partners
+          </button>
           {adminRole === "superadmin" && (
             <Link to="/admin/users" className="admin-btn admin-btn-secondary">
               Users

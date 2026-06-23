@@ -2,6 +2,7 @@ import type {
   FoundingPartnerStatus,
   FoundingProspectStatus,
   ProtectionStatus,
+  RelationshipLifecycleStatus,
   CommunicationNoteType,
 } from "../../../api/adminFoundingPartners";
 
@@ -28,6 +29,13 @@ const PROTECTION_LABELS: Record<ProtectionStatus, string> = {
   declined: "Declined",
   expired: "Expired",
   released: "Released",
+};
+
+const LIFECYCLE_LABELS: Record<RelationshipLifecycleStatus, string> = {
+  new: "New",
+  protected: "Protected",
+  connected: "Connected",
+  engaged: "Engaged",
 };
 
 const NOTE_LABELS: Record<CommunicationNoteType, string> = {
@@ -57,6 +65,13 @@ export function ProtectionStatusBadge({ status }: { status: ProtectionStatus | s
   );
 }
 
+export function LifecycleStatusBadge({ status }: { status: RelationshipLifecycleStatus | string }) {
+  const label = LIFECYCLE_LABELS[status as RelationshipLifecycleStatus] ?? status;
+  return (
+    <span className={`fp-badge fp-badge-lifecycle fp-badge-lifecycle-${status}`}>{label}</span>
+  );
+}
+
 export function NoteTypeBadge({ type }: { type: CommunicationNoteType | string }) {
   const label = NOTE_LABELS[type as CommunicationNoteType] ?? type;
   return <span className="fp-badge fp-badge-note">{label}</span>;
@@ -74,6 +89,27 @@ export const PROSPECT_STATUS_OPTIONS: FoundingProspectStatus[] = [
 ];
 
 export const PARTNER_STATUS_OPTIONS: FoundingPartnerStatus[] = ["active", "paused", "inactive"];
+
+export const LIFECYCLE_STATUS_OPTIONS: RelationshipLifecycleStatus[] = [
+  "new",
+  "protected",
+  "connected",
+  "engaged",
+];
+
+const LIFECYCLE_ORDER: RelationshipLifecycleStatus[] = ["new", "protected", "connected", "engaged"];
+
+export function getNextLifecycleStatus(
+  current: RelationshipLifecycleStatus
+): RelationshipLifecycleStatus | null {
+  const idx = LIFECYCLE_ORDER.indexOf(current);
+  if (idx < 0 || idx >= LIFECYCLE_ORDER.length - 1) return null;
+  return LIFECYCLE_ORDER[idx + 1];
+}
+
+export function getLifecycleLabel(status: RelationshipLifecycleStatus | string): string {
+  return LIFECYCLE_LABELS[status as RelationshipLifecycleStatus] ?? status;
+}
 
 export const NOTE_TYPE_OPTIONS: CommunicationNoteType[] = [
   "call",

@@ -17,6 +17,8 @@ export type FoundingProspectStatus =
 
 export type ProtectionStatus = "pending" | "approved" | "declined" | "expired" | "released";
 
+export type RelationshipLifecycleStatus = "new" | "protected" | "connected" | "engaged";
+
 export type CommunicationNoteType =
   | "call"
   | "email"
@@ -50,8 +52,10 @@ export interface FoundingPartnerDetail extends FoundingPartner {
 }
 
 export interface ProspectRelationshipOwnership {
+  relationshipProtectionId: string | null;
   protectedBy: { partnerId: string; partnerName: string } | null;
   protectionStatus: string | null;
+  lifecycleStatus: RelationshipLifecycleStatus | null;
   introducedAt: string | null;
   lastActivityAt: string | null;
 }
@@ -106,6 +110,10 @@ export interface RelationshipProtection {
   prospectBusinessName?: string;
   introducedAt?: string;
   protectionStatus: ProtectionStatus;
+  lifecycleStatus: RelationshipLifecycleStatus;
+  lifecycleStatusUpdatedAt?: string;
+  lifecycleStatusUpdatedBy?: string;
+  lastActivityAt?: string | null;
   protectionExpiresAt?: string | null;
   evidenceSummary: string;
   approvalNotes?: string;
@@ -242,6 +250,7 @@ export function fetchRelationshipProtections(params?: {
   partnerId?: string;
   prospectId?: string;
   protectionStatus?: string;
+  lifecycleStatus?: string;
   limit?: number;
   skip?: number;
 }): Promise<PaginatedResponse<RelationshipProtection>> {
@@ -263,7 +272,7 @@ export function fetchRelationshipProtectionById(id: string): Promise<Relationshi
 
 export function updateRelationshipProtection(
   id: string,
-  body: Partial<{ introducedAt: string; evidenceSummary: string }>
+  body: Partial<{ introducedAt: string; evidenceSummary: string; lifecycleStatus: RelationshipLifecycleStatus }>
 ): Promise<RelationshipProtection> {
   return adminFetch(`${BASE}/relationship-protections/${id}`, {
     method: "PATCH",

@@ -11,7 +11,7 @@ import {
 } from "../../../api/adminFoundingPartners";
 import AdminLayout from "../AdminLayout";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { ProtectionStatusBadge } from "./foundingPartnerBadges";
+import { ProtectionStatusBadge, LifecycleStatusBadge, LIFECYCLE_STATUS_OPTIONS, getLifecycleLabel } from "./foundingPartnerBadges";
 import { FP_MODULE_TITLE, formatDate, fromDatetimeLocalValue, apiErrorMessage } from "./foundingPartnerFormat";
 
 export default function AdminRelationshipProtectionsPage() {
@@ -25,6 +25,7 @@ export default function AdminRelationshipProtectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("all");
+  const [lifecycle, setLifecycle] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [partners, setPartners] = useState<FoundingPartner[]>([]);
@@ -42,6 +43,7 @@ export default function AdminRelationshipProtectionsPage() {
     try {
       const res = await fetchRelationshipProtections({
         protectionStatus: status === "all" ? undefined : status,
+        lifecycleStatus: lifecycle === "all" ? undefined : lifecycle,
         prospectId: initialProspectId || undefined,
         partnerId: initialPartnerId || undefined,
         limit: 100,
@@ -53,7 +55,7 @@ export default function AdminRelationshipProtectionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, initialProspectId, initialPartnerId]);
+  }, [status, lifecycle, initialProspectId, initialPartnerId]);
 
   useEffect(() => {
     load();
@@ -107,7 +109,7 @@ export default function AdminRelationshipProtectionsPage() {
 
         <div className="fp-filters fp-no-print">
           <label className="fp-filter-label">
-            Status
+            Protection status
             <select className="fp-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="all">All</option>
               <option value="pending">Pending</option>
@@ -115,6 +117,17 @@ export default function AdminRelationshipProtectionsPage() {
               <option value="declined">Declined</option>
               <option value="released">Released</option>
               <option value="expired">Expired</option>
+            </select>
+          </label>
+          <label className="fp-filter-label">
+            Relationship lifecycle
+            <select className="fp-filter-select" value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
+              <option value="all">All</option>
+              {LIFECYCLE_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {getLifecycleLabel(s)}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -153,9 +166,15 @@ export default function AdminRelationshipProtectionsPage() {
                     <span className="fp-list-card-value">{r.partnerName ?? r.partnerId}</span>
                   </div>
                   <div className="fp-list-card-row">
-                    <span className="fp-list-card-label">Status</span>
+                    <span className="fp-list-card-label">Protection status</span>
                     <span className="fp-list-card-value">
                       <ProtectionStatusBadge status={r.protectionStatus} />
+                    </span>
+                  </div>
+                  <div className="fp-list-card-row">
+                    <span className="fp-list-card-label">Lifecycle</span>
+                    <span className="fp-list-card-value">
+                      <LifecycleStatusBadge status={r.lifecycleStatus} />
                     </span>
                   </div>
                   <div className="fp-list-card-row">
@@ -172,7 +191,8 @@ export default function AdminRelationshipProtectionsPage() {
                   <tr>
                     <th>Prospect</th>
                     <th>Partner</th>
-                    <th>Status</th>
+                    <th>Protection</th>
+                    <th>Lifecycle</th>
                     <th>Introduced</th>
                     <th>Created</th>
                   </tr>
@@ -188,6 +208,9 @@ export default function AdminRelationshipProtectionsPage() {
                       <td>{r.partnerName ?? r.partnerId}</td>
                       <td>
                         <ProtectionStatusBadge status={r.protectionStatus} />
+                      </td>
+                      <td>
+                        <LifecycleStatusBadge status={r.lifecycleStatus} />
                       </td>
                       <td>{formatDate(r.introducedAt)}</td>
                       <td>{formatDate(r.createdAt)}</td>

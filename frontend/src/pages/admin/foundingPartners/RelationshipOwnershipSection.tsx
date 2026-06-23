@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { ProspectRelationshipOwnership } from "../../../api/adminFoundingPartners";
-import { ProtectionStatusBadge } from "./foundingPartnerBadges";
+import { LifecycleStatusBadge, ProtectionStatusBadge } from "./foundingPartnerBadges";
 import { formatDate, formatDateTime } from "./foundingPartnerFormat";
 
 interface RelationshipOwnershipSectionProps {
@@ -32,6 +32,23 @@ export default function RelationshipOwnershipSection({ ownership }: Relationship
           <dd>
             {ownership.protectionStatus ? (
               <ProtectionStatusBadge status={ownership.protectionStatus} />
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>Relationship Lifecycle</dt>
+          <dd>
+            {ownership.lifecycleStatus ? (
+              ownership.relationshipProtectionId ? (
+                <Link
+                  className="fp-link"
+                  to={`/admin/founding-partners/relationship-protections/${ownership.relationshipProtectionId}`}
+                >
+                  <LifecycleStatusBadge status={ownership.lifecycleStatus} />
+                </Link>
+              ) : (
+                <LifecycleStatusBadge status={ownership.lifecycleStatus} />
+              )
             ) : (
               "—"
             )}

@@ -1,15 +1,20 @@
 import { Types } from "mongoose";
 import { CommunicationNote } from "../../models/communicationNote.model";
 import { FoundingPartner } from "../../models/foundingPartner.model";
-import { RelationshipProtection } from "../../models/relationshipProtection.model";
+import {
+  RelationshipProtection,
+  type RelationshipLifecycleStatus,
+} from "../../models/relationshipProtection.model";
 
 export interface ProspectOwnershipSummary {
   protectedBy: string | null;
 }
 
 export interface ProspectOwnershipDetail {
+  relationshipProtectionId: string | null;
   protectedBy: { partnerId: string; partnerName: string } | null;
   protectionStatus: string | null;
+  lifecycleStatus: RelationshipLifecycleStatus | null;
   introducedAt: string | null;
   lastActivityAt: string | null;
 }
@@ -22,32 +27,58 @@ export interface PendingIntroductionSummary {
   protectionStatus: string;
 }
 
+const LIFECYCLE_ORDER: RelationshipLifecycleStatus[] = [
+  "new",
+  "protected",
+  "connected",
+  "engaged",
+];
+
 function toIso(date: Date | undefined | null): string | null {
   if (date == null) return null;
   const d = date instanceof Date ? date : new Date(date);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-async function getProtectionIdsForProspect(prospectId: Types.ObjectId): Promise<Types.ObjectId[]> {
-  const rows = await RelationshipProtection.find({ prospectId }).select("_id").lean();
-  return rows.map((r) => r._id as Types.ObjectId);
+export function resolveLifecycleStatus(
+  lifecycleStatus: RelationshipLifecycleStatus | undefined,
+  protectionStatus: string
+): RelationshipLifecycleStatus {
+  if (lifecycleStatus) return lifecycleStatus;
+  return protectionStatus === "approved" ? "protected" : "new";
 }
 
-/** Latest communication note timestamp for a prospect (direct or via related protections). */
-export async function getProspectLastActivityAt(prospectId: Types.ObjectId): Promise<Date | null> {
-  const protectionIds = await getProtectionIdsForProspect(prospectId);
-  const orClauses: Record<string, unknown>[] = [{ prospectId }];
-  if (protectionIds.length > 0) {
-    orClauses.push({ relationshipProtectionId: { $in: protectionIds } });
-  }
+export function isValidLifecycleAdvance(
+  current: RelationshipLifecycleStatus,
+  next: RelationshipLifecycleStatus
+): boolean {
+  const currentIdx = LIFECYCLE_ORDER.indexOf(current);
+  const nextIdx = LIFECYCLE_ORDER.indexOf(next);
+  if (currentIdx < 0 || nextIdx < 0) return false;
+  return nextIdx === currentIdx + 1;
+}
 
-  const latest = await CommunicationNote.findOne({ $or: orClauses })
+/** Latest note on a protection (strict relationshipProtectionId only). */
+export async function getProtectionLastActivityAt(
+  relationshipProtectionId: Types.ObjectId
+): Promise<Date | null> {
+  const latest = await CommunicationNote.findOne({ relationshipProtectionId })
     .sort({ createdAt: -1 })
     .select("createdAt")
     .lean();
 
   if (!latest?.createdAt) return null;
   return new Date(latest.createdAt);
+}
+
+/** Approved protection for a prospect, if any. */
+export async function getApprovedProtectionForProspect(prospectId: Types.ObjectId) {
+  return RelationshipProtection.findOne({
+    prospectId,
+    protectionStatus: "approved",
+  })
+    .sort({ approvedAt: -1 })
+    .lean();
 }
 
 /** Batch map of prospectId → protectedBy partner name (approved protection only). */
@@ -90,26 +121,27 @@ export async function buildProspectOwnershipMap(
 export async function getProspectOwnershipDetail(
   prospectId: Types.ObjectId
 ): Promise<ProspectOwnershipDetail | null> {
-  const approved = await RelationshipProtection.findOne({
-    prospectId,
-    protectionStatus: "approved",
-  })
-    .sort({ approvedAt: -1 })
-    .lean();
-
-  const lastActivityAt = await getProspectLastActivityAt(prospectId);
+  const approved = await getApprovedProtectionForProspect(prospectId);
 
   if (!approved) {
     return null;
   }
 
-  const partner = await FoundingPartner.findById(approved.partnerId).select("name").lean();
+  const [partner, lastActivityAt] = await Promise.all([
+    FoundingPartner.findById(approved.partnerId).select("name").lean(),
+    getProtectionLastActivityAt(approved._id as Types.ObjectId),
+  ]);
 
   return {
+    relationshipProtectionId: approved._id.toString(),
     protectedBy: partner
       ? { partnerId: approved.partnerId.toString(), partnerName: partner.name }
       : null,
     protectionStatus: approved.protectionStatus,
+    lifecycleStatus: resolveLifecycleStatus(
+      approved.lifecycleStatus as RelationshipLifecycleStatus | undefined,
+      approved.protectionStatus
+    ),
     introducedAt: toIso(approved.introducedAt),
     lastActivityAt: toIso(lastActivityAt),
   };

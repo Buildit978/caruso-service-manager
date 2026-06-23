@@ -12,9 +12,13 @@ import { findDuplicateProspects } from "../../utils/foundingPartners/duplicatePr
 import { normalizeEmail } from "../../utils/foundingPartners/normalize";
 import {
   buildProspectOwnershipMap,
+  getApprovedProtectionForProspect,
   getPendingIntroductionsForProspect,
   getProspectOwnershipDetail,
+  getProtectionLastActivityAt,
   hasApprovedProtectionForProspect,
+  isValidLifecycleAdvance,
+  resolveLifecycleStatus,
 } from "../../utils/foundingPartners/prospectOwnership";
 import { trackFoundingPartnerAudit } from "../../utils/trackFoundingPartnerAudit";
 
@@ -32,6 +36,7 @@ const PROSPECT_STATUSES = [
   "notFit",
 ] as const;
 const PROTECTION_STATUSES = ["pending", "approved", "declined", "expired", "released"] as const;
+const LIFECYCLE_STATUSES = ["new", "protected", "connected", "engaged"] as const;
 const NOTE_TYPES = ["call", "email", "walkIn", "meeting", "demo", "followUp", "internalNote"] as const;
 
 function parseObjectId(param: string | undefined): Types.ObjectId | null {
@@ -137,6 +142,9 @@ function serializeProtection(
     prospectId: Types.ObjectId;
     introducedAt: Date;
     protectionStatus: string;
+    lifecycleStatus?: string;
+    lifecycleStatusUpdatedAt?: Date;
+    lifecycleStatusUpdatedBy?: Types.ObjectId;
     protectionExpiresAt?: Date | null;
     evidenceSummary: string;
     approvalNotes?: string;
@@ -148,6 +156,7 @@ function serializeProtection(
   extras?: {
     partnerName?: string;
     prospectBusinessName?: string;
+    lastActivityAt?: string | null;
   }
 ) {
   return {
@@ -158,6 +167,13 @@ function serializeProtection(
     prospectBusinessName: extras?.prospectBusinessName,
     introducedAt: toIso(doc.introducedAt),
     protectionStatus: doc.protectionStatus,
+    lifecycleStatus: resolveLifecycleStatus(
+      doc.lifecycleStatus as (typeof LIFECYCLE_STATUSES)[number] | undefined,
+      doc.protectionStatus
+    ),
+    lifecycleStatusUpdatedAt: toIso(doc.lifecycleStatusUpdatedAt),
+    lifecycleStatusUpdatedBy: doc.lifecycleStatusUpdatedBy?.toString(),
+    lastActivityAt: extras?.lastActivityAt ?? undefined,
     protectionExpiresAt: toIso(doc.protectionExpiresAt ?? undefined) ?? null,
     evidenceSummary: doc.evidenceSummary,
     approvalNotes: doc.approvalNotes ?? undefined,
@@ -694,11 +710,18 @@ router.get("/relationship-protections", async (req: Request, res: Response) => {
     )
       ? statusRaw
       : undefined;
+    const lifecycleRaw = String(req.query.lifecycleStatus ?? "all").trim();
+    const lifecycleStatus = LIFECYCLE_STATUSES.includes(
+      lifecycleRaw as (typeof LIFECYCLE_STATUSES)[number]
+    )
+      ? lifecycleRaw
+      : undefined;
 
     const filter: Record<string, unknown> = {};
     if (partnerId) filter.partnerId = partnerId;
     if (prospectId) filter.prospectId = prospectId;
     if (protectionStatus) filter.protectionStatus = protectionStatus;
+    if (lifecycleStatus) filter.lifecycleStatus = lifecycleStatus;
 
     const [items, total] = await Promise.all([
       RelationshipProtection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
@@ -832,6 +855,9 @@ router.post("/relationship-protections/:id/approve", async (req: Request, res: R
     const { approvalNotes } = req.body as { approvalNotes?: string };
 
     protection.protectionStatus = "approved";
+    protection.lifecycleStatus = "protected";
+    protection.lifecycleStatusUpdatedAt = new Date();
+    protection.lifecycleStatusUpdatedBy = adminActor._id;
     protection.approvedBy = adminActor._id;
     protection.approvedAt = new Date();
     protection.protectionExpiresAt = null;
@@ -954,16 +980,18 @@ router.get("/relationship-protections/:id", async (req: Request, res: Response) 
     const protection = await RelationshipProtection.findById(id).lean();
     if (!protection) return res.status(404).json({ message: "Relationship protection not found" });
 
-    const [partner, prospect, noteCount] = await Promise.all([
+    const [partner, prospect, noteCount, lastActivityAt] = await Promise.all([
       FoundingPartner.findById(protection.partnerId).select("name email").lean(),
       FoundingProspect.findById(protection.prospectId).select("businessName status").lean(),
       CommunicationNote.countDocuments({ relationshipProtectionId: id }),
+      getProtectionLastActivityAt(id),
     ]);
 
     return res.json({
       ...serializeProtection(protection as any, {
         partnerName: partner?.name,
         prospectBusinessName: prospect?.businessName,
+        lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : null,
       }),
       partner: partner
         ? { id: partner._id.toString(), name: partner.name, email: partner.email }
@@ -995,15 +1023,66 @@ router.patch("/relationship-protections/:id", async (req: Request, res: Response
 
     const protection = await RelationshipProtection.findById(id);
     if (!protection) return res.status(404).json({ message: "Relationship protection not found" });
+
+    const adminActor = getAdminActor(req)!;
+    const before = serializeProtection(protection);
+    const { introducedAt, evidenceSummary, lifecycleStatus } = req.body as {
+      introducedAt?: string;
+      evidenceSummary?: string;
+      lifecycleStatus?: string;
+    };
+
+    const hasLifecycleUpdate = lifecycleStatus !== undefined;
+    const hasPendingFields = introducedAt !== undefined || evidenceSummary !== undefined;
+
+    if (hasLifecycleUpdate && hasPendingFields) {
+      return res.status(400).json({
+        message: "Cannot update lifecycle and pending fields in the same request",
+      });
+    }
+
+    if (hasLifecycleUpdate) {
+      if (protection.protectionStatus !== "approved") {
+        return res.status(400).json({
+          message: "Lifecycle can only be updated on approved protections",
+        });
+      }
+      if (!LIFECYCLE_STATUSES.includes(lifecycleStatus as (typeof LIFECYCLE_STATUSES)[number])) {
+        return res.status(400).json({ message: "Invalid lifecycleStatus" });
+      }
+
+      const current = resolveLifecycleStatus(protection.lifecycleStatus, protection.protectionStatus);
+      const next = lifecycleStatus as (typeof LIFECYCLE_STATUSES)[number];
+      if (!isValidLifecycleAdvance(current, next)) {
+        return res.status(400).json({
+          message: "Lifecycle can only advance one stage at a time (protected → connected → engaged)",
+        });
+      }
+
+      protection.lifecycleStatus = next;
+      protection.lifecycleStatusUpdatedAt = new Date();
+      protection.lifecycleStatusUpdatedBy = adminActor._id;
+
+      await protection.save();
+      const lastActivityAt = await getProtectionLastActivityAt(protection._id as Types.ObjectId);
+      const after = serializeProtection(protection, {
+        lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : null,
+      });
+
+      await auditFromReq(req, {
+        action: "relationship_protection.lifecycle_update",
+        entityType: "relationshipProtection",
+        entityId: protection._id,
+        before,
+        after,
+      });
+
+      return res.json(after);
+    }
+
     if (protection.protectionStatus !== "pending") {
       return res.status(400).json({ message: "Only pending protections can be edited" });
     }
-
-    const before = serializeProtection(protection);
-    const { introducedAt, evidenceSummary } = req.body as {
-      introducedAt?: string;
-      evidenceSummary?: string;
-    };
 
     if (introducedAt !== undefined) {
       const parsed = new Date(introducedAt);
@@ -1132,6 +1211,29 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
       });
     }
 
+    let resolvedPartnerId = partnerOid;
+    let resolvedProspectId = prospectOid;
+    let resolvedProtectionId = protectionOid;
+
+    if (protectionOid) {
+      const protection = await RelationshipProtection.findById(protectionOid)
+        .select("partnerId prospectId")
+        .lean();
+      if (!protection) {
+        return res.status(404).json({ message: "Relationship protection not found" });
+      }
+      resolvedPartnerId = protection.partnerId as Types.ObjectId;
+      resolvedProspectId = protection.prospectId as Types.ObjectId;
+      resolvedProtectionId = protectionOid;
+    } else if (prospectOid) {
+      const approved = await getApprovedProtectionForProspect(prospectOid);
+      if (approved) {
+        resolvedProtectionId = approved._id as Types.ObjectId;
+        resolvedPartnerId = approved.partnerId as Types.ObjectId;
+        resolvedProspectId = approved.prospectId as Types.ObjectId;
+      }
+    }
+
     if (!type || !NOTE_TYPES.includes(type as (typeof NOTE_TYPES)[number])) {
       return res.status(400).json({ message: "Invalid note type" });
     }
@@ -1149,9 +1251,9 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
     }
 
     const note = await CommunicationNote.create({
-      partnerId: partnerOid ?? undefined,
-      prospectId: prospectOid ?? undefined,
-      relationshipProtectionId: protectionOid ?? undefined,
+      partnerId: resolvedPartnerId ?? undefined,
+      prospectId: resolvedProspectId ?? undefined,
+      relationshipProtectionId: resolvedProtectionId ?? undefined,
       type,
       summary: summaryTrim,
       followUpDate: followUp,

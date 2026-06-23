@@ -11,7 +11,7 @@ import {
 import AdminLayout from "../AdminLayout";
 import CommunicationNotesSection from "./CommunicationNotesSection";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { ProtectionStatusBadge } from "./foundingPartnerBadges";
+import { ProtectionStatusBadge, LifecycleStatusBadge, getNextLifecycleStatus, getLifecycleLabel } from "./foundingPartnerBadges";
 import { FP_MODULE_TITLE, formatDateTime, toDatetimeLocalValue, fromDatetimeLocalValue, apiErrorMessage } from "./foundingPartnerFormat";
 
 export default function AdminRelationshipProtectionDetailPage() {
@@ -84,7 +84,24 @@ export default function AdminRelationshipProtectionDetailPage() {
     }
   }
 
+  async function handleAdvanceLifecycle() {
+    if (!id || !protection) return;
+    const next = getNextLifecycleStatus(protection.lifecycleStatus);
+    if (!next) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await updateRelationshipProtection(id, { lifecycleStatus: next });
+      await load();
+    } catch (err) {
+      setActionError(apiErrorMessage(err, "Failed to advance lifecycle"));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const printedAt = new Date().toLocaleString();
+  const nextLifecycle = protection ? getNextLifecycleStatus(protection.lifecycleStatus) : null;
 
   return (
     <AdminLayout title={FP_MODULE_TITLE} showBack>
@@ -117,9 +134,19 @@ export default function AdminRelationshipProtectionDetailPage() {
             <section className="fp-card fp-print-root">
               <h2 className="fp-section-title">Protection details</h2>
               <dl className="fp-detail-dl">
-                <dt>Status</dt>
+                <dt>Protection status</dt>
                 <dd>
                   <ProtectionStatusBadge status={protection.protectionStatus} />
+                </dd>
+                <dt>Relationship lifecycle</dt>
+                <dd>
+                  <LifecycleStatusBadge status={protection.lifecycleStatus} />
+                </dd>
+                <dt>Last activity</dt>
+                <dd>
+                  {protection.lastActivityAt
+                    ? formatDateTime(protection.lastActivityAt)
+                    : "No activity recorded"}
                 </dd>
                 <dt>Partner</dt>
                 <dd>
@@ -165,6 +192,12 @@ export default function AdminRelationshipProtectionDetailPage() {
               <section className="fp-card fp-no-print">
                 <h2 className="fp-section-title">Actions</h2>
                 {actionError && <p className="fp-error">{actionError}</p>}
+                {protection.protectionStatus === "approved" && nextLifecycle && (
+                  <p className="fp-muted" style={{ marginBottom: "0.75rem" }}>
+                    Advance relationship lifecycle when activity supports the next stage. Activity is
+                    recorded in communication notes below.
+                  </p>
+                )}
                 <label className="fp-form-label">
                   Notes (optional)
                   <textarea
@@ -195,20 +228,35 @@ export default function AdminRelationshipProtectionDetailPage() {
                     </>
                   )}
                   {protection.protectionStatus === "approved" && (
-                    <button
-                      type="button"
-                      className="fp-btn fp-btn-secondary"
-                      disabled={actionLoading}
-                      onClick={() => runAction("release")}
-                    >
-                      Release protection
-                    </button>
+                    <>
+                      {nextLifecycle && (
+                        <button
+                          type="button"
+                          className="fp-btn fp-btn-primary"
+                          disabled={actionLoading}
+                          onClick={handleAdvanceLifecycle}
+                        >
+                          Advance to {getLifecycleLabel(nextLifecycle)}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="fp-btn fp-btn-secondary"
+                        disabled={actionLoading}
+                        onClick={() => runAction("release")}
+                      >
+                        Release protection
+                      </button>
+                    </>
                   )}
                 </div>
               </section>
             )}
 
-            <CommunicationNotesSection relationshipProtectionId={protection.id} />
+            <CommunicationNotesSection
+              relationshipProtectionId={protection.id}
+              onNoteAdded={() => load()}
+            />
 
             {showEdit && (
               <div className="admin-overlay fp-overlay fp-no-print" role="dialog" aria-modal="true">

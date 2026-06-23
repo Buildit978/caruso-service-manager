@@ -19,6 +19,8 @@ export type ProtectionStatus = "pending" | "approved" | "declined" | "expired" |
 
 export type RelationshipLifecycleStatus = "new" | "protected" | "connected" | "engaged";
 
+export type HealthStatus = "healthy" | "attention_needed" | "stale";
+
 export type CommunicationNoteType =
   | "call"
   | "email"
@@ -114,6 +116,9 @@ export interface RelationshipProtection {
   lifecycleStatusUpdatedAt?: string;
   lifecycleStatusUpdatedBy?: string;
   lastActivityAt?: string | null;
+  relationshipAgeDays?: number | null;
+  daysSinceLastActivity?: number | null;
+  healthStatus?: HealthStatus | null;
   protectionExpiresAt?: string | null;
   evidenceSummary: string;
   approvalNotes?: string;
@@ -251,6 +256,7 @@ export function fetchRelationshipProtections(params?: {
   prospectId?: string;
   protectionStatus?: string;
   lifecycleStatus?: string;
+  healthStatus?: string;
   limit?: number;
   skip?: number;
 }): Promise<PaginatedResponse<RelationshipProtection>> {

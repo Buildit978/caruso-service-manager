@@ -11,8 +11,38 @@ import {
 } from "../../../api/adminFoundingPartners";
 import AdminLayout from "../AdminLayout";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { ProtectionStatusBadge, LifecycleStatusBadge, LIFECYCLE_STATUS_OPTIONS, getLifecycleLabel } from "./foundingPartnerBadges";
+import {
+  ProtectionStatusBadge,
+  LifecycleStatusBadge,
+  HealthStatusBadge,
+  LIFECYCLE_STATUS_OPTIONS,
+  HEALTH_STATUS_OPTIONS,
+  getLifecycleLabel,
+  getHealthLabel,
+} from "./foundingPartnerBadges";
 import { FP_MODULE_TITLE, formatDate, fromDatetimeLocalValue, apiErrorMessage } from "./foundingPartnerFormat";
+
+function ProtectionHealthCell({ protection }: { protection: RelationshipProtection }) {
+  if (protection.healthStatus == null) {
+    return <span className="fp-muted">—</span>;
+  }
+
+  const title =
+    protection.lastActivityAt != null
+      ? `Last activity ${new Date(protection.lastActivityAt).toLocaleDateString()}`
+      : protection.approvedAt != null
+        ? `No activity since approval ${new Date(protection.approvedAt).toLocaleDateString()}`
+        : undefined;
+
+  return (
+    <span className="fp-health-cell" title={title}>
+      <HealthStatusBadge status={protection.healthStatus} />
+      {protection.daysSinceLastActivity != null && (
+        <span className="fp-health-days">{protection.daysSinceLastActivity} d</span>
+      )}
+    </span>
+  );
+}
 
 export default function AdminRelationshipProtectionsPage() {
   const navigate = useNavigate();
@@ -26,6 +56,7 @@ export default function AdminRelationshipProtectionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("all");
   const [lifecycle, setLifecycle] = useState("all");
+  const [health, setHealth] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [partners, setPartners] = useState<FoundingPartner[]>([]);
@@ -44,6 +75,7 @@ export default function AdminRelationshipProtectionsPage() {
       const res = await fetchRelationshipProtections({
         protectionStatus: status === "all" ? undefined : status,
         lifecycleStatus: lifecycle === "all" ? undefined : lifecycle,
+        healthStatus: health === "all" ? undefined : health,
         prospectId: initialProspectId || undefined,
         partnerId: initialPartnerId || undefined,
         limit: 100,
@@ -55,7 +87,7 @@ export default function AdminRelationshipProtectionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, lifecycle, initialProspectId, initialPartnerId]);
+  }, [status, lifecycle, health, initialProspectId, initialPartnerId]);
 
   useEffect(() => {
     load();
@@ -130,6 +162,17 @@ export default function AdminRelationshipProtectionsPage() {
               ))}
             </select>
           </label>
+          <label className="fp-filter-label">
+            Health
+            <select className="fp-filter-select" value={health} onChange={(e) => setHealth(e.target.value)}>
+              <option value="all">All</option>
+              {HEALTH_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {getHealthLabel(s)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {(initialProspectId || initialPartnerId) && (
@@ -177,6 +220,14 @@ export default function AdminRelationshipProtectionsPage() {
                       <LifecycleStatusBadge status={r.lifecycleStatus} />
                     </span>
                   </div>
+                  {r.healthStatus != null && (
+                    <div className="fp-list-card-row">
+                      <span className="fp-list-card-label">Health</span>
+                      <span className="fp-list-card-value">
+                        <ProtectionHealthCell protection={r} />
+                      </span>
+                    </div>
+                  )}
                   <div className="fp-list-card-row">
                     <span className="fp-list-card-label">Introduced</span>
                     <span className="fp-list-card-value">{formatDate(r.introducedAt)}</span>
@@ -193,6 +244,7 @@ export default function AdminRelationshipProtectionsPage() {
                     <th>Partner</th>
                     <th>Protection</th>
                     <th>Lifecycle</th>
+                    <th>Health</th>
                     <th>Introduced</th>
                     <th>Created</th>
                   </tr>
@@ -211,6 +263,9 @@ export default function AdminRelationshipProtectionsPage() {
                       </td>
                       <td>
                         <LifecycleStatusBadge status={r.lifecycleStatus} />
+                      </td>
+                      <td>
+                        <ProtectionHealthCell protection={r} />
                       </td>
                       <td>{formatDate(r.introducedAt)}</td>
                       <td>{formatDate(r.createdAt)}</td>

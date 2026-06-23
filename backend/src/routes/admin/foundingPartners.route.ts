@@ -20,6 +20,11 @@ import {
   isValidLifecycleAdvance,
   resolveLifecycleStatus,
 } from "../../utils/foundingPartners/prospectOwnership";
+import {
+  computeRelationshipHealth,
+  getProtectionLastActivityMap,
+  type HealthStatus,
+} from "../../utils/foundingPartners/relationshipHealth";
 import { trackFoundingPartnerAudit } from "../../utils/trackFoundingPartnerAudit";
 
 const router = Router();
@@ -37,6 +42,7 @@ const PROSPECT_STATUSES = [
 ] as const;
 const PROTECTION_STATUSES = ["pending", "approved", "declined", "expired", "released"] as const;
 const LIFECYCLE_STATUSES = ["new", "protected", "connected", "engaged"] as const;
+const HEALTH_STATUSES = ["healthy", "attention_needed", "stale"] as const;
 const NOTE_TYPES = ["call", "email", "walkIn", "meeting", "demo", "followUp", "internalNote"] as const;
 
 function parseObjectId(param: string | undefined): Types.ObjectId | null {
@@ -157,6 +163,9 @@ function serializeProtection(
     partnerName?: string;
     prospectBusinessName?: string;
     lastActivityAt?: string | null;
+    relationshipAgeDays?: number | null;
+    daysSinceLastActivity?: number | null;
+    healthStatus?: HealthStatus | null;
   }
 ) {
   return {
@@ -174,6 +183,9 @@ function serializeProtection(
     lifecycleStatusUpdatedAt: toIso(doc.lifecycleStatusUpdatedAt),
     lifecycleStatusUpdatedBy: doc.lifecycleStatusUpdatedBy?.toString(),
     lastActivityAt: extras?.lastActivityAt ?? undefined,
+    relationshipAgeDays: extras?.relationshipAgeDays ?? undefined,
+    daysSinceLastActivity: extras?.daysSinceLastActivity ?? undefined,
+    healthStatus: extras?.healthStatus ?? undefined,
     protectionExpiresAt: toIso(doc.protectionExpiresAt ?? undefined) ?? null,
     evidenceSummary: doc.evidenceSummary,
     approvalNotes: doc.approvalNotes ?? undefined,
@@ -181,6 +193,66 @@ function serializeProtection(
     approvedAt: toIso(doc.approvedAt),
     createdAt: toIso(doc.createdAt),
     updatedAt: toIso(doc.updatedAt),
+  };
+}
+
+type ProtectionLeanDoc = {
+  _id: Types.ObjectId;
+  partnerId: Types.ObjectId;
+  prospectId: Types.ObjectId;
+  introducedAt: Date;
+  protectionStatus: string;
+  lifecycleStatus?: string;
+  lifecycleStatusUpdatedAt?: Date;
+  lifecycleStatusUpdatedBy?: Types.ObjectId;
+  protectionExpiresAt?: Date | null;
+  evidenceSummary: string;
+  approvalNotes?: string;
+  approvedBy?: Types.ObjectId;
+  approvedAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+function buildProtectionHealthExtras(
+  row: ProtectionLeanDoc,
+  activityMap: Map<string, Date>
+): {
+  lastActivityAt: string | null;
+  relationshipAgeDays: number | null;
+  daysSinceLastActivity: number | null;
+  healthStatus: HealthStatus | null;
+} {
+  const lastActivity = activityMap.get(row._id.toString()) ?? null;
+  const health = computeRelationshipHealth(row.approvedAt, lastActivity);
+  return {
+    lastActivityAt: lastActivity ? lastActivity.toISOString() : null,
+    relationshipAgeDays: health.relationshipAgeDays,
+    daysSinceLastActivity: health.daysSinceLastActivity,
+    healthStatus: health.healthStatus,
+  };
+}
+
+async function loadProtectionNameMaps(rows: ProtectionLeanDoc[]) {
+  const partnerIds = [...new Set(rows.map((r) => r.partnerId.toString()))].map(
+    (id) => new Types.ObjectId(id)
+  );
+  const prospectIds = [...new Set(rows.map((r) => r.prospectId.toString()))].map(
+    (id) => new Types.ObjectId(id)
+  );
+
+  const [partners, prospects] = await Promise.all([
+    partnerIds.length > 0
+      ? FoundingPartner.find({ _id: { $in: partnerIds } }).select("_id name").lean()
+      : Promise.resolve([]),
+    prospectIds.length > 0
+      ? FoundingProspect.find({ _id: { $in: prospectIds } }).select("_id businessName").lean()
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    partnerNameById: new Map(partners.map((p) => [p._id.toString(), p.name])),
+    prospectNameById: new Map(prospects.map((p) => [p._id.toString(), p.businessName])),
   };
 }
 
@@ -716,6 +788,18 @@ router.get("/relationship-protections", async (req: Request, res: Response) => {
     )
       ? lifecycleRaw
       : undefined;
+    const healthRaw = String(req.query.healthStatus ?? "all").trim();
+    const healthStatusFilter = HEALTH_STATUSES.includes(
+      healthRaw as (typeof HEALTH_STATUSES)[number]
+    )
+      ? (healthRaw as (typeof HEALTH_STATUSES)[number])
+      : healthRaw === "all"
+        ? undefined
+        : null;
+
+    if (healthStatusFilter === null) {
+      return res.status(400).json({ message: "Invalid healthStatus" });
+    }
 
     const filter: Record<string, unknown> = {};
     if (partnerId) filter.partnerId = partnerId;
@@ -723,33 +807,60 @@ router.get("/relationship-protections", async (req: Request, res: Response) => {
     if (protectionStatus) filter.protectionStatus = protectionStatus;
     if (lifecycleStatus) filter.lifecycleStatus = lifecycleStatus;
 
+    const sort = { createdAt: -1 as const };
+
+    if (healthStatusFilter) {
+      const allItems = await RelationshipProtection.find(filter).sort(sort).lean();
+      const activityMap = await getProtectionLastActivityMap(
+        allItems.map((r) => r._id as Types.ObjectId)
+      );
+
+      const matched = allItems.filter((row) => {
+        const health = buildProtectionHealthExtras(row as ProtectionLeanDoc, activityMap);
+        return health.healthStatus === healthStatusFilter;
+      });
+
+      const pageItems = matched.slice(skip, skip + limit);
+      const { partnerNameById, prospectNameById } = await loadProtectionNameMaps(
+        pageItems as ProtectionLeanDoc[]
+      );
+
+      return res.json({
+        items: pageItems.map((row) => {
+          const healthExtras = buildProtectionHealthExtras(row as ProtectionLeanDoc, activityMap);
+          return serializeProtection(row as ProtectionLeanDoc, {
+            partnerName: partnerNameById.get(row.partnerId.toString()),
+            prospectBusinessName: prospectNameById.get(row.prospectId.toString()),
+            ...healthExtras,
+          });
+        }),
+        total: matched.length,
+        limit,
+        skip,
+      });
+    }
+
     const [items, total] = await Promise.all([
-      RelationshipProtection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      RelationshipProtection.find(filter).sort(sort).skip(skip).limit(limit).lean(),
       RelationshipProtection.countDocuments(filter),
     ]);
 
-    const partnerIds = [...new Set(items.map((r) => r.partnerId.toString()))].map(
-      (id) => new Types.ObjectId(id)
+    const activityMap = await getProtectionLastActivityMap(
+      items.map((r) => r._id as Types.ObjectId)
     );
-    const prospectIds = [...new Set(items.map((r) => r.prospectId.toString()))].map(
-      (id) => new Types.ObjectId(id)
+    const { partnerNameById, prospectNameById } = await loadProtectionNameMaps(
+      items as ProtectionLeanDoc[]
     );
-
-    const [partners, prospects] = await Promise.all([
-      FoundingPartner.find({ _id: { $in: partnerIds } }).select("_id name").lean(),
-      FoundingProspect.find({ _id: { $in: prospectIds } }).select("_id businessName").lean(),
-    ]);
-
-    const partnerNameById = new Map(partners.map((p) => [p._id.toString(), p.name]));
-    const prospectNameById = new Map(prospects.map((p) => [p._id.toString(), p.businessName]));
 
     return res.json({
-      items: items.map((row) =>
-        serializeProtection(row as any, {
+      items: items.map((row) => {
+        const healthExtras = buildProtectionHealthExtras(row as ProtectionLeanDoc, activityMap);
+        return serializeProtection(row as ProtectionLeanDoc, {
           partnerName: partnerNameById.get(row.partnerId.toString()),
           prospectBusinessName: prospectNameById.get(row.prospectId.toString()),
-        })
-      ),
+          ...healthExtras,
+        });
+      }),
       total,
       limit,
       skip,

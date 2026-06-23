@@ -4,6 +4,7 @@ import type {
   ProtectionStatus,
   RelationshipLifecycleStatus,
   CommunicationNoteType,
+  HealthStatus,
 } from "../../../api/adminFoundingPartners";
 
 const PARTNER_LABELS: Record<FoundingPartnerStatus, string> = {
@@ -48,6 +49,12 @@ const NOTE_LABELS: Record<CommunicationNoteType, string> = {
   internalNote: "Internal note",
 };
 
+const HEALTH_LABELS: Record<HealthStatus, string> = {
+  healthy: "Healthy",
+  attention_needed: "Attention",
+  stale: "Stale",
+};
+
 export function PartnerStatusBadge({ status }: { status: FoundingPartnerStatus | string }) {
   const label = PARTNER_LABELS[status as FoundingPartnerStatus] ?? status;
   return <span className={`fp-badge fp-badge-partner fp-badge-partner-${status}`}>{label}</span>;
@@ -70,6 +77,18 @@ export function LifecycleStatusBadge({ status }: { status: RelationshipLifecycle
   return (
     <span className={`fp-badge fp-badge-lifecycle fp-badge-lifecycle-${status}`}>{label}</span>
   );
+}
+
+export function HealthStatusBadge({ status }: { status: HealthStatus | string | null | undefined }) {
+  if (status == null || status === "") return null;
+  const label = HEALTH_LABELS[status as HealthStatus] ?? status;
+  return (
+    <span className={`fp-badge fp-badge-health fp-badge-health-${status}`}>{label}</span>
+  );
+}
+
+export function getHealthLabel(status: HealthStatus | string): string {
+  return HEALTH_LABELS[status as HealthStatus] ?? status;
 }
 
 export function NoteTypeBadge({ type }: { type: CommunicationNoteType | string }) {
@@ -96,6 +115,8 @@ export const LIFECYCLE_STATUS_OPTIONS: RelationshipLifecycleStatus[] = [
   "connected",
   "engaged",
 ];
+
+export const HEALTH_STATUS_OPTIONS: HealthStatus[] = ["healthy", "attention_needed", "stale"];
 
 const LIFECYCLE_ORDER: RelationshipLifecycleStatus[] = ["new", "protected", "connected", "engaged"];
 

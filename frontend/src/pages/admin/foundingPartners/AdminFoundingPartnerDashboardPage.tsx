@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   fetchFoundingPartners,
   fetchFoundingProspects,
@@ -7,26 +7,34 @@ import {
 } from "../../../api/adminFoundingPartners";
 import AdminLayout from "../AdminLayout";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { FP_MODULE_TITLE, formatDateTime, apiErrorMessage } from "./foundingPartnerFormat";
-import { ProtectionStatusBadge } from "./foundingPartnerBadges";
+import { FP_MODULE_TITLE, apiErrorMessage } from "./foundingPartnerFormat";
 
-interface RecentItem {
-  id: string;
-  label: string;
-  sublabel: string;
-  date: string;
-  href: string;
-  kind: "prospect" | "protection";
+const RECENT_ACTIVITY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function countRecentActivity(
+  businesses: { createdAt?: string }[],
+  pendingIntroductions: { createdAt?: string; introducedAt?: string }[]
+): number {
+  const cutoff = Date.now() - RECENT_ACTIVITY_MS;
+  let count = 0;
+  for (const b of businesses) {
+    if (b.createdAt && new Date(b.createdAt).getTime() >= cutoff) count++;
+  }
+  for (const intro of pendingIntroductions) {
+    const at = intro.createdAt ?? intro.introducedAt;
+    if (at && new Date(at).getTime() >= cutoff) count++;
+  }
+  return count;
 }
 
 export default function AdminFoundingPartnerDashboardPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [partnerCount, setPartnerCount] = useState(0);
-  const [prospectCount, setProspectCount] = useState(0);
-  const [approvedCount, setApprovedCount] = useState(0);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [recent, setRecent] = useState<RecentItem[]>([]);
+  const [businessCount, setBusinessCount] = useState(0);
+  const [introductionCount, setIntroductionCount] = useState(0);
+  const [recentActivityCount, setRecentActivityCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,42 +42,22 @@ export default function AdminFoundingPartnerDashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const [partners, prospects, approved, pending] = await Promise.all([
-          fetchFoundingPartners({ limit: 1 }),
-          fetchFoundingProspects({ limit: 5 }),
-          fetchRelationshipProtections({ protectionStatus: "approved", limit: 1 }),
-          fetchRelationshipProtections({ protectionStatus: "pending", limit: 5 }),
-        ]);
+        const [partners, businesses, introductions, recentBusinesses, recentPending] =
+          await Promise.all([
+            fetchFoundingPartners({ limit: 1 }),
+            fetchFoundingProspects({ limit: 1 }),
+            fetchRelationshipProtections({ limit: 1 }),
+            fetchFoundingProspects({ limit: 50 }),
+            fetchRelationshipProtections({ protectionStatus: "pending", limit: 50 }),
+          ]);
         if (cancelled) return;
 
         setPartnerCount(partners.total);
-        setProspectCount(prospects.total);
-        setApprovedCount(approved.total);
-        setPendingCount(pending.total);
-
-        const recentItems: RecentItem[] = [
-          ...prospects.items.map((p) => ({
-            id: `prospect-${p.id}`,
-            label: p.businessName,
-            sublabel: `Prospect · ${p.status}`,
-            date: p.createdAt ?? "",
-            href: `/admin/founding-partners/prospects/${p.id}`,
-            kind: "prospect" as const,
-          })),
-          ...pending.items.map((r) => ({
-            id: `protection-${r.id}`,
-            label: r.prospectBusinessName ?? "Introduction",
-            sublabel: `Pending · ${r.partnerName ?? "Partner"}`,
-            date: r.createdAt ?? r.introducedAt ?? "",
-            href: `/admin/founding-partners/relationship-protections/${r.id}`,
-            kind: "protection" as const,
-          })),
-        ]
-          .filter((item) => item.date)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          .slice(0, 8);
-
-        setRecent(recentItems);
+        setBusinessCount(businesses.total);
+        setIntroductionCount(introductions.total);
+        setRecentActivityCount(
+          countRecentActivity(recentBusinesses.items, recentPending.items)
+        );
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load dashboard"));
       } finally {
@@ -93,71 +81,40 @@ export default function AdminFoundingPartnerDashboardPage() {
         {error && <p className="fp-error">{error}</p>}
 
         {!loading && !error && (
-          <>
-            <div className="fp-dashboard-stats">
-              <div className="fp-stat-card">
-                <p className="fp-stat-label">Partners</p>
-                <p className="fp-stat-value">{partnerCount}</p>
-              </div>
-              <div className="fp-stat-card">
-                <p className="fp-stat-label">Prospects</p>
-                <p className="fp-stat-value">{prospectCount}</p>
-              </div>
-              <div className="fp-stat-card">
-                <p className="fp-stat-label">Approved protections</p>
-                <p className="fp-stat-value">{approvedCount}</p>
-              </div>
-              <div className="fp-stat-card">
-                <p className="fp-stat-label">Pending introductions</p>
-                <p className="fp-stat-value">{pendingCount}</p>
-              </div>
-            </div>
-
-            <section className="fp-card">
-              <h2 className="fp-section-title">Quick links</h2>
-              <div className="fp-detail-actions">
-                <Link className="fp-btn fp-btn-secondary" to="/admin/founding-partners/partners">
-                  View partners
-                </Link>
-                <Link className="fp-btn fp-btn-secondary" to="/admin/founding-partners/prospects">
-                  View prospects
-                </Link>
-                <Link
-                  className="fp-btn fp-btn-secondary"
-                  to="/admin/founding-partners/relationship-protections"
-                >
-                  View protections
-                </Link>
-              </div>
-            </section>
-
-            <section className="fp-card">
-              <h2 className="fp-section-title">Recent activity</h2>
-              {recent.length === 0 ? (
-                <p className="fp-empty">No recent prospects or pending introductions.</p>
-              ) : (
-                <ul className="fp-activity-list">
-                  {recent.map((item) => (
-                    <li key={item.id}>
-                      <Link to={item.href} className="fp-activity-row">
-                        <div className="fp-activity-row-main">
-                          <span className="fp-activity-row-title">{item.label}</span>
-                          <span className="fp-activity-row-meta">{item.sublabel}</span>
-                        </div>
-                        <span className="fp-activity-row-date">{formatDateTime(item.date)}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {pendingCount > 0 && (
-                <p className="fp-muted" style={{ marginTop: "0.75rem" }}>
-                  <ProtectionStatusBadge status="pending" /> {pendingCount} introduction
-                  {pendingCount !== 1 ? "s" : ""} awaiting review
-                </p>
-              )}
-            </section>
-          </>
+          <div className="fp-dashboard-stats">
+            <button
+              type="button"
+              className="fp-stat-card"
+              onClick={() => navigate("/admin/founding-partners/prospects")}
+            >
+              <p className="fp-stat-label">Businesses</p>
+              <p className="fp-stat-value">{businessCount}</p>
+            </button>
+            <button
+              type="button"
+              className="fp-stat-card"
+              onClick={() => navigate("/admin/founding-partners/relationship-protections")}
+            >
+              <p className="fp-stat-label">Introductions</p>
+              <p className="fp-stat-value">{introductionCount}</p>
+            </button>
+            <button
+              type="button"
+              className="fp-stat-card"
+              onClick={() => navigate("/admin/founding-partners/partners")}
+            >
+              <p className="fp-stat-label">Partners</p>
+              <p className="fp-stat-value">{partnerCount}</p>
+            </button>
+            <button
+              type="button"
+              className="fp-stat-card"
+              onClick={() => navigate("/admin/founding-partners/prospects")}
+            >
+              <p className="fp-stat-label">Recent activity</p>
+              <p className="fp-stat-value">{recentActivityCount}</p>
+            </button>
+          </div>
         )}
       </FoundingPartnerShell>
     </AdminLayout>

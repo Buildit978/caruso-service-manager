@@ -10,9 +10,9 @@ interface RelationshipOwnershipSectionProps {
 export default function RelationshipOwnershipSection({ ownership }: RelationshipOwnershipSectionProps) {
   return (
     <section className="fp-card">
-      <h2 className="fp-section-title">Relationship Ownership</h2>
+      <h2 className="fp-section-title">Stewardship</h2>
       {!ownership ? (
-        <p className="fp-empty">No active protection</p>
+        <p className="fp-empty">No active introduction</p>
       ) : (
         <dl className="fp-detail-dl">
           <dt>Protected By</dt>
@@ -28,7 +28,7 @@ export default function RelationshipOwnershipSection({ ownership }: Relationship
               "—"
             )}
           </dd>
-          <dt>Protection Status</dt>
+          <dt>Introduction status</dt>
           <dd>
             {ownership.protectionStatus ? (
               <ProtectionStatusBadge status={ownership.protectionStatus} />

@@ -10,7 +10,7 @@ export default function DuplicateProspectBanner({ matches }: DuplicateProspectBa
 
   return (
     <div className="fp-duplicate-banner fp-no-print" role="status">
-      <strong>Possible duplicate prospects</strong> — review before saving. No records will be merged
+      <strong>Possible duplicate businesses</strong> — review before saving. No records will be merged
       automatically.
       <ul>
         {matches.map((m) => (

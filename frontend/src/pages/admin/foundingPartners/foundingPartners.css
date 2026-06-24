@@ -214,6 +214,26 @@
   padding: 1rem;
 }
 
+.fp-shell--list button.fp-stat-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  line-height: 1.55;
+}
+
+.fp-shell--list button.fp-stat-card:hover,
+.fp-shell--list button.fp-stat-card:focus-visible {
+  background-color: var(--fp-list-table-row-hover);
+  border-color: var(--fp-list-focus);
+}
+
+.fp-shell--list button.fp-stat-card:focus-visible {
+  outline: 2px solid var(--fp-list-focus);
+  outline-offset: 2px;
+}
+
 .fp-shell--list .fp-stat-label {
   color: var(--fp-list-label);
   font-size: 0.95rem;

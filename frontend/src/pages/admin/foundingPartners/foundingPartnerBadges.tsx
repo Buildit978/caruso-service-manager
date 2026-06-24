@@ -18,9 +18,9 @@ const PROSPECT_LABELS: Record<FoundingProspectStatus, string> = {
   contacted: "Contacted",
   demoScheduled: "Demo scheduled",
   demoCompleted: "Demo completed",
-  trialStarted: "Trial started",
-  converted: "Converted",
-  closedLost: "Closed lost",
+  trialStarted: "Evaluating",
+  converted: "Adopted",
+  closedLost: "Not adopted yet",
   notFit: "Not a fit",
 };
 
@@ -130,6 +130,10 @@ export function getNextLifecycleStatus(
 
 export function getLifecycleLabel(status: RelationshipLifecycleStatus | string): string {
   return LIFECYCLE_LABELS[status as RelationshipLifecycleStatus] ?? status;
+}
+
+export function getProspectStatusLabel(status: FoundingProspectStatus | string): string {
+  return PROSPECT_LABELS[status as FoundingProspectStatus] ?? status;
 }
 
 export const NOTE_TYPE_OPTIONS: CommunicationNoteType[] = [

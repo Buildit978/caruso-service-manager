@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   fetchFoundingPartnerById,
+  fetchRelationshipProtections,
   updateFoundingPartner,
   type FoundingPartnerDetail,
   type FoundingPartnerStatus,
+  type RelationshipProtection,
 } from "../../../api/adminFoundingPartners";
 import AdminLayout from "../AdminLayout";
 import CommunicationNotesSection from "./CommunicationNotesSection";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { PartnerStatusBadge, PARTNER_STATUS_OPTIONS } from "./foundingPartnerBadges";
+import {
+  PartnerStatusBadge,
+  PARTNER_STATUS_OPTIONS,
+  LifecycleStatusBadge,
+  HealthStatusBadge,
+} from "./foundingPartnerBadges";
 import { FP_MODULE_TITLE, formatDateTime, apiErrorMessage } from "./foundingPartnerFormat";
 
 export default function AdminPartnerDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [partner, setPartner] = useState<FoundingPartnerDetail | null>(null);
+  const [stewardedBusinesses, setStewardedBusinesses] = useState<RelationshipProtection[]>([]);
+  const [stewardedLoading, setStewardedLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
@@ -31,10 +41,19 @@ export default function AdminPartnerDetailPage() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setStewardedLoading(true);
     setError(null);
     try {
-      const data = await fetchFoundingPartnerById(id);
+      const [data, stewarded] = await Promise.all([
+        fetchFoundingPartnerById(id),
+        fetchRelationshipProtections({
+          partnerId: id,
+          protectionStatus: "approved",
+          limit: 100,
+        }),
+      ]);
       setPartner(data);
+      setStewardedBusinesses(stewarded.items);
       setForm({
         name: data.name,
         email: data.email,
@@ -47,6 +66,7 @@ export default function AdminPartnerDetailPage() {
       setError(apiErrorMessage(err, "Failed to load partner"));
     } finally {
       setLoading(false);
+      setStewardedLoading(false);
     }
   }, [id]);
 
@@ -128,13 +148,114 @@ export default function AdminPartnerDetailPage() {
                 <dd>{formatDateTime(partner.updatedAt)}</dd>
                 {partner.counts && (
                   <>
-                    <dt>Protections</dt>
+                    <dt>Introductions</dt>
                     <dd>{partner.counts.relationshipProtections}</dd>
-                    <dt>Notes</dt>
+                    <dt>Relationship history entries</dt>
                     <dd>{partner.counts.communicationNotes}</dd>
                   </>
                 )}
               </dl>
+            </section>
+
+            <section className="fp-card">
+              <h2 className="fp-section-title">Businesses stewarded</h2>
+              {stewardedLoading && <p className="fp-loading">Loading businesses…</p>}
+              {!stewardedLoading && stewardedBusinesses.length === 0 && (
+                <p className="fp-empty">No approved introductions for this partner yet.</p>
+              )}
+              {!stewardedLoading && stewardedBusinesses.length > 0 && (
+                <>
+                  <div className="fp-cards">
+                    {stewardedBusinesses.map((row) => (
+                      <button
+                        type="button"
+                        key={row.id}
+                        className="fp-list-card"
+                        onClick={() =>
+                          navigate(`/admin/founding-partners/prospects/${row.prospectId}`)
+                        }
+                      >
+                        <div className="fp-list-card-row">
+                          <span className="fp-list-card-label">Business</span>
+                          <span className="fp-list-card-value">
+                            {row.prospectBusinessName ?? row.prospectId}
+                          </span>
+                        </div>
+                        <div className="fp-list-card-row">
+                          <span className="fp-list-card-label">Lifecycle</span>
+                          <span className="fp-list-card-value">
+                            <LifecycleStatusBadge status={row.lifecycleStatus} />
+                          </span>
+                        </div>
+                        {row.healthStatus != null && (
+                          <div className="fp-list-card-row">
+                            <span className="fp-list-card-label">Health</span>
+                            <span className="fp-list-card-value">
+                              <HealthStatusBadge status={row.healthStatus} />
+                              {row.daysSinceLastActivity != null && (
+                                <span className="fp-health-days"> {row.daysSinceLastActivity} d</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        <div className="fp-list-card-row">
+                          <span className="fp-list-card-label">Last activity</span>
+                          <span className="fp-list-card-value">
+                            {row.lastActivityAt
+                              ? formatDateTime(row.lastActivityAt)
+                              : "No activity recorded"}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="fp-table-wrap">
+                    <table className="fp-table" aria-label="Businesses stewarded">
+                      <thead>
+                        <tr>
+                          <th>Business</th>
+                          <th>Lifecycle</th>
+                          <th>Health</th>
+                          <th>Last activity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stewardedBusinesses.map((row) => (
+                          <tr key={row.id} className="fp-table-row-clickable">
+                            <td>
+                              <Link
+                                className="fp-link"
+                                to={`/admin/founding-partners/prospects/${row.prospectId}`}
+                              >
+                                {row.prospectBusinessName ?? row.prospectId}
+                              </Link>
+                            </td>
+                            <td>
+                              <LifecycleStatusBadge status={row.lifecycleStatus} />
+                            </td>
+                            <td>
+                              {row.healthStatus != null ? (
+                                <>
+                                  <HealthStatusBadge status={row.healthStatus} />
+                                  {row.daysSinceLastActivity != null && (
+                                    <span className="fp-health-days"> {row.daysSinceLastActivity} d</span>
+                                  )}
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td>
+                              {row.lastActivityAt ? formatDateTime(row.lastActivityAt) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </section>
 
             <CommunicationNotesSection partnerId={partner.id} />

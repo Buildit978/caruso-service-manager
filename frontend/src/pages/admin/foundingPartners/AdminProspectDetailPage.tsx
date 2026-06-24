@@ -14,7 +14,7 @@ import DuplicateProspectBanner from "./DuplicateProspectBanner";
 import FoundingPartnerShell from "./FoundingPartnerShell";
 import PendingIntroductionsSection from "./PendingIntroductionsSection";
 import RelationshipOwnershipSection from "./RelationshipOwnershipSection";
-import { ProspectStatusBadge, PROSPECT_STATUS_OPTIONS } from "./foundingPartnerBadges";
+import { ProspectStatusBadge, PROSPECT_STATUS_OPTIONS, getProspectStatusLabel } from "./foundingPartnerBadges";
 import {
   FP_MODULE_TITLE,
   formatDateTime,
@@ -62,7 +62,7 @@ export default function AdminProspectDetailPage() {
         notes: data.notes ?? "",
       });
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load prospect"));
+      setError(apiErrorMessage(err, "Failed to load business"));
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,7 @@ export default function AdminProspectDetailPage() {
       setShowEdit(false);
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to update prospect"));
+      setError(apiErrorMessage(err, "Failed to update business"));
     } finally {
       setSaving(false);
     }
@@ -126,13 +126,13 @@ export default function AdminProspectDetailPage() {
   return (
     <AdminLayout title={FP_MODULE_TITLE} showBack>
       <FoundingPartnerShell variant="list">
-        {loading && <p className="fp-loading">Loading prospect…</p>}
+        {loading && <p className="fp-loading">Loading business…</p>}
         {error && <p className="fp-error">{error}</p>}
 
         {prospect && (
           <>
             <div className="fp-print-header">
-              {FP_MODULE_TITLE} — Prospect: {prospect.businessName}
+              {FP_MODULE_TITLE} — Business: {prospect.businessName}
               <br />
               Printed {printedAt}
             </div>
@@ -150,13 +150,13 @@ export default function AdminProspectDetailPage() {
                   className="fp-btn fp-btn-secondary"
                   to={`/admin/founding-partners/relationship-protections?prospectId=${prospect.id}`}
                 >
-                  Protections
+                  Introductions
                 </Link>
               </div>
             </div>
 
             <section className="fp-card fp-print-root">
-              <h2 className="fp-section-title">Prospect details</h2>
+              <h2 className="fp-section-title">Business details</h2>
               <dl className="fp-detail-dl">
                 <dt>Business name</dt>
                 <dd>{prospect.businessName}</dd>
@@ -204,7 +204,7 @@ export default function AdminProspectDetailPage() {
             {showEdit && (
               <div className="admin-overlay fp-overlay fp-no-print" role="dialog" aria-modal="true">
                 <div className="admin-sheet">
-                  <h3 className="fp-section-title">Edit prospect</h3>
+                  <h3 className="fp-section-title">Edit business</h3>
                   <DuplicateProspectBanner matches={duplicates} />
                   <form className="fp-form-grid" onSubmit={handleSave}>
                     <label className="fp-form-label">
@@ -268,7 +268,7 @@ export default function AdminProspectDetailPage() {
                       >
                         {PROSPECT_STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
-                            {s}
+                            {getProspectStatusLabel(s)}
                           </option>
                         ))}
                       </select>

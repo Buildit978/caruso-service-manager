@@ -3,13 +3,13 @@ import "./foundingPartners.css";
 
 const links = [
   { to: "/admin/founding-partners", label: "Dashboard", end: true },
-  { to: "/admin/founding-partners/partners", label: "Partners", end: false },
-  { to: "/admin/founding-partners/prospects", label: "Prospects", end: false },
+  { to: "/admin/founding-partners/prospects", label: "Businesses", end: false },
   {
     to: "/admin/founding-partners/relationship-protections",
-    label: "Protections",
+    label: "Introductions",
     end: false,
   },
+  { to: "/admin/founding-partners/partners", label: "Partners", end: false },
 ];
 
 export default function FoundingPartnerNav() {

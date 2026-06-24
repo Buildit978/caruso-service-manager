@@ -42,7 +42,7 @@ export default function CommunicationNotesSection({
       });
       setNotes(res.items);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load notes"));
+      setError(apiErrorMessage(err, "Failed to load relationship history"));
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function CommunicationNotesSection({
   return (
     <section className="fp-card fp-print-root">
       <div className="fp-detail-header">
-        <h2 className="fp-section-title">Communication Notes</h2>
+        <h2 className="fp-section-title">Relationship history</h2>
         <button
           type="button"
           className="fp-btn fp-btn-secondary fp-btn-sm fp-no-print"
@@ -135,8 +135,8 @@ export default function CommunicationNotesSection({
         </form>
       )}
 
-      {loading && <p className="fp-loading">Loading notes…</p>}
-      {!loading && notes.length === 0 && <p className="fp-empty">No communication notes yet.</p>}
+      {loading && <p className="fp-loading">Loading relationship history…</p>}
+      {!loading && notes.length === 0 && <p className="fp-empty">No relationship history yet.</p>}
       {!loading && notes.length > 0 && (
         <ul className="fp-notes-list">
           {notes.map((note) => (

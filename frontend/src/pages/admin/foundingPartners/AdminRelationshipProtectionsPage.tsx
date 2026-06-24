@@ -83,7 +83,7 @@ export default function AdminRelationshipProtectionsPage() {
       setItems(res.items);
       setTotal(res.total);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load protections"));
+      setError(apiErrorMessage(err, "Failed to load introductions"));
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function AdminRelationshipProtectionsPage() {
       setShowCreate(false);
       navigate(`/admin/founding-partners/relationship-protections/${created.id}`);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to create protection"));
+      setError(apiErrorMessage(err, "Failed to create introduction"));
     } finally {
       setSaving(false);
     }
@@ -133,7 +133,7 @@ export default function AdminRelationshipProtectionsPage() {
     <AdminLayout title={FP_MODULE_TITLE}>
       <FoundingPartnerShell variant="list">
         <div className="fp-page-header">
-          <h2 className="fp-page-title">Relationship Protections</h2>
+          <h2 className="fp-page-title">Introductions</h2>
           <button type="button" className="fp-btn fp-btn-primary fp-no-print" onClick={() => setShowCreate(true)}>
             Record introduction
           </button>
@@ -141,7 +141,7 @@ export default function AdminRelationshipProtectionsPage() {
 
         <div className="fp-filters fp-no-print">
           <label className="fp-filter-label">
-            Protection status
+            Introduction status
             <select className="fp-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="all">All</option>
               <option value="pending">Pending</option>
@@ -177,17 +177,17 @@ export default function AdminRelationshipProtectionsPage() {
 
         {(initialProspectId || initialPartnerId) && (
           <p className="fp-muted fp-no-print">
-            Filtered by {initialProspectId ? `prospect ${initialProspectId}` : ""}
+            Filtered by {initialProspectId ? `business ${initialProspectId}` : ""}
             {initialProspectId && initialPartnerId ? " · " : ""}
             {initialPartnerId ? `partner ${initialPartnerId}` : ""}
           </p>
         )}
 
-        {loading && <p className="fp-loading">Loading protections…</p>}
+        {loading && <p className="fp-loading">Loading introductions…</p>}
         {error && <p className="fp-error">{error}</p>}
 
         {!loading && !error && items.length === 0 && (
-          <p className="fp-empty">No relationship protections match the current filters.</p>
+          <p className="fp-empty">No introductions match the current filters.</p>
         )}
 
         {!loading && !error && items.length > 0 && (
@@ -201,7 +201,7 @@ export default function AdminRelationshipProtectionsPage() {
                   onClick={() => navigate(`/admin/founding-partners/relationship-protections/${r.id}`)}
                 >
                   <div className="fp-list-card-row">
-                    <span className="fp-list-card-label">Prospect</span>
+                    <span className="fp-list-card-label">Business</span>
                     <span className="fp-list-card-value">{r.prospectBusinessName ?? r.prospectId}</span>
                   </div>
                   <div className="fp-list-card-row">
@@ -209,7 +209,7 @@ export default function AdminRelationshipProtectionsPage() {
                     <span className="fp-list-card-value">{r.partnerName ?? r.partnerId}</span>
                   </div>
                   <div className="fp-list-card-row">
-                    <span className="fp-list-card-label">Protection status</span>
+                    <span className="fp-list-card-label">Introduction status</span>
                     <span className="fp-list-card-value">
                       <ProtectionStatusBadge status={r.protectionStatus} />
                     </span>
@@ -237,12 +237,12 @@ export default function AdminRelationshipProtectionsPage() {
             </div>
 
             <div className="fp-table-wrap">
-              <table className="fp-table" aria-label="Relationship protections">
+              <table className="fp-table" aria-label="Introductions">
                 <thead>
                   <tr>
-                    <th>Prospect</th>
+                    <th>Business</th>
                     <th>Partner</th>
-                    <th>Protection</th>
+                    <th>Introduction</th>
                     <th>Lifecycle</th>
                     <th>Health</th>
                     <th>Introduced</th>
@@ -275,7 +275,7 @@ export default function AdminRelationshipProtectionsPage() {
               </table>
             </div>
             <p className="fp-paging">
-              Showing {items.length} of {total} protection{total !== 1 ? "s" : ""}
+              Showing {items.length} of {total} introduction{total !== 1 ? "s" : ""}
             </p>
           </>
         )}
@@ -302,14 +302,14 @@ export default function AdminRelationshipProtectionsPage() {
                   </select>
                 </label>
                 <label className="fp-form-label">
-                  Prospect *
+                  Business *
                   <select
                     className="fp-form-select"
                     value={form.prospectId}
                     onChange={(e) => setForm({ ...form, prospectId: e.target.value })}
                     required
                   >
-                    <option value="">Select prospect</option>
+                    <option value="">Select business</option>
                     {prospects.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.businessName}
@@ -337,7 +337,7 @@ export default function AdminRelationshipProtectionsPage() {
                 </label>
                 <div className="fp-form-actions">
                   <button type="submit" className="fp-btn fp-btn-primary" disabled={saving}>
-                    {saving ? "Saving…" : "Create protection record"}
+                    {saving ? "Saving…" : "Create introduction"}
                   </button>
                   <button
                     type="button"

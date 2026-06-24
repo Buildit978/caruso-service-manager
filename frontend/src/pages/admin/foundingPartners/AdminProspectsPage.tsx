@@ -11,7 +11,7 @@ import {
 import AdminLayout from "../AdminLayout";
 import DuplicateProspectBanner from "./DuplicateProspectBanner";
 import FoundingPartnerShell from "./FoundingPartnerShell";
-import { ProspectStatusBadge, PROSPECT_STATUS_OPTIONS } from "./foundingPartnerBadges";
+import { ProspectStatusBadge, PROSPECT_STATUS_OPTIONS, getProspectStatusLabel } from "./foundingPartnerBadges";
 import {
   FP_MODULE_TITLE,
   formatDate,
@@ -55,7 +55,7 @@ export default function AdminProspectsPage() {
       setItems(res.items);
       setTotal(res.total);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load prospects"));
+      setError(apiErrorMessage(err, "Failed to load businesses"));
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ export default function AdminProspectsPage() {
       setShowCreate(false);
       navigate(`/admin/founding-partners/prospects/${created.id}`);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to create prospect"));
+      setError(apiErrorMessage(err, "Failed to create business"));
     } finally {
       setSaving(false);
     }
@@ -119,9 +119,9 @@ export default function AdminProspectsPage() {
     <AdminLayout title={FP_MODULE_TITLE}>
       <FoundingPartnerShell variant="list">
         <div className="fp-page-header">
-          <h2 className="fp-page-title">Prospects</h2>
+          <h2 className="fp-page-title">Businesses</h2>
           <button type="button" className="fp-btn fp-btn-primary fp-no-print" onClick={() => setShowCreate(true)}>
-            Add prospect
+            Add business
           </button>
         </div>
 
@@ -141,18 +141,18 @@ export default function AdminProspectsPage() {
               <option value="all">All</option>
               {PROSPECT_STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {getProspectStatusLabel(s)}
                 </option>
               ))}
             </select>
           </label>
         </div>
 
-        {loading && <p className="fp-loading">Loading prospects…</p>}
+        {loading && <p className="fp-loading">Loading businesses…</p>}
         {error && <p className="fp-error">{error}</p>}
 
         {!loading && !error && items.length === 0 && (
-          <p className="fp-empty">No prospects match the current filters.</p>
+          <p className="fp-empty">No businesses match the current filters.</p>
         )}
 
         {!loading && !error && items.length > 0 && (
@@ -188,7 +188,7 @@ export default function AdminProspectsPage() {
             </div>
 
             <div className="fp-table-wrap">
-              <table className="fp-table" aria-label="Prospects">
+              <table className="fp-table" aria-label="Businesses">
                 <thead>
                   <tr>
                     <th>Business Name</th>
@@ -236,7 +236,7 @@ export default function AdminProspectsPage() {
               </table>
             </div>
             <p className="fp-paging">
-              Showing {items.length} of {total} prospect{total !== 1 ? "s" : ""}
+              Showing {items.length} of {total} business{total !== 1 ? "es" : ""}
             </p>
           </>
         )}
@@ -244,7 +244,7 @@ export default function AdminProspectsPage() {
         {showCreate && (
           <div className="admin-overlay fp-overlay fp-no-print" role="dialog" aria-modal="true">
             <div className="admin-sheet">
-              <h3 className="fp-section-title">Add prospect</h3>
+              <h3 className="fp-section-title">Add business</h3>
               <DuplicateProspectBanner matches={duplicates} />
               <form className="fp-form-grid" onSubmit={handleCreate}>
                 <label className="fp-form-label">
@@ -309,7 +309,7 @@ export default function AdminProspectsPage() {
                   >
                     {PROSPECT_STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>
-                        {s}
+                        {getProspectStatusLabel(s)}
                       </option>
                     ))}
                   </select>
@@ -324,7 +324,7 @@ export default function AdminProspectsPage() {
                 </label>
                 <div className="fp-form-actions">
                   <button type="submit" className="fp-btn fp-btn-primary" disabled={saving}>
-                    {saving ? "Saving…" : "Create prospect"}
+                    {saving ? "Saving…" : "Create business"}
                   </button>
                   <button
                     type="button"

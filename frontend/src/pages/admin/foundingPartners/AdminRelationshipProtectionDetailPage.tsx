@@ -37,7 +37,7 @@ export default function AdminRelationshipProtectionDetailPage() {
         evidenceSummary: data.evidenceSummary,
       });
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load protection"));
+      setError(apiErrorMessage(err, "Failed to load introduction"));
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export default function AdminRelationshipProtectionDetailPage() {
       setApprovalNotes("");
       await load();
     } catch (err) {
-      setActionError(apiErrorMessage(err, `Failed to ${action} protection`));
+      setActionError(apiErrorMessage(err, `Failed to ${action} introduction`));
     } finally {
       setActionLoading(false);
     }
@@ -78,7 +78,7 @@ export default function AdminRelationshipProtectionDetailPage() {
       setShowEdit(false);
       await load();
     } catch (err) {
-      setActionError(apiErrorMessage(err, "Failed to update protection"));
+      setActionError(apiErrorMessage(err, "Failed to update introduction"));
     } finally {
       setActionLoading(false);
     }
@@ -106,19 +106,19 @@ export default function AdminRelationshipProtectionDetailPage() {
   return (
     <AdminLayout title={FP_MODULE_TITLE} showBack>
       <FoundingPartnerShell variant="list">
-        {loading && <p className="fp-loading">Loading protection…</p>}
+        {loading && <p className="fp-loading">Loading introduction…</p>}
         {error && <p className="fp-error">{error}</p>}
 
         {protection && (
           <>
             <div className="fp-print-header">
-              {FP_MODULE_TITLE} — Relationship Protection
+              {FP_MODULE_TITLE} — Introduction
               <br />
               Printed {printedAt}
             </div>
 
             <div className="fp-page-header fp-no-print">
-              <h2 className="fp-page-title">Relationship Protection</h2>
+              <h2 className="fp-page-title">Introduction</h2>
               <div className="fp-detail-actions">
                 <button type="button" className="fp-btn fp-btn-secondary" onClick={() => window.print()}>
                   Print
@@ -132,9 +132,9 @@ export default function AdminRelationshipProtectionDetailPage() {
             </div>
 
             <section className="fp-card fp-print-root">
-              <h2 className="fp-section-title">Protection details</h2>
+              <h2 className="fp-section-title">Introduction details</h2>
               <dl className="fp-detail-dl">
-                <dt>Protection status</dt>
+                <dt>Introduction status</dt>
                 <dd>
                   <ProtectionStatusBadge status={protection.protectionStatus} />
                 </dd>
@@ -161,7 +161,7 @@ export default function AdminRelationshipProtectionDetailPage() {
                     protection.partnerName ?? protection.partnerId
                   )}
                 </dd>
-                <dt>Prospect</dt>
+                <dt>Business</dt>
                 <dd>
                   {protection.prospect ? (
                     <Link
@@ -245,7 +245,7 @@ export default function AdminRelationshipProtectionDetailPage() {
                         disabled={actionLoading}
                         onClick={() => runAction("release")}
                       >
-                        Release protection
+                        Release introduction
                       </button>
                     </>
                   )}
@@ -261,7 +261,7 @@ export default function AdminRelationshipProtectionDetailPage() {
             {showEdit && (
               <div className="admin-overlay fp-overlay fp-no-print" role="dialog" aria-modal="true">
                 <div className="admin-sheet">
-                  <h3 className="fp-section-title">Edit pending protection</h3>
+                  <h3 className="fp-section-title">Edit pending introduction</h3>
                   <form className="fp-form-grid" onSubmit={handleEdit}>
                     <label className="fp-form-label">
                       Introduced date

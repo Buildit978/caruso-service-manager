@@ -15,6 +15,8 @@ export interface ICommunicationNote extends Document {
   relationshipProtectionId?: Types.ObjectId;
   type: CommunicationNoteType;
   summary: string;
+  /** Partner attests this note captures a meaningful conversation (evidence-based). */
+  isMeaningful?: boolean;
   followUpDate?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -36,6 +38,7 @@ const communicationNoteSchema = new Schema<ICommunicationNote>(
       required: true,
     },
     summary: { type: String, required: true, trim: true },
+    isMeaningful: { type: Boolean, default: false, required: false },
     followUpDate: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

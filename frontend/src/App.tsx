@@ -39,11 +39,15 @@ import AdminProspectDetailPage from "./pages/admin/foundingPartners/AdminProspec
 import AdminRelationshipProtectionsPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionsPage";
 import AdminRelationshipProtectionDetailPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionDetailPage";
 import PartnerLoginPage from "./pages/partner/PartnerLoginPage";
+import PartnerSetPasswordPage from "./pages/partner/PartnerSetPasswordPage";
 import PartnerGuard from "./pages/partner/PartnerGuard";
 import PartnerLayout from "./pages/partner/PartnerLayout";
 import PartnerDashboardPage from "./pages/partner/PartnerDashboardPage";
 import PartnerBusinessesPage from "./pages/partner/PartnerBusinessesPage";
 import PartnerBusinessDetailPage from "./pages/partner/PartnerBusinessDetailPage";
+import PartnerIntroductionsPage from "./pages/partner/PartnerIntroductionsPage";
+import PartnerNewIntroductionPage from "./pages/partner/PartnerNewIntroductionPage";
+import PartnerIntroductionDetailPage from "./pages/partner/PartnerIntroductionDetailPage";
 
 function App() {
   return (
@@ -73,6 +77,7 @@ function App() {
         <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
       </Route>
       <Route path="/partner/login" element={<PartnerLoginPage />} />
+      <Route path="/partner/set-password" element={<PartnerSetPasswordPage />} />
       <Route
         path="/partner"
         element={
@@ -82,6 +87,9 @@ function App() {
         }
       >
         <Route index element={<PartnerDashboardPage />} />
+        <Route path="introductions" element={<PartnerIntroductionsPage />} />
+        <Route path="introductions/new" element={<PartnerNewIntroductionPage />} />
+        <Route path="introductions/:id" element={<PartnerIntroductionDetailPage />} />
         <Route path="businesses" element={<PartnerBusinessesPage />} />
         <Route path="businesses/:id" element={<PartnerBusinessDetailPage />} />
       </Route>

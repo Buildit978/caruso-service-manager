@@ -75,6 +75,10 @@ export async function requirePartnerAuth(req: Request, res: Response, next: Next
       return deny("USER_NOT_FOUND");
     }
 
+    if (user.mustChangePassword === true) {
+      return deny("PASSWORD_CHANGE_REQUIRED");
+    }
+
     const tokenSv = typeof sv === "number" ? sv : 0;
     const userSv = typeof user.sessionVersion === "number" ? user.sessionVersion : 0;
     if (tokenSv !== userSv) {

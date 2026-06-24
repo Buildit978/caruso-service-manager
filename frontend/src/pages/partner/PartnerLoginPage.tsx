@@ -4,6 +4,8 @@ import {
   getPartnerToken,
   partnerApiErrorMessage,
   partnerLogin,
+  setPartnerPasswordSetupToken,
+  setPartnerPasswordSetupEmail,
   setPartnerToken,
   type HttpError,
 } from "../../api/partner";
@@ -33,6 +35,16 @@ export default function PartnerLoginPage() {
         email: normalizeEmail(email),
         password,
       });
+      if (res.mustChangePassword === true && res.passwordSetupToken) {
+        setPartnerPasswordSetupToken(res.passwordSetupToken);
+        setPartnerPasswordSetupEmail(res.partner.email);
+        navigate("/partner/set-password", { replace: true });
+        return;
+      }
+      if (!res.token) {
+        setError("Sign in failed");
+        return;
+      }
       setPartnerToken(res.token);
       navigate("/partner", { replace: true });
     } catch (err) {
@@ -56,8 +68,9 @@ export default function PartnerLoginPage() {
   return (
     <div className="partner-portal-login-page">
       <div className="partner-portal-login-card">
-        <h1 className="partner-portal-login-title">Partner Portal</h1>
-        <p className="partner-portal-login-subtitle">Sign in to view your stewarded businesses.</p>
+        <h1 className="partner-portal-login-title">Shop Service Manager</h1>
+        <p className="partner-portal-login-kicker">Partner Portal</p>
+        <p className="partner-portal-login-subtitle">Access is by invitation only. Sign in with your invite credentials.</p>
 
         {error && <p className="partner-portal-error">{error}</p>}
 

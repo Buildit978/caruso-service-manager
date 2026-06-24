@@ -10,7 +10,6 @@ import {
   type PartnerNoteType,
 } from "../../api/partner";
 import {
-  formatDate,
   formatDateTime,
   formatWebsiteHref,
   formatWebsiteLabel,
@@ -33,7 +32,6 @@ export default function PartnerBusinessDetailPage() {
   const [showForm, setShowForm] = useState(false);
   const [noteType, setNoteType] = useState<PartnerNoteType>("call");
   const [summary, setSummary] = useState("");
-  const [followUpDate, setFollowUpDate] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -67,10 +65,8 @@ export default function PartnerBusinessDetailPage() {
       await createPartnerBusinessNote(id, {
         type: noteType,
         summary: summary.trim(),
-        followUpDate: followUpDate || undefined,
       });
       setSummary("");
-      setFollowUpDate("");
       setShowForm(false);
       await load();
     } catch (err) {
@@ -204,15 +200,6 @@ export default function PartnerBusinessDetailPage() {
                     required
                   />
                 </label>
-                <label className="partner-portal-form-label">
-                  Follow-up date (optional)
-                  <input
-                    type="date"
-                    className="partner-portal-form-input"
-                    value={followUpDate}
-                    onChange={(e) => setFollowUpDate(e.target.value)}
-                  />
-                </label>
                 <button
                   type="submit"
                   className="partner-portal-btn partner-portal-btn-primary"
@@ -231,7 +218,6 @@ export default function PartnerBusinessDetailPage() {
                   <div className="partner-portal-note-meta">
                     <NoteTypeBadge type={note.type} />
                     <span>{formatDateTime(note.createdAt)}</span>
-                    {note.followUpDate && <span>Follow-up {formatDate(note.followUpDate)}</span>}
                   </div>
                   <p className="partner-portal-note-summary">{note.summary}</p>
                 </div>

@@ -33,8 +33,9 @@ export default function PartnerLayout() {
     <div className="partner-portal">
       <header className="partner-portal-header">
         <div>
-          <p className="partner-portal-brand">Partner Portal</p>
-          {partnerName && <p className="partner-portal-subtitle">{partnerName}</p>}
+          <p className="partner-portal-brand">Shop Service Manager</p>
+          {partnerName && <p className="partner-portal-subtitle">Partner Portal · {partnerName}</p>}
+          {!partnerName && <p className="partner-portal-subtitle">Partner Portal</p>}
         </div>
         <button type="button" className="partner-portal-logout" onClick={handleLogout}>
           Log out
@@ -50,6 +51,14 @@ export default function PartnerLayout() {
           }
         >
           Dashboard
+        </NavLink>
+        <NavLink
+          to="/partner/introductions"
+          className={({ isActive }) =>
+            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : ""}`
+          }
+        >
+          Introductions
         </NavLink>
         <NavLink
           to="/partner/businesses"

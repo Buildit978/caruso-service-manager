@@ -44,7 +44,7 @@ function getPortalFrom(): { name: string; email: string } {
 
 async function sendPartnerPortalInviteEmail(email: string, tempPassword: string): Promise<void> {
   const subject = "Partner portal access";
-  const text = `You have been granted access to the partner portal. Sign in at:\n\n${getPartnerPortalLoginUrl()}\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nChange your password after first sign-in when available.`;
+  const text = `You have been invited to the partner portal. Access is by invitation only.\n\nSign in at:\n${getPartnerPortalLoginUrl()}/login\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nYou will be asked to create a secure permanent password on first sign-in.`;
   await sendEmail({ to: email, subject, text, from: getPortalFrom() });
 }
 

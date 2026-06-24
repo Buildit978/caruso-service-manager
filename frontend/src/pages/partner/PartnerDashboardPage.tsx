@@ -57,11 +57,21 @@ export default function PartnerDashboardPage() {
               <p className="partner-portal-stat-label">Needs attention</p>
               <p className="partner-portal-stat-value">{data.attentionNeededCount}</p>
             </div>
-            <div className="partner-portal-stat-card" style={{ gridColumn: "1 / -1" }}>
+            <div className="partner-portal-stat-card partner-portal-stat-card-wide">
               <p className="partner-portal-stat-label">Recent activity (7 days)</p>
               <p className="partner-portal-stat-value">{data.recentActivityCount}</p>
             </div>
           </div>
+
+          <Link to="/partner/introductions/new" className="partner-portal-link-card">
+            <p className="partner-portal-link-card-title">New Shop Introduction</p>
+            <p className="partner-portal-link-card-sub">Capture the beginning of a relationship</p>
+          </Link>
+
+          <Link to="/partner/introductions" className="partner-portal-link-card">
+            <p className="partner-portal-link-card-title">Introductions</p>
+            <p className="partner-portal-link-card-sub">Review relationships you are building</p>
+          </Link>
 
           <Link to="/partner/businesses" className="partner-portal-link-card">
             <p className="partner-portal-link-card-title">My Businesses</p>
@@ -93,7 +103,7 @@ export default function PartnerDashboardPage() {
                     <span>{formatDateTime(item.at)}</span>
                   </div>
                   {item.businessName && (
-                    <p style={{ margin: "0 0 0.25rem", fontWeight: 600, fontSize: "0.9375rem" }}>
+                    <p className="partner-portal-activity-business-name">
                       {item.prospectId ? (
                         <Link to={`/partner/businesses/${item.prospectId}`}>{item.businessName}</Link>
                       ) : (

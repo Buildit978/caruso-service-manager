@@ -1,5 +1,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 const PARTNER_TOKEN_KEY = "partner_token";
+const PARTNER_SETUP_TOKEN_KEY = "partner_password_setup_token";
+const PARTNER_SETUP_EMAIL_KEY = "partner_password_setup_email";
 
 export interface HttpError extends Error {
   status: number;
@@ -27,9 +29,17 @@ export interface PartnerPortalAccess {
 }
 
 export interface PartnerLoginResponse {
-  token: string;
+  token?: string;
+  passwordSetupToken?: string;
   partner: { id: string; name: string; email: string };
   mustChangePassword?: boolean;
+}
+
+export interface PartnerSetPasswordResponse {
+  ok: true;
+  token: string;
+  partner: { id: string; name: string; email: string };
+  mustChangePassword: false;
 }
 
 export interface PartnerMe {
@@ -60,6 +70,69 @@ export interface PartnerDashboard {
     prospectId?: string;
     businessName?: string;
   }>;
+}
+
+export type PartnerRelationshipStage = "introduced" | "conversation" | "meaningfulConversation";
+
+export const PARTNER_RELATIONSHIP_STAGE_LABELS: Record<PartnerRelationshipStage, string> = {
+  introduced: "Introduced",
+  conversation: "In conversation",
+  meaningfulConversation: "Meaningful conversation",
+};
+
+export interface PartnerDuplicateMatch {
+  prospectId: string;
+  businessName: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  status: string;
+  matchedOn: string[];
+  confidence: "high" | "medium";
+}
+
+export interface PartnerIntroductionListItem {
+  prospectId: string;
+  businessName: string;
+  contactName?: string;
+  stage: PartnerRelationshipStage;
+  isStewarding: boolean;
+  introducedAt?: string;
+  stageUpdatedAt?: string;
+  lastMeaningfulConversation: { summary: string; at?: string } | null;
+}
+
+export interface PartnerIntroductionDetail {
+  business: PartnerBusinessDetail["business"];
+  relationship: {
+    stage: PartnerRelationshipStage;
+    introducedAt?: string;
+    stageUpdatedAt?: string;
+    isStewarding: boolean;
+  };
+  lastMeaningfulConversation: {
+    id: string;
+    type: string;
+    summary: string;
+    isMeaningful: boolean;
+    followUpDate?: string;
+    createdAt?: string;
+  } | null;
+  notes: Array<{
+    id: string;
+    type: string;
+    summary: string;
+    isMeaningful: boolean;
+    followUpDate?: string;
+    createdAt?: string;
+  }>;
+}
+
+export interface PartnerIntroductionCreateResponse {
+  business: PartnerIntroductionDetail["business"];
+  relationship: PartnerIntroductionDetail["relationship"];
+  note: PartnerIntroductionDetail["notes"][0];
+  possibleDuplicates: PartnerDuplicateMatch[];
 }
 
 export interface PartnerBusinessListItem {
@@ -127,6 +200,33 @@ export function setPartnerToken(token: string): void {
 
 export function clearPartnerToken(): void {
   localStorage.removeItem(PARTNER_TOKEN_KEY);
+}
+
+export function getPartnerPasswordSetupToken(): string | null {
+  const raw = sessionStorage.getItem(PARTNER_SETUP_TOKEN_KEY);
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+export function setPartnerPasswordSetupToken(token: string): void {
+  sessionStorage.setItem(PARTNER_SETUP_TOKEN_KEY, token.trim());
+}
+
+export function setPartnerPasswordSetupEmail(email: string): void {
+  sessionStorage.setItem(PARTNER_SETUP_EMAIL_KEY, email.trim().toLowerCase());
+}
+
+export function getPartnerPasswordSetupEmail(): string | null {
+  const raw = sessionStorage.getItem(PARTNER_SETUP_EMAIL_KEY);
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+export function clearPartnerPasswordSetupToken(): void {
+  sessionStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+  sessionStorage.removeItem(PARTNER_SETUP_EMAIL_KEY);
 }
 
 export function isPartnerUnauthorized(err: unknown): boolean {
@@ -230,6 +330,40 @@ export async function partnerLogin(credentials: {
   return res.json() as Promise<PartnerLoginResponse>;
 }
 
+export async function partnerSetPassword(body: {
+  newPassword: string;
+  passwordSetupToken?: string;
+}): Promise<PartnerSetPasswordResponse> {
+  const setupToken = body.passwordSetupToken ?? getPartnerPasswordSetupToken();
+  if (!setupToken) {
+    const err: HttpError = new Error("Password setup session expired") as HttpError;
+    err.status = 401;
+    throw err;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/partner/auth/set-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-partner-setup-token": setupToken,
+    },
+    body: JSON.stringify({ newPassword: body.newPassword }),
+  });
+
+  if (!res.ok) {
+    const err: HttpError = new Error(`Set password failed: ${res.status}`) as HttpError;
+    err.status = res.status;
+    try {
+      err.data = await res.json();
+    } catch {
+      // ignore
+    }
+    throw err;
+  }
+
+  return res.json() as Promise<PartnerSetPasswordResponse>;
+}
+
 export function fetchPartnerMe(): Promise<PartnerMe> {
   return partnerFetch("/auth/me");
 }
@@ -255,9 +389,55 @@ export function fetchPartnerBusinessById(id: string): Promise<PartnerBusinessDet
 
 export function createPartnerBusinessNote(
   prospectId: string,
-  body: { type: PartnerNoteType; summary: string; followUpDate?: string }
+  body: { type: PartnerNoteType; summary: string; followUpDate?: string; isMeaningful?: boolean }
 ): Promise<PartnerBusinessDetail["notes"][0]> {
   return partnerFetch(`/businesses/${prospectId}/notes`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchPartnerIntroductions(params?: {
+  limit?: number;
+  skip?: number;
+}): Promise<{ items: PartnerIntroductionListItem[]; total: number; limit: number; skip: number }> {
+  const sp = new URLSearchParams();
+  if (params?.limit != null) sp.set("limit", String(params.limit));
+  if (params?.skip != null) sp.set("skip", String(params.skip));
+  const q = sp.toString();
+  return partnerFetch(`/introductions${q ? `?${q}` : ""}`);
+}
+
+export function fetchPartnerIntroductionById(prospectId: string): Promise<PartnerIntroductionDetail> {
+  return partnerFetch(`/introductions/${prospectId}`);
+}
+
+export function createPartnerIntroduction(body: {
+  businessName: string;
+  ownerName: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  conversationNotes: string;
+  isMeaningful?: boolean;
+  type?: PartnerNoteType;
+}): Promise<PartnerIntroductionCreateResponse> {
+  return partnerFetch("/introductions", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function createPartnerIntroductionNote(
+  prospectId: string,
+  body: {
+    type: PartnerNoteType;
+    summary: string;
+    followUpDate?: string;
+    isMeaningful?: boolean;
+  }
+): Promise<{ note: PartnerIntroductionDetail["notes"][0]; relationship: PartnerIntroductionDetail["relationship"] }> {
+  return partnerFetch(`/introductions/${prospectId}/notes`, {
     method: "POST",
     body: JSON.stringify(body),
   });

@@ -30,6 +30,15 @@ export type CommunicationNoteType =
   | "followUp"
   | "internalNote";
 
+export type PortalAccessStatus = "enabled" | "disabled";
+
+export interface PartnerPortalAccess {
+  status: PortalAccessStatus;
+  enabledAt?: string;
+  disabledAt?: string;
+  lastLoginAt?: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -50,6 +59,7 @@ export interface FoundingPartner {
 }
 
 export interface FoundingPartnerDetail extends FoundingPartner {
+  portalAccess?: PartnerPortalAccess;
   counts?: { relationshipProtections: number; communicationNotes: number };
 }
 
@@ -195,6 +205,14 @@ export function updateFoundingPartner(
   }>
 ): Promise<FoundingPartner> {
   return adminFetch(`${BASE}/partners/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export function enablePartnerPortalAccess(id: string): Promise<FoundingPartnerDetail> {
+  return adminFetch(`${BASE}/partners/${id}/enable-portal-access`, { method: "POST", body: "{}" });
+}
+
+export function disablePartnerPortalAccess(id: string): Promise<FoundingPartnerDetail> {
+  return adminFetch(`${BASE}/partners/${id}/disable-portal-access`, { method: "POST", body: "{}" });
 }
 
 export function fetchFoundingProspects(params?: {

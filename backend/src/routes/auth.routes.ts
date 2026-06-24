@@ -284,6 +284,7 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
         accountId: account._id,
         email: normalizedEmail,
         isActive: true,
+        role: { $ne: "founding_partner" },
       }).lean();
 
       if (!user) {
@@ -295,6 +296,7 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
       const candidates = await User.find({
         email: normalizedEmail,
         isActive: true,
+        role: { $ne: "founding_partner" },
       }).lean();
 
       if (!candidates.length) {
@@ -342,6 +344,10 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
     // Final safety check on account status
     if (!account || account.isActive === false) {
       return res.status(403).json({ message: "Account inactive" });
+    }
+
+    if (user.role === "founding_partner") {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     // Compare password with hash

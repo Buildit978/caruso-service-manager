@@ -26,6 +26,12 @@ import {
   type HealthStatus,
 } from "../../utils/foundingPartners/relationshipHealth";
 import { trackFoundingPartnerAudit } from "../../utils/trackFoundingPartnerAudit";
+import {
+  buildPortalAccessSnapshot,
+  disablePartnerPortalAccess,
+  enablePartnerPortalAccess,
+  PartnerPortalAccessError,
+} from "../../utils/foundingPartners/partnerPortalAccess";
 
 const router = Router();
 
@@ -304,6 +310,23 @@ async function auditFromReq(
   });
 }
 
+async function loadPartnerDetail(id: Types.ObjectId) {
+  const partner = await FoundingPartner.findById(id).lean();
+  if (!partner) return null;
+
+  const [protectionCount, noteCount, portalAccess] = await Promise.all([
+    RelationshipProtection.countDocuments({ partnerId: id }),
+    CommunicationNote.countDocuments({ partnerId: id }),
+    buildPortalAccessSnapshot(partner as any),
+  ]);
+
+  return {
+    ...serializePartner(partner as any),
+    portalAccess,
+    counts: { relationshipProtections: protectionCount, communicationNotes: noteCount },
+  };
+}
+
 // ─── Partners ───────────────────────────────────────────────────────────────
 
 /**
@@ -411,17 +434,84 @@ router.get("/partners/:id", async (req: Request, res: Response) => {
     const partner = await FoundingPartner.findById(id).lean();
     if (!partner) return res.status(404).json({ message: "Partner not found" });
 
-    const [protectionCount, noteCount] = await Promise.all([
-      RelationshipProtection.countDocuments({ partnerId: id }),
-      CommunicationNote.countDocuments({ partnerId: id }),
-    ]);
-
-    return res.json({
-      ...serializePartner(partner as any),
-      counts: { relationshipProtections: protectionCount, communicationNotes: noteCount },
-    });
+    const detail = await loadPartnerDetail(id);
+    return res.json(detail);
   } catch (err) {
     console.error("[FoundingPartners] GET partner", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/admin/founding-partners/partners/:id/enable-portal-access
+ */
+router.post("/partners/:id/enable-portal-access", async (req: Request, res: Response) => {
+  try {
+    if (!getAdminActor(req)) return res.status(401).json({ message: "Unauthorized" });
+
+    const id = parseObjectId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid partner id" });
+
+    const beforePartner = await FoundingPartner.findById(id).lean();
+    if (!beforePartner) return res.status(404).json({ message: "Partner not found" });
+
+    const beforePortalAccess = await buildPortalAccessSnapshot(beforePartner as any);
+
+    const { partner, reusedUser } = await enablePartnerPortalAccess(id);
+    const detail = await loadPartnerDetail(id);
+    if (!detail) return res.status(404).json({ message: "Partner not found" });
+
+    await auditFromReq(req, {
+      action: "founding_partner.enable_portal",
+      entityType: "partner",
+      entityId: partner._id,
+      before: { portalAccess: beforePortalAccess },
+      after: { portalAccess: detail.portalAccess, reusedUser },
+    });
+
+    return res.json(detail);
+  } catch (err) {
+    if (err instanceof PartnerPortalAccessError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
+    console.error("[FoundingPartners] POST enable-portal-access", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/admin/founding-partners/partners/:id/disable-portal-access
+ */
+router.post("/partners/:id/disable-portal-access", async (req: Request, res: Response) => {
+  try {
+    if (!getAdminActor(req)) return res.status(401).json({ message: "Unauthorized" });
+
+    const id = parseObjectId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid partner id" });
+
+    const beforePartner = await FoundingPartner.findById(id).lean();
+    if (!beforePartner) return res.status(404).json({ message: "Partner not found" });
+
+    const beforePortalAccess = await buildPortalAccessSnapshot(beforePartner as any);
+
+    await disablePartnerPortalAccess(id);
+    const detail = await loadPartnerDetail(id);
+    if (!detail) return res.status(404).json({ message: "Partner not found" });
+
+    await auditFromReq(req, {
+      action: "founding_partner.disable_portal",
+      entityType: "partner",
+      entityId: id,
+      before: { portalAccess: beforePortalAccess },
+      after: { portalAccess: detail.portalAccess },
+    });
+
+    return res.json(detail);
+  } catch (err) {
+    if (err instanceof PartnerPortalAccessError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
+    console.error("[FoundingPartners] POST disable-portal-access", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

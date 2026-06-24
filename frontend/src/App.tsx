@@ -38,6 +38,12 @@ import AdminProspectsPage from "./pages/admin/foundingPartners/AdminProspectsPag
 import AdminProspectDetailPage from "./pages/admin/foundingPartners/AdminProspectDetailPage";
 import AdminRelationshipProtectionsPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionsPage";
 import AdminRelationshipProtectionDetailPage from "./pages/admin/foundingPartners/AdminRelationshipProtectionDetailPage";
+import PartnerLoginPage from "./pages/partner/PartnerLoginPage";
+import PartnerGuard from "./pages/partner/PartnerGuard";
+import PartnerLayout from "./pages/partner/PartnerLayout";
+import PartnerDashboardPage from "./pages/partner/PartnerDashboardPage";
+import PartnerBusinessesPage from "./pages/partner/PartnerBusinessesPage";
+import PartnerBusinessDetailPage from "./pages/partner/PartnerBusinessDetailPage";
 
 function App() {
   return (
@@ -65,6 +71,19 @@ function App() {
           <Route path="relationship-protections/:id" element={<AdminRelationshipProtectionDetailPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
+      </Route>
+      <Route path="/partner/login" element={<PartnerLoginPage />} />
+      <Route
+        path="/partner"
+        element={
+          <PartnerGuard>
+            <PartnerLayout />
+          </PartnerGuard>
+        }
+      >
+        <Route index element={<PartnerDashboardPage />} />
+        <Route path="businesses" element={<PartnerBusinessesPage />} />
+        <Route path="businesses/:id" element={<PartnerBusinessDetailPage />} />
       </Route>
       <Route path="/" element={<Layout />}>
         <Route index element={<DashboardPage />} />

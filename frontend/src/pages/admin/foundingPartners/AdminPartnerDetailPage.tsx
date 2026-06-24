@@ -10,6 +10,7 @@ import {
 } from "../../../api/adminFoundingPartners";
 import AdminLayout from "../AdminLayout";
 import CommunicationNotesSection from "./CommunicationNotesSection";
+import PortalAccessSection from "./PortalAccessSection";
 import FoundingPartnerShell from "./FoundingPartnerShell";
 import {
   PartnerStatusBadge,
@@ -156,6 +157,12 @@ export default function AdminPartnerDetailPage() {
                 )}
               </dl>
             </section>
+
+            <PortalAccessSection
+              partnerId={partner.id}
+              portalAccess={partner.portalAccess}
+              onChanged={load}
+            />
 
             <section className="fp-card">
               <h2 className="fp-section-title">Businesses stewarded</h2>

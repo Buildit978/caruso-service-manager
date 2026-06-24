@@ -21,6 +21,10 @@ import { handleLogin, loginLimiter, handleMe, handleRegister, registerLimiter, h
 import usersRoutes from "./routes/users.routes";
 import adminRouter from "./routes/admin";
 import adminAuthPublicRouter from "./routes/admin/adminAuthPublic.route";
+import partnerAuthPublicRouter from "./routes/partner/partnerAuthPublic.route";
+import partnerAuthRouter from "./routes/partner/partnerAuth.route";
+import partnerRouter from "./routes/partner/index";
+import { requirePartnerAuth } from "./middleware/requirePartnerAuth";
 import billingRouter, { billingWebhookHandler } from "./routes/billing.route";
 import automationRouter from "./routes/automation.route";
 import { assertStripeEnvIsolation } from "./utils/envGuard";
@@ -92,6 +96,13 @@ app.post("/api/auth/reset-password", resetPasswordLimiter, handleResetPassword);
 
 // 🔓 Public admin auth (login only; rest of /api/admin requires token)
 app.use("/api/admin/auth", adminAuthPublicRouter);
+
+// 🔓 Public partner auth (login only; /me requires partner token)
+app.use("/api/partner/auth", partnerAuthPublicRouter);
+app.use("/api/partner/auth", requirePartnerAuth, partnerAuthRouter);
+
+// 🔐 Partner portal read APIs (scoped by req.partnerActor.partnerId)
+app.use("/api/partner", requirePartnerAuth, partnerRouter);
 
 // 🔓 Public Stripe billing webhook (raw body, no auth)
 app.post(

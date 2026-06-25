@@ -25,6 +25,7 @@ import {
 import {
   applyPartnerProspectBusinessPatch,
   hasPartnerProspectBusinessPatchFields,
+  type PartnerProspectBusinessPatchBody,
 } from "../../utils/foundingPartners/partnerProspectBusinessUpdate";
 
 const router = Router();
@@ -568,10 +569,10 @@ router.post("/businesses/:id/notes/:noteId/amendments", async (req: Request, res
 });
 
 /**
- * PATCH /api/partner/businesses/:id
+ * PATCH /api/partner/businesses/:id/business
  * :id is prospectId; updates business details when partner has approved protection.
  */
-router.patch("/businesses/:id", async (req: Request, res: Response) => {
+router.patch("/businesses/:id/business", async (req: Request, res: Response) => {
   try {
     const partnerId = getPartnerId(req);
     if (!partnerId) return res.status(401).json({ message: "Unauthorized" });
@@ -582,48 +583,15 @@ router.patch("/businesses/:id", async (req: Request, res: Response) => {
     const protection = await findApprovedProtectionForPartner(partnerId, prospectId);
     if (!protection) return res.status(404).json({ message: "Business not found" });
 
-    const {
-      businessName,
-      ownerName,
-      contactName,
-      phone,
-      email,
-      address,
-      location,
-      website,
-      notes,
-    } = req.body as {
-      businessName?: string;
-      ownerName?: string | null;
-      contactName?: string | null;
-      phone?: string | null;
-      email?: string | null;
-      address?: string | null;
-      location?: string | null;
-      website?: string | null;
-      notes?: string | null;
-    };
-
-    const businessPatchBody = {
-      businessName,
-      ownerName,
-      contactName,
-      phone,
-      email,
-      address,
-      location,
-      website,
-      notes,
-    };
-
-    if (!hasPartnerProspectBusinessPatchFields(businessPatchBody)) {
+    const body = req.body as PartnerProspectBusinessPatchBody;
+    if (!hasPartnerProspectBusinessPatchFields(body)) {
       return res.status(400).json({ message: "No updatable fields provided" });
     }
 
     const prospect = await FoundingProspect.findById(prospectId);
     if (!prospect) return res.status(404).json({ message: "Business not found" });
 
-    const applied = applyPartnerProspectBusinessPatch(prospect, businessPatchBody);
+    const applied = applyPartnerProspectBusinessPatch(prospect, body);
     if (!applied.ok) return res.status(400).json({ message: applied.error });
 
     await prospect.save();

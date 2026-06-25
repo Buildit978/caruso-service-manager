@@ -312,22 +312,11 @@ export default function PartnerIntroductionDetailPage() {
 
           <PartnerBusinessDetailsSection
             business={detail.business}
-            onSave={async (values) => {
-              if (!id) throw new Error("Introduction not found");
-              try {
-                const res = await updatePartnerIntroduction(id, values);
-                if (!res.business) throw new Error("Failed to save business details");
-                setDetail((prev) =>
-                  prev ? { ...prev, business: res.business! } : prev
-                );
-                return res.business;
-              } catch (err) {
-                if (isPartnerUnauthorized(err)) {
-                  navigate("/partner/login", { replace: true });
-                }
-                throw new Error(partnerApiErrorMessage(err, "Failed to save business details"));
-              }
+            saveTarget="introduction"
+            onUpdated={(business) => {
+              setDetail((prev) => (prev ? { ...prev, business } : prev));
             }}
+            onUnauthorized={() => navigate("/partner/login", { replace: true })}
           />
         </>
       )}

@@ -3,13 +3,21 @@ import {
   formatWebsiteHref,
   formatWebsiteLabel,
 } from "../admin/foundingPartners/foundingPartnerFormat";
-import type { PartnerBusinessDetailsUpdate, PartnerBusinessDetail } from "../../api/partner";
+import {
+  isPartnerUnauthorized,
+  partnerApiErrorMessage,
+  patchPartnerBusinessDetails,
+  patchPartnerIntroductionBusiness,
+  type PartnerBusinessDetail,
+} from "../../api/partner";
 
 type PartnerBusinessRecord = PartnerBusinessDetail["business"];
 
 type PartnerBusinessDetailsSectionProps = {
   business: PartnerBusinessRecord;
-  onSave: (values: PartnerBusinessDetailsUpdate) => Promise<PartnerBusinessRecord>;
+  saveTarget: "introduction" | "business";
+  onUpdated: (business: PartnerBusinessRecord) => void;
+  onUnauthorized?: () => void;
   title?: string;
   showNotes?: boolean;
   statusLabel?: string;
@@ -29,7 +37,9 @@ function businessToFormValues(business: PartnerBusinessRecord) {
 
 export default function PartnerBusinessDetailsSection({
   business,
-  onSave,
+  saveTarget,
+  onUpdated,
+  onUnauthorized,
   title = "Business details",
   showNotes = true,
   statusLabel,
@@ -61,7 +71,7 @@ export default function PartnerBusinessDetailsSection({
     setSaving(true);
     setError(null);
     try {
-      const updated = await onSave({
+      const payload = {
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
         phone: form.phone.trim(),
@@ -69,11 +79,21 @@ export default function PartnerBusinessDetailsSection({
         address: form.address.trim(),
         website: form.website.trim(),
         notes: showNotes ? form.notes.trim() : undefined,
-      });
-      setForm(businessToFormValues(updated));
+      };
+
+      const res =
+        saveTarget === "introduction"
+          ? await patchPartnerIntroductionBusiness(business.id, payload)
+          : await patchPartnerBusinessDetails(business.id, payload);
+
+      setForm(businessToFormValues(res.business));
+      onUpdated(res.business);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save business details");
+      if (isPartnerUnauthorized(err)) {
+        onUnauthorized?.();
+      }
+      setError(partnerApiErrorMessage(err, "Failed to save business details"));
     } finally {
       setSaving(false);
     }

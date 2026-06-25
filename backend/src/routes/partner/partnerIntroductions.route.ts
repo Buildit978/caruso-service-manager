@@ -25,6 +25,7 @@ import {
 import {
   applyPartnerProspectBusinessPatch,
   hasPartnerProspectBusinessPatchFields,
+  type PartnerProspectBusinessPatchBody,
 } from "../../utils/foundingPartners/partnerProspectBusinessUpdate";
 import {
   advancePartnerRelationshipStage,
@@ -566,8 +567,47 @@ router.post("/:prospectId/notes/:noteId/amendments", async (req: Request, res: R
 });
 
 /**
+ * PATCH /api/partner/introductions/:prospectId/business
+ * Update business details on an active introduction (current truth — no new record).
+ */
+router.patch("/:prospectId/business", async (req: Request, res: Response) => {
+  try {
+    const actor = getPartnerActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+
+    const prospectId = parseObjectId(req.params.prospectId);
+    if (!prospectId) return res.status(404).json({ message: "Introduction not found" });
+
+    const relationship = await findPartnerIntroduction(actor.partnerId, prospectId);
+    if (!relationship) return res.status(404).json({ message: "Introduction not found" });
+
+    if (await partnerHasApprovedProtection(actor.partnerId, prospectId)) {
+      return res.status(404).json({ message: "Introduction not found" });
+    }
+
+    const body = req.body as PartnerProspectBusinessPatchBody;
+    if (!hasPartnerProspectBusinessPatchFields(body)) {
+      return res.status(400).json({ message: "No updatable fields provided" });
+    }
+
+    const prospect = await FoundingProspect.findById(prospectId);
+    if (!prospect) return res.status(404).json({ message: "Introduction not found" });
+
+    const applied = applyPartnerProspectBusinessPatch(prospect, body);
+    if (!applied.ok) return res.status(400).json({ message: applied.error });
+
+    await prospect.save();
+
+    return res.json({ business: serializeBusiness(prospect as any) });
+  } catch (err) {
+    console.error("[PartnerIntroductionBusinessPatch] error", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
  * PATCH /api/partner/introductions/:prospectId
- * Update relationship dates and/or business details on an active introduction.
+ * Update real-world relationship dates (not system timestamps).
  */
 router.patch("/:prospectId", async (req: Request, res: Response) => {
   try {
@@ -584,106 +624,53 @@ router.patch("/:prospectId", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Introduction not found" });
     }
 
-    const {
-      firstContactDate,
-      lastVisitDate,
-      nextFollowUpDate,
-      businessName,
-      ownerName,
-      contactName,
-      phone,
-      email,
-      address,
-      location,
-      website,
-      notes,
-    } = req.body as {
+    const { firstContactDate, lastVisitDate, nextFollowUpDate } = req.body as {
       firstContactDate?: string | null;
       lastVisitDate?: string | null;
       nextFollowUpDate?: string | null;
-      businessName?: string;
-      ownerName?: string | null;
-      contactName?: string | null;
-      phone?: string | null;
-      email?: string | null;
-      address?: string | null;
-      location?: string | null;
-      website?: string | null;
-      notes?: string | null;
     };
 
-    const businessPatchBody = {
-      businessName,
-      ownerName,
-      contactName,
-      phone,
-      email,
-      address,
-      location,
-      website,
-      notes,
-    };
-    const hasBusinessPatch = hasPartnerProspectBusinessPatchFields(businessPatchBody);
-    const hasRelationshipPatch =
-      firstContactDate !== undefined ||
-      lastVisitDate !== undefined ||
-      nextFollowUpDate !== undefined;
-
-    if (!hasBusinessPatch && !hasRelationshipPatch) {
+    if (
+      firstContactDate === undefined &&
+      lastVisitDate === undefined &&
+      nextFollowUpDate === undefined
+    ) {
       return res.status(400).json({ message: "No updatable fields provided" });
     }
 
-    let updatedProspect: Awaited<ReturnType<typeof FoundingProspect.findById>> = null;
-
-    if (hasBusinessPatch) {
-      const prospect = await FoundingProspect.findById(prospectId);
-      if (!prospect) return res.status(404).json({ message: "Introduction not found" });
-
-      const applied = applyPartnerProspectBusinessPatch(prospect, businessPatchBody);
-      if (!applied.ok) return res.status(400).json({ message: applied.error });
-
-      await prospect.save();
-      updatedProspect = prospect;
+    if (firstContactDate !== undefined) {
+      if (firstContactDate === null || firstContactDate === "") {
+        relationship.firstContactDate = undefined;
+      } else {
+        const parsed = parseOptionalPastOrPresentDateInput(firstContactDate, "firstContactDate");
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.firstContactDate = parsed.date;
+      }
     }
 
-    if (hasRelationshipPatch) {
-      if (firstContactDate !== undefined) {
-        if (firstContactDate === null || firstContactDate === "") {
-          relationship.firstContactDate = undefined;
-        } else {
-          const parsed = parseOptionalPastOrPresentDateInput(firstContactDate, "firstContactDate");
-          if (!parsed.ok) return res.status(400).json({ message: parsed.error });
-          relationship.firstContactDate = parsed.date;
-        }
+    if (lastVisitDate !== undefined) {
+      if (lastVisitDate === null || lastVisitDate === "") {
+        relationship.lastVisitDate = undefined;
+      } else {
+        const parsed = parseOptionalPastOrPresentDateInput(lastVisitDate, "lastVisitDate");
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.lastVisitDate = parsed.date;
       }
-
-      if (lastVisitDate !== undefined) {
-        if (lastVisitDate === null || lastVisitDate === "") {
-          relationship.lastVisitDate = undefined;
-        } else {
-          const parsed = parseOptionalPastOrPresentDateInput(lastVisitDate, "lastVisitDate");
-          if (!parsed.ok) return res.status(400).json({ message: parsed.error });
-          relationship.lastVisitDate = parsed.date;
-        }
-      }
-
-      if (nextFollowUpDate !== undefined) {
-        if (nextFollowUpDate === null || nextFollowUpDate === "") {
-          relationship.nextFollowUpDate = undefined;
-        } else {
-          const parsed = parseOptionalFollowUpDateInput(nextFollowUpDate);
-          if (!parsed.ok) return res.status(400).json({ message: parsed.error });
-          relationship.nextFollowUpDate = parsed.date;
-        }
-      }
-
-      await relationship.save();
     }
 
-    return res.json({
-      ...(updatedProspect ? { business: serializeBusiness(updatedProspect as any) } : {}),
-      ...(hasRelationshipPatch ? { relationship: serializeRelationship(relationship) } : {}),
-    });
+    if (nextFollowUpDate !== undefined) {
+      if (nextFollowUpDate === null || nextFollowUpDate === "") {
+        relationship.nextFollowUpDate = undefined;
+      } else {
+        const parsed = parseOptionalFollowUpDateInput(nextFollowUpDate);
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.nextFollowUpDate = parsed.date;
+      }
+    }
+
+    await relationship.save();
+
+    return res.json({ relationship: serializeRelationship(relationship) });
   } catch (err) {
     console.error("[PartnerIntroductionPatch] error", err);
     return res.status(500).json({ message: "Internal server error" });

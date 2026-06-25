@@ -307,7 +307,13 @@ export async function partnerFetch<T>(path: string, options: RequestInit = {}): 
     ...(options.headers as Record<string, string>),
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, {
+    method: options.method ?? "GET",
+    headers,
+    body: options.body,
+    signal: options.signal,
+    credentials: options.credentials,
+  });
 
   if (response.status === 401 || response.status === 403) {
     let data: unknown;
@@ -477,13 +483,12 @@ export function createPartnerIntroduction(body: {
 
 export function updatePartnerIntroduction(
   prospectId: string,
-  body: PartnerBusinessDetailsUpdate & {
+  body: {
     firstContactDate?: string | null;
     lastVisitDate?: string | null;
     nextFollowUpDate?: string | null;
   }
 ): Promise<{
-  business?: PartnerBusinessDetail["business"];
   relationship?: PartnerIntroductionDetail["relationship"];
 }> {
   return partnerFetch(`/introductions/${prospectId}`, {
@@ -502,14 +507,32 @@ export type PartnerBusinessDetailsUpdate = {
   notes?: string;
 };
 
+export function patchPartnerIntroductionBusiness(
+  prospectId: string,
+  body: PartnerBusinessDetailsUpdate
+): Promise<{ business: PartnerBusinessDetail["business"] }> {
+  return partnerFetch(`/introductions/${prospectId}/business`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function patchPartnerBusinessDetails(
+  prospectId: string,
+  body: PartnerBusinessDetailsUpdate
+): Promise<{ business: PartnerBusinessDetail["business"] }> {
+  return partnerFetch(`/businesses/${prospectId}/business`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** @deprecated Use patchPartnerBusinessDetails */
 export function updatePartnerBusiness(
   prospectId: string,
   body: PartnerBusinessDetailsUpdate
 ): Promise<{ business: PartnerBusinessDetail["business"] }> {
-  return partnerFetch(`/businesses/${prospectId}`, {
-    method: "PATCH",
-    body: JSON.stringify(body),
-  });
+  return patchPartnerBusinessDetails(prospectId, body);
 }
 
 export function createPartnerIntroductionNote(

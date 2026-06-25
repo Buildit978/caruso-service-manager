@@ -6,7 +6,6 @@ import {
   fetchPartnerBusinessById,
   isPartnerUnauthorized,
   partnerApiErrorMessage,
-  updatePartnerBusiness,
   type PartnerBusinessDetail,
   type PartnerInteraction,
 } from "../../api/partner";
@@ -89,20 +88,6 @@ export default function PartnerBusinessDetailPage() {
     }
   }
 
-  async function handleSaveBusinessDetails(values: Parameters<typeof updatePartnerBusiness>[1]) {
-    if (!id) throw new Error("Business not found");
-    try {
-      const res = await updatePartnerBusiness(id, values);
-      setDetail((prev) => (prev ? { ...prev, business: res.business } : prev));
-      return res.business;
-    } catch (err) {
-      if (isPartnerUnauthorized(err)) {
-        navigate("/partner/login", { replace: true });
-      }
-      throw new Error(partnerApiErrorMessage(err, "Failed to save business details"));
-    }
-  }
-
   function upsertInteraction(updated: PartnerInteraction) {
     setDetail((prev) => {
       if (!prev) return prev;
@@ -142,8 +127,12 @@ export default function PartnerBusinessDetailPage() {
           <PartnerBusinessDetailsSection
             business={detail.business}
             title="Business"
+            saveTarget="business"
             statusLabel={getProspectStatusLabel(detail.business.status)}
-            onSave={handleSaveBusinessDetails}
+            onUpdated={(business) => {
+              setDetail((prev) => (prev ? { ...prev, business } : prev));
+            }}
+            onUnauthorized={() => navigate("/partner/login", { replace: true })}
           />
 
           <section className="partner-portal-card">

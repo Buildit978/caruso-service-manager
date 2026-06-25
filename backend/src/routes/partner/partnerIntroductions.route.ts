@@ -167,6 +167,7 @@ router.post("/", async (req: Request, res: Response) => {
       phone,
       email,
       address,
+      website,
       conversationNotes,
       isMeaningful,
       type,
@@ -183,6 +184,7 @@ router.post("/", async (req: Request, res: Response) => {
       phone?: string;
       email?: string;
       address?: string;
+      website?: string;
       conversationNotes?: string;
       isMeaningful?: boolean;
       type?: string;
@@ -228,6 +230,7 @@ router.post("/", async (req: Request, res: Response) => {
       email: email ? normalizeEmail(email) : undefined,
       phone: phone ? String(phone).trim() : undefined,
       location: address ? String(address).trim() : undefined,
+      website: website ? String(website).trim() : undefined,
       status: "new",
     });
 

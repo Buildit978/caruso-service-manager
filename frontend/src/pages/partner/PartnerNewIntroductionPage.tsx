@@ -18,6 +18,7 @@ export default function PartnerNewIntroductionPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [website, setWebsite] = useState("");
   const [interaction, setInteraction] = useState<InteractionFormValues>(() =>
     createDefaultInteractionFormValues()
   );
@@ -36,6 +37,7 @@ export default function PartnerNewIntroductionPage() {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         address: address.trim() || undefined,
+        website: website.trim() || undefined,
         conversationNotes: interaction.summary.trim(),
         visitType: interaction.visitType,
         activityDate: interaction.activityDate,
@@ -115,6 +117,14 @@ export default function PartnerNewIntroductionPage() {
             className="partner-portal-form-input"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+          />
+        </label>
+        <label className="partner-portal-form-label">
+          Website
+          <input
+            className="partner-portal-form-input"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
           />
         </label>
 

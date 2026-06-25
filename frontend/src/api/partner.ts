@@ -470,6 +470,7 @@ export function createPartnerIntroduction(body: {
   phone?: string;
   email?: string;
   address?: string;
+  website?: string;
   conversationNotes: string;
   isMeaningful?: boolean;
   visitType?: PartnerVisitType;

@@ -168,7 +168,6 @@ export default function PartnerBusinessDetailsSection({
           <label className="partner-portal-form-label">
             Website
             <input
-              type="url"
               className="partner-portal-form-input"
               value={form.website}
               onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}

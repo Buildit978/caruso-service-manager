@@ -781,6 +781,51 @@
   gap: 0.75rem;
 }
 
+.partner-portal-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.partner-portal-form-actions .partner-portal-btn {
+  flex: 1;
+  min-width: 7rem;
+}
+
+.partner-portal-interaction-item {
+  border-top: 1px solid var(--pp-border);
+  padding-top: 0.875rem;
+}
+
+.partner-portal-interaction-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.partner-portal-link-btn {
+  margin-top: 0.5rem;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--pp-border-input);
+  border-radius: 8px;
+  background: var(--pp-input-bg);
+  color: var(--pp-link);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.partner-portal-amendment-form {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.partner-portal-amendment-help {
+  margin: 0;
+}
+
 .partner-portal-meaningful-card {
   border: none;
   padding: 0;

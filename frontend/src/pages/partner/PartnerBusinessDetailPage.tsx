@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  createPartnerBusinessAmendment,
   createPartnerBusinessNote,
   fetchPartnerBusinessById,
   isPartnerUnauthorized,
   partnerApiErrorMessage,
+  updatePartnerBusiness,
   type PartnerBusinessDetail,
+  type PartnerInteraction,
 } from "../../api/partner";
 import {
   formatDateTime,
-  formatWebsiteHref,
-  formatWebsiteLabel,
 } from "../admin/foundingPartners/foundingPartnerFormat";
 import InteractionFormFields, {
   createDefaultInteractionFormValues,
   type InteractionFormValues,
 } from "../admin/foundingPartners/InteractionFormFields";
-import InteractionTimelineCard from "../admin/foundingPartners/InteractionTimelineCard";
+import PartnerBusinessDetailsSection from "./PartnerBusinessDetailsSection";
+import PartnerInteractionTimelineItem from "./PartnerInteractionTimelineItem";
 import {
   HealthStatusBadge,
   LifecycleStatusBadge,
@@ -87,7 +89,42 @@ export default function PartnerBusinessDetailPage() {
     }
   }
 
-  const websiteHref = formatWebsiteHref(detail?.business.website);
+  async function handleSaveBusinessDetails(values: Parameters<typeof updatePartnerBusiness>[1]) {
+    if (!id) throw new Error("Business not found");
+    try {
+      const res = await updatePartnerBusiness(id, values);
+      setDetail((prev) => (prev ? { ...prev, business: res.business } : prev));
+      return res.business;
+    } catch (err) {
+      if (isPartnerUnauthorized(err)) {
+        navigate("/partner/login", { replace: true });
+      }
+      throw new Error(partnerApiErrorMessage(err, "Failed to save business details"));
+    }
+  }
+
+  function upsertInteraction(updated: PartnerInteraction) {
+    setDetail((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        notes: prev.notes.map((note) => (note.id === updated.id ? updated : note)),
+      };
+    });
+  }
+
+  async function handleAddAmendment(noteId: string, text: string) {
+    if (!id) throw new Error("Business not found");
+    try {
+      const res = await createPartnerBusinessAmendment(id, noteId, text);
+      return res.note;
+    } catch (err) {
+      if (isPartnerUnauthorized(err)) {
+        navigate("/partner/login", { replace: true });
+      }
+      throw new Error(partnerApiErrorMessage(err, "Failed to save clarification"));
+    }
+  }
 
   return (
     <>
@@ -102,36 +139,12 @@ export default function PartnerBusinessDetailPage() {
         <>
           <h1 className="partner-portal-page-title">{detail.business.businessName}</h1>
 
-          <section className="partner-portal-card">
-            <h2 className="partner-portal-card-title">Business</h2>
-            <dl className="partner-portal-dl">
-              <dt>Contact</dt>
-              <dd>{detail.business.contactName || "—"}</dd>
-              <dt>Email</dt>
-              <dd>{detail.business.email || "—"}</dd>
-              <dt>Phone</dt>
-              <dd>{detail.business.phone || "—"}</dd>
-              <dt>Location</dt>
-              <dd>{detail.business.location || "—"}</dd>
-              <dt>Website</dt>
-              <dd>
-                {websiteHref ? (
-                  <a
-                    className="partner-portal-external"
-                    href={websiteHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {formatWebsiteLabel(detail.business.website)}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </dd>
-              <dt>Adoption stage</dt>
-              <dd>{getProspectStatusLabel(detail.business.status)}</dd>
-            </dl>
-          </section>
+          <PartnerBusinessDetailsSection
+            business={detail.business}
+            title="Business"
+            statusLabel={getProspectStatusLabel(detail.business.status)}
+            onSave={handleSaveBusinessDetails}
+          />
 
           <section className="partner-portal-card">
             <h2 className="partner-portal-card-title">Relationship</h2>
@@ -204,10 +217,12 @@ export default function PartnerBusinessDetailPage() {
               <p className="partner-portal-empty label-muted-readable">No interactions yet.</p>
             ) : (
               detail.notes.map((interaction) => (
-                <InteractionTimelineCard
+                <PartnerInteractionTimelineItem
                   key={interaction.id}
                   interaction={interaction}
                   className="partner-portal-note-item"
+                  onAmendmentSaved={upsertInteraction}
+                  onAddAmendment={handleAddAmendment}
                 />
               ))
             )}

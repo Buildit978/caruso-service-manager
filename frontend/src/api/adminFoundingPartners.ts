@@ -158,6 +158,11 @@ export interface CommunicationNote {
   duration?: string;
   interestLevel?: string;
   followUpDate?: string;
+  amendments?: Array<{
+    text: string;
+    createdAt?: string;
+    createdBy?: string;
+  }>;
   createdBy: string;
   createdByName?: string;
   createdAt?: string;

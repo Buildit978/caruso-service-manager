@@ -196,6 +196,15 @@ export function parseInteractionFields(
   };
 }
 
+export function parseAmendmentText(
+  text: unknown
+): { ok: true; text: string } | { ok: false; error: string } {
+  const trim = text != null ? String(text).trim() : "";
+  if (!trim) return { ok: false, error: "text is required" };
+  if (trim.length > 2000) return { ok: false, error: "text must be 2000 characters or fewer" };
+  return { ok: true, text: trim };
+}
+
 export function serializeInteractionNote(note: {
   _id: { toString(): string };
   partnerId?: { toString(): string };
@@ -211,6 +220,11 @@ export function serializeInteractionNote(note: {
   duration?: string;
   interestLevel?: string;
   followUpDate?: Date;
+  amendments?: Array<{
+    text: string;
+    createdAt?: Date;
+    createdBy?: { toString(): string };
+  }>;
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: { toString(): string };
@@ -231,6 +245,11 @@ export function serializeInteractionNote(note: {
     duration: note.duration ?? undefined,
     interestLevel: note.interestLevel ?? undefined,
     followUpDate: toIso(note.followUpDate),
+    amendments: (note.amendments ?? []).map((amendment) => ({
+      text: amendment.text,
+      createdAt: toIso(amendment.createdAt),
+      createdBy: amendment.createdBy?.toString(),
+    })),
     createdBy: note.createdBy?.toString(),
     createdAt: toIso(note.createdAt),
     updatedAt: toIso(note.updatedAt),

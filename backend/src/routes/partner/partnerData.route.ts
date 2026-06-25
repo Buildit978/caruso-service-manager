@@ -19,8 +19,13 @@ import {
 import {
   buildInteractionCreatePayload,
   parseInteractionFields,
+  parseAmendmentText,
   serializeInteractionNote,
 } from "../../utils/foundingPartners/fieldInteractions";
+import {
+  applyPartnerProspectBusinessPatch,
+  hasPartnerProspectBusinessPatchFields,
+} from "../../utils/foundingPartners/partnerProspectBusinessUpdate";
 
 const router = Router();
 
@@ -112,6 +117,7 @@ function serializePartnerBusiness(prospect: {
   phone?: string;
   website?: string;
   location?: string;
+  notes?: string;
   status: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -124,6 +130,7 @@ function serializePartnerBusiness(prospect: {
     phone: prospect.phone ?? undefined,
     website: prospect.website ?? undefined,
     location: prospect.location ?? undefined,
+    notes: prospect.notes ?? undefined,
     status: prospect.status,
     createdAt: toIso(prospect.createdAt),
     updatedAt: toIso(prospect.updatedAt),
@@ -515,6 +522,115 @@ router.get("/businesses/:id", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("[PartnerBusinessDetail] error", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/partner/businesses/:id/notes/:noteId/amendments
+ * Append a clarification without changing the original interaction record.
+ */
+router.post("/businesses/:id/notes/:noteId/amendments", async (req: Request, res: Response) => {
+  try {
+    const actor = getPartnerActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+
+    const prospectId = parseObjectId(req.params.id);
+    const noteId = parseObjectId(req.params.noteId);
+    if (!prospectId || !noteId) return res.status(404).json({ message: "Interaction not found" });
+
+    const protection = await findApprovedProtectionForPartner(actor.partnerId, prospectId);
+    if (!protection) return res.status(404).json({ message: "Interaction not found" });
+
+    const note = await CommunicationNote.findOne({
+      _id: noteId,
+      partnerId: actor.partnerId,
+      relationshipProtectionId: protection._id,
+    });
+    if (!note) return res.status(404).json({ message: "Interaction not found" });
+
+    const parsed = parseAmendmentText((req.body as { text?: string })?.text);
+    if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+
+    if (!note.amendments) note.amendments = [];
+    note.amendments.push({
+      text: parsed.text,
+      createdBy: actor.userId,
+      createdAt: new Date(),
+    });
+    await note.save();
+
+    return res.status(201).json({ note: serializePartnerNote(note) });
+  } catch (err) {
+    console.error("[PartnerBusinessAmendmentCreate] error", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/partner/businesses/:id
+ * :id is prospectId; updates business details when partner has approved protection.
+ */
+router.patch("/businesses/:id", async (req: Request, res: Response) => {
+  try {
+    const partnerId = getPartnerId(req);
+    if (!partnerId) return res.status(401).json({ message: "Unauthorized" });
+
+    const prospectId = parseObjectId(req.params.id);
+    if (!prospectId) return res.status(404).json({ message: "Business not found" });
+
+    const protection = await findApprovedProtectionForPartner(partnerId, prospectId);
+    if (!protection) return res.status(404).json({ message: "Business not found" });
+
+    const {
+      businessName,
+      ownerName,
+      contactName,
+      phone,
+      email,
+      address,
+      location,
+      website,
+      notes,
+    } = req.body as {
+      businessName?: string;
+      ownerName?: string | null;
+      contactName?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      address?: string | null;
+      location?: string | null;
+      website?: string | null;
+      notes?: string | null;
+    };
+
+    const businessPatchBody = {
+      businessName,
+      ownerName,
+      contactName,
+      phone,
+      email,
+      address,
+      location,
+      website,
+      notes,
+    };
+
+    if (!hasPartnerProspectBusinessPatchFields(businessPatchBody)) {
+      return res.status(400).json({ message: "No updatable fields provided" });
+    }
+
+    const prospect = await FoundingProspect.findById(prospectId);
+    if (!prospect) return res.status(404).json({ message: "Business not found" });
+
+    const applied = applyPartnerProspectBusinessPatch(prospect, businessPatchBody);
+    if (!applied.ok) return res.status(400).json({ message: applied.error });
+
+    await prospect.save();
+
+    return res.json({ business: serializePartnerBusiness(prospect as any) });
+  } catch (err) {
+    console.error("[PartnerBusinessPatch] error", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

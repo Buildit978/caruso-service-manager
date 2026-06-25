@@ -21,6 +21,7 @@ export default function InteractionTimelineCard({
   meaningfulBadge,
 }: InteractionTimelineCardProps) {
   const interestLabel = getInterestLevelLabel(interaction.interestLevel);
+  const amendments = interaction.amendments ?? [];
 
   return (
     <article className={className}>
@@ -49,6 +50,20 @@ export default function InteractionTimelineCard({
       {meaningfulBadge}
 
       <p className="fp-note-summary">{interaction.summary}</p>
+
+      {amendments.length > 0 && (
+        <div className="fp-interaction-amendments">
+          {amendments.map((amendment, index) => (
+            <div key={`${interaction.id ?? "note"}-amendment-${index}`} className="fp-interaction-amendment">
+              <p className="fp-interaction-amendment-label">Clarification</p>
+              <p className="fp-interaction-amendment-text">{amendment.text}</p>
+              {amendment.createdAt && (
+                <p className="fp-note-audit">Added {formatDateTime(amendment.createdAt)}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {interaction.followUpDate && (
         <p className="fp-interaction-line fp-interaction-follow-up">

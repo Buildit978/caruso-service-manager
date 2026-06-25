@@ -24,6 +24,11 @@ export interface FieldInteraction {
   duration?: string | null;
   interestLevel?: InterestLevel | string | null;
   followUpDate?: string | null;
+  amendments?: Array<{
+    text: string;
+    createdAt?: string | null;
+    createdBy?: string | null;
+  }>;
   createdAt?: string | null;
   createdByName?: string | null;
 }

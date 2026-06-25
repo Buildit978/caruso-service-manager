@@ -21,6 +21,12 @@ export type VisitType =
 
 export type InterestLevel = "cold" | "cool" | "warm" | "hot" | "unknown";
 
+export interface IInteractionAmendment {
+  text: string;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+}
+
 export interface ICommunicationNote extends Document {
   partnerId?: Types.ObjectId;
   prospectId?: Types.ObjectId;
@@ -39,6 +45,8 @@ export interface ICommunicationNote extends Document {
   duration?: string;
   interestLevel?: InterestLevel;
   followUpDate?: Date;
+  /** Later clarifications — original interaction summary is not rewritten. */
+  amendments?: IInteractionAmendment[];
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +81,13 @@ const communicationNoteSchema = new Schema<ICommunicationNote>(
       enum: ["cold", "cool", "warm", "hot", "unknown"],
     },
     followUpDate: { type: Date },
+    amendments: [
+      {
+        text: { type: String, required: true, trim: true, maxlength: 2000 },
+        createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+        createdAt: { type: Date, default: Date.now, required: true },
+      },
+    ],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }

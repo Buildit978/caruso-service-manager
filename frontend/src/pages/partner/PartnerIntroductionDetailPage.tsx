@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  createPartnerIntroductionAmendment,
   createPartnerIntroductionNote,
   fetchPartnerIntroductionById,
   isPartnerUnauthorized,
@@ -9,13 +10,15 @@ import {
   PARTNER_RELATIONSHIP_STAGE_LABELS,
   type PartnerDuplicateMatch,
   type PartnerIntroductionDetail,
+  type PartnerInteraction,
 } from "../../api/partner";
 import { formatDate } from "../admin/foundingPartners/foundingPartnerFormat";
 import InteractionFormFields, {
   createDefaultInteractionFormValues,
   type InteractionFormValues,
 } from "../admin/foundingPartners/InteractionFormFields";
-import InteractionTimelineCard from "../admin/foundingPartners/InteractionTimelineCard";
+import PartnerBusinessDetailsSection from "./PartnerBusinessDetailsSection";
+import PartnerInteractionTimelineItem from "./PartnerInteractionTimelineItem";
 import "./partnerPortal.css";
 
 function StageBadge({ stage }: { stage: PartnerIntroductionDetail["relationship"]["stage"] }) {
@@ -109,7 +112,9 @@ export default function PartnerIntroductionDetailPage() {
       const res = await updatePartnerIntroduction(id, {
         nextFollowUpDate: nextFollowUpDate || null,
       });
-      setDetail((prev) => (prev ? { ...prev, relationship: res.relationship } : prev));
+      setDetail((prev) =>
+        prev && res.relationship ? { ...prev, relationship: res.relationship } : prev
+      );
     } catch (err) {
       if (isPartnerUnauthorized(err)) {
         navigate("/partner/login", { replace: true });
@@ -118,6 +123,31 @@ export default function PartnerIntroductionDetailPage() {
       setFollowUpError(partnerApiErrorMessage(err, "Failed to save follow-up date"));
     } finally {
       setFollowUpSaving(false);
+    }
+  }
+
+  function upsertInteraction(updated: PartnerInteraction) {
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const notes = prev.notes.map((note) => (note.id === updated.id ? updated : note));
+      const lastMeaningfulConversation =
+        prev.lastMeaningfulConversation?.id === updated.id
+          ? updated
+          : prev.lastMeaningfulConversation;
+      return { ...prev, notes, lastMeaningfulConversation };
+    });
+  }
+
+  async function handleAddAmendment(noteId: string, text: string) {
+    if (!id) throw new Error("Introduction not found");
+    try {
+      const res = await createPartnerIntroductionAmendment(id, noteId, text);
+      return res.note;
+    } catch (err) {
+      if (isPartnerUnauthorized(err)) {
+        navigate("/partner/login", { replace: true });
+      }
+      throw new Error(partnerApiErrorMessage(err, "Failed to save clarification"));
     }
   }
 
@@ -157,12 +187,12 @@ export default function PartnerIntroductionDetailPage() {
           <section className="partner-portal-card partner-portal-meaningful-hero">
             <h2 className="partner-portal-card-title">Last meaningful conversation</h2>
             {detail.lastMeaningfulConversation ? (
-              <InteractionTimelineCard
+              <PartnerInteractionTimelineItem
                 interaction={detail.lastMeaningfulConversation}
                 className="partner-portal-meaningful-card"
-                meaningfulBadge={
-                  <span className="partner-portal-meaningful-pill">Meaningful</span>
-                }
+                meaningfulBadge={<span className="partner-portal-meaningful-pill">Meaningful</span>}
+                onAmendmentSaved={upsertInteraction}
+                onAddAmendment={handleAddAmendment}
               />
             ) : (
               <p className="partner-portal-empty label-muted-readable">
@@ -252,7 +282,7 @@ export default function PartnerIntroductionDetailPage() {
               <p className="partner-portal-empty label-muted-readable">No interactions yet.</p>
             ) : (
               detail.notes.map((interaction) => (
-                <InteractionTimelineCard
+                <PartnerInteractionTimelineItem
                   key={interaction.id}
                   interaction={interaction}
                   className="partner-portal-note-item"
@@ -261,22 +291,16 @@ export default function PartnerIntroductionDetailPage() {
                       <span className="partner-portal-meaningful-pill">Meaningful</span>
                     ) : undefined
                   }
+                  onAmendmentSaved={upsertInteraction}
+                  onAddAmendment={handleAddAmendment}
                 />
               ))
             )}
           </section>
 
           <section className="partner-portal-card">
-            <h2 className="partner-portal-card-title">Business details</h2>
+            <h2 className="partner-portal-card-title">Relationship dates</h2>
             <dl className="partner-portal-dl">
-              <dt>Owner</dt>
-              <dd>{detail.business.contactName || "—"}</dd>
-              <dt>Phone</dt>
-              <dd>{detail.business.phone || "—"}</dd>
-              <dt>Email</dt>
-              <dd>{detail.business.email || "—"}</dd>
-              <dt>Address</dt>
-              <dd>{detail.business.location || "—"}</dd>
               <dt>First contact</dt>
               <dd>{formatDate(detail.relationship.firstContactDate ?? detail.relationship.introducedAt)}</dd>
               <dt>Last visit</dt>
@@ -285,6 +309,26 @@ export default function PartnerIntroductionDetailPage() {
               <dd>{formatDate(detail.relationship.nextFollowUpDate)}</dd>
             </dl>
           </section>
+
+          <PartnerBusinessDetailsSection
+            business={detail.business}
+            onSave={async (values) => {
+              if (!id) throw new Error("Introduction not found");
+              try {
+                const res = await updatePartnerIntroduction(id, values);
+                if (!res.business) throw new Error("Failed to save business details");
+                setDetail((prev) =>
+                  prev ? { ...prev, business: res.business! } : prev
+                );
+                return res.business;
+              } catch (err) {
+                if (isPartnerUnauthorized(err)) {
+                  navigate("/partner/login", { replace: true });
+                }
+                throw new Error(partnerApiErrorMessage(err, "Failed to save business details"));
+              }
+            }}
+          />
         </>
       )}
     </>

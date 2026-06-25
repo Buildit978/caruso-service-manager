@@ -48,6 +48,12 @@ export interface PartnerInteractionPayload {
   type?: PartnerNoteType;
 }
 
+export interface PartnerInteractionAmendment {
+  text: string;
+  createdAt?: string;
+  createdBy?: string;
+}
+
 export interface PartnerInteraction {
   id: string;
   type: string;
@@ -60,6 +66,7 @@ export interface PartnerInteraction {
   duration?: string;
   interestLevel?: string;
   followUpDate?: string;
+  amendments?: PartnerInteractionAmendment[];
   createdAt?: string;
 }
 
@@ -197,6 +204,7 @@ export interface PartnerBusinessDetail {
     phone?: string;
     website?: string;
     location?: string;
+    notes?: string;
     status: string;
     createdAt?: string;
     updatedAt?: string;
@@ -469,13 +477,36 @@ export function createPartnerIntroduction(body: {
 
 export function updatePartnerIntroduction(
   prospectId: string,
-  body: {
+  body: PartnerBusinessDetailsUpdate & {
     firstContactDate?: string | null;
     lastVisitDate?: string | null;
     nextFollowUpDate?: string | null;
   }
-): Promise<{ relationship: PartnerIntroductionDetail["relationship"] }> {
+): Promise<{
+  business?: PartnerBusinessDetail["business"];
+  relationship?: PartnerIntroductionDetail["relationship"];
+}> {
   return partnerFetch(`/introductions/${prospectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export type PartnerBusinessDetailsUpdate = {
+  businessName?: string;
+  ownerName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  website?: string;
+  notes?: string;
+};
+
+export function updatePartnerBusiness(
+  prospectId: string,
+  body: PartnerBusinessDetailsUpdate
+): Promise<{ business: PartnerBusinessDetail["business"] }> {
+  return partnerFetch(`/businesses/${prospectId}`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
@@ -488,5 +519,27 @@ export function createPartnerIntroductionNote(
   return partnerFetch(`/introductions/${prospectId}/notes`, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export function createPartnerIntroductionAmendment(
+  prospectId: string,
+  noteId: string,
+  text: string
+): Promise<{ note: PartnerInteraction }> {
+  return partnerFetch(`/introductions/${prospectId}/notes/${noteId}/amendments`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export function createPartnerBusinessAmendment(
+  prospectId: string,
+  noteId: string,
+  text: string
+): Promise<{ note: PartnerInteraction }> {
+  return partnerFetch(`/businesses/${prospectId}/notes/${noteId}/amendments`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
   });
 }

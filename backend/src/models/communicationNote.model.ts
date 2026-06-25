@@ -19,7 +19,17 @@ export type VisitType =
   | "referral"
   | "other";
 
-export type InterestLevel = "cold" | "cool" | "warm" | "hot" | "unknown";
+export type InterestLevel =
+  | "cold"
+  | "cool"
+  | "warm"
+  | "warmInterested"
+  | "hot"
+  | "busy"
+  | "busyWarm"
+  | "busyInterested"
+  | "customer"
+  | "unknown";
 
 export interface IInteractionAmendment {
   text: string;
@@ -78,7 +88,18 @@ const communicationNoteSchema = new Schema<ICommunicationNote>(
     duration: { type: String, trim: true, maxlength: 32 },
     interestLevel: {
       type: String,
-      enum: ["cold", "cool", "warm", "hot", "unknown"],
+      enum: [
+        "cold",
+        "cool",
+        "warm",
+        "warmInterested",
+        "hot",
+        "busy",
+        "busyWarm",
+        "busyInterested",
+        "customer",
+        "unknown",
+      ],
     },
     followUpDate: { type: Date },
     amendments: [

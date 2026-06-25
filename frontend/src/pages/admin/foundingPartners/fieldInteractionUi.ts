@@ -10,7 +10,17 @@ export type VisitType =
   | "referral"
   | "other";
 
-export type InterestLevel = "cold" | "cool" | "warm" | "hot" | "unknown";
+export type InterestLevel =
+  | "cold"
+  | "cool"
+  | "warm"
+  | "warmInterested"
+  | "hot"
+  | "busy"
+  | "busyWarm"
+  | "busyInterested"
+  | "customer"
+  | "unknown";
 
 export interface FieldInteraction {
   id?: string;
@@ -45,12 +55,21 @@ export const VISIT_TYPE_OPTIONS: { value: VisitType; label: string }[] = [
 ];
 
 export const INTEREST_LEVEL_OPTIONS: { value: InterestLevel; label: string }[] = [
-  { value: "cold", label: "Cold – not interested" },
-  { value: "cool", label: "Cool – curious" },
-  { value: "warm", label: "Warm – interested" },
-  { value: "hot", label: "Hot – ready to move forward" },
-  { value: "unknown", label: "Unknown / not discussed" },
+  { value: "cold", label: "Cold – Not interested" },
+  { value: "cool", label: "Cool – Curious" },
+  { value: "warm", label: "Warm" },
+  { value: "warmInterested", label: "Warm – Interested" },
+  { value: "hot", label: "Hot – Wants demo" },
+  { value: "busy", label: "Busy" },
+  { value: "busyWarm", label: "Busy – Warm" },
+  { value: "busyInterested", label: "Busy – Interested" },
+  { value: "customer", label: "Customer" },
 ];
+
+/** Legacy saved values not offered in current dropdowns. */
+const LEGACY_INTEREST_LEVEL_LABELS: Record<string, string> = {
+  unknown: "Unknown / not discussed",
+};
 
 const LEGACY_TYPE_LABELS: Record<string, string> = {
   call: "Phone",
@@ -82,7 +101,8 @@ export function getVisitTypeLabel(interaction: FieldInteraction): string {
 export function getInterestLevelLabel(value: string | null | undefined): string | null {
   if (!value) return null;
   const match = INTEREST_LEVEL_OPTIONS.find((o) => o.value === value);
-  return match?.label ?? value;
+  if (match) return match.label;
+  return LEGACY_INTEREST_LEVEL_LABELS[value] ?? value;
 }
 
 export function formatInteractionTimestamp(interaction: FieldInteraction): string {

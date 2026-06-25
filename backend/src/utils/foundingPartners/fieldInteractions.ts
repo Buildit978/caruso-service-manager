@@ -16,7 +16,17 @@ export type VisitType =
   | "referral"
   | "other";
 
-export type InterestLevel = "cold" | "cool" | "warm" | "hot" | "unknown";
+export type InterestLevel =
+  | "cold"
+  | "cool"
+  | "warm"
+  | "warmInterested"
+  | "hot"
+  | "busy"
+  | "busyWarm"
+  | "busyInterested"
+  | "customer"
+  | "unknown";
 
 export const VISIT_TYPES: VisitType[] = [
   "walkIn",
@@ -29,7 +39,18 @@ export const VISIT_TYPES: VisitType[] = [
   "other",
 ];
 
-export const INTEREST_LEVELS: InterestLevel[] = ["cold", "cool", "warm", "hot", "unknown"];
+export const INTEREST_LEVELS: InterestLevel[] = [
+  "cold",
+  "cool",
+  "warm",
+  "warmInterested",
+  "hot",
+  "busy",
+  "busyWarm",
+  "busyInterested",
+  "customer",
+  "unknown",
+];
 
 const MAX_PRIMARY_CONTACT_LENGTH = 200;
 const MAX_DURATION_LENGTH = 32;

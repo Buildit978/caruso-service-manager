@@ -445,7 +445,7 @@ export function fetchPartnerIntroductionById(prospectId: string): Promise<Partne
 
 export function createPartnerIntroduction(body: {
   businessName: string;
-  ownerName: string;
+  ownerName?: string;
   phone?: string;
   email?: string;
   address?: string;

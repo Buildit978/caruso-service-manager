@@ -191,7 +191,6 @@ router.post("/", async (req: Request, res: Response) => {
     const notesTrim = conversationNotes ? String(conversationNotes).trim() : "";
 
     if (!businessNameTrim) return res.status(400).json({ message: "businessName is required" });
-    if (!ownerNameTrim) return res.status(400).json({ message: "ownerName is required" });
     if (!notesTrim) return res.status(400).json({ message: "conversationNotes is required" });
 
     const meaningful = isMeaningful === true;
@@ -216,7 +215,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const prospect = await FoundingProspect.create({
       businessName: businessNameTrim,
-      contactName: ownerNameTrim,
+      contactName: ownerNameTrim || undefined,
       email: email ? normalizeEmail(email) : undefined,
       phone: phone ? String(phone).trim() : undefined,
       location: address ? String(address).trim() : undefined,

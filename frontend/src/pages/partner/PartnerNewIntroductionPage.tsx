@@ -32,7 +32,7 @@ export default function PartnerNewIntroductionPage() {
     try {
       const res = await createPartnerIntroduction({
         businessName: businessName.trim(),
-        ownerName: ownerName.trim(),
+        ownerName: ownerName.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         address: address.trim() || undefined,
@@ -84,12 +84,11 @@ export default function PartnerNewIntroductionPage() {
           />
         </label>
         <label className="partner-portal-form-label">
-          Owner name *
+          Owner name
           <input
             className="partner-portal-form-input"
             value={ownerName}
             onChange={(e) => setOwnerName(e.target.value)}
-            required
           />
         </label>
         <label className="partner-portal-form-label">

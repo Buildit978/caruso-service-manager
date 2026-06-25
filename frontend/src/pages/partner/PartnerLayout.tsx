@@ -34,8 +34,10 @@ export default function PartnerLayout() {
       <header className="partner-portal-header">
         <div>
           <p className="partner-portal-brand">Shop Service Manager</p>
-          {partnerName && <p className="partner-portal-subtitle">Partner Portal · {partnerName}</p>}
-          {!partnerName && <p className="partner-portal-subtitle">Partner Portal</p>}
+          {partnerName && (
+            <p className="partner-portal-subtitle label-muted-readable">Partner Portal · {partnerName}</p>
+          )}
+          {!partnerName && <p className="partner-portal-subtitle label-muted-readable">Partner Portal</p>}
         </div>
         <button type="button" className="partner-portal-logout" onClick={handleLogout}>
           Log out
@@ -47,7 +49,7 @@ export default function PartnerLayout() {
           to="/partner"
           end
           className={({ isActive }) =>
-            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : ""}`
+            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : " label-muted-readable"}`
           }
         >
           Dashboard
@@ -55,7 +57,7 @@ export default function PartnerLayout() {
         <NavLink
           to="/partner/introductions"
           className={({ isActive }) =>
-            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : ""}`
+            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : " label-muted-readable"}`
           }
         >
           Introductions
@@ -63,7 +65,7 @@ export default function PartnerLayout() {
         <NavLink
           to="/partner/businesses"
           className={({ isActive }) =>
-            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : ""}`
+            `partner-portal-nav-link${isActive ? " partner-portal-nav-link-active" : " label-muted-readable"}`
           }
         >
           My Businesses

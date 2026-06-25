@@ -54,7 +54,7 @@ export default function PortalAccessSection({
 
   async function handleDisable() {
     const confirmed = window.confirm(
-      "Disable partner portal access? The partner will not be able to sign in until access is enabled again. Relationships and notes are preserved."
+      "Disable partner portal access? The partner will not be able to sign in until access is enabled again. Relationships and interactions are preserved."
     );
     if (!confirmed) return;
 

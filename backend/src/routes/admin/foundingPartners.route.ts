@@ -10,6 +10,14 @@ import { RelationshipProtection } from "../../models/relationshipProtection.mode
 import { User } from "../../models/user.model";
 import { findDuplicateProspects } from "../../utils/foundingPartners/duplicateProspects";
 import { normalizeEmail } from "../../utils/foundingPartners/normalize";
+import { parseActivityDateInput, sortNotesByEffectiveActivityDesc } from "../../utils/foundingPartners/activityDates";
+import {
+  buildInteractionCreatePayload,
+  parseInteractionFields,
+  parseInteractionPatchInput,
+  serializeInteractionNote,
+  type InteractionWriteInput,
+} from "../../utils/foundingPartners/fieldInteractions";
 import {
   buildProspectOwnershipMap,
   getApprovedProtectionForProspect,
@@ -263,32 +271,12 @@ async function loadProtectionNameMaps(rows: ProtectionLeanDoc[]) {
 }
 
 function serializeNote(
-  doc: {
-    _id: Types.ObjectId;
-    partnerId?: Types.ObjectId;
-    prospectId?: Types.ObjectId;
-    relationshipProtectionId?: Types.ObjectId;
-    type: string;
-    summary: string;
-    followUpDate?: Date;
-    createdBy: Types.ObjectId;
-    createdAt?: Date;
-    updatedAt?: Date;
-  },
+  doc: Parameters<typeof serializeInteractionNote>[0],
   extras?: { createdByName?: string }
 ) {
   return {
-    id: doc._id.toString(),
-    partnerId: doc.partnerId?.toString(),
-    prospectId: doc.prospectId?.toString(),
-    relationshipProtectionId: doc.relationshipProtectionId?.toString(),
-    type: doc.type,
-    summary: doc.summary,
-    followUpDate: toIso(doc.followUpDate),
-    createdBy: doc.createdBy.toString(),
+    ...serializeInteractionNote(doc),
     createdByName: extras?.createdByName,
-    createdAt: toIso(doc.createdAt),
-    updatedAt: toIso(doc.updatedAt),
   };
 }
 
@@ -1350,10 +1338,12 @@ router.get("/communication-notes", async (req: Request, res: Response) => {
       });
     }
 
-    const [items, total] = await Promise.all([
-      CommunicationNote.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    const [rawItems, total] = await Promise.all([
+      CommunicationNote.find(filter).skip(skip).limit(limit).lean(),
       CommunicationNote.countDocuments(filter),
     ]);
+
+    const items = sortNotesByEffectiveActivityDesc(rawItems);
 
     const creatorIds = [...new Set(items.map((n) => n.createdBy.toString()))].map(
       (id) => new Types.ObjectId(id)
@@ -1387,14 +1377,20 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
     const adminActor = getAdminActor(req);
     if (!adminActor) return res.status(401).json({ message: "Unauthorized" });
 
-    const { partnerId, prospectId, relationshipProtectionId, type, summary, followUpDate } =
+    const { partnerId, prospectId, relationshipProtectionId, type, visitType, summary, followUpDate, activityDate, activityTime, primaryContact, duration, interestLevel } =
       req.body as {
         partnerId?: string;
         prospectId?: string;
         relationshipProtectionId?: string;
         type?: string;
+        visitType?: string;
         summary?: string;
         followUpDate?: string;
+        activityDate?: string;
+        activityTime?: string;
+        primaryContact?: string;
+        duration?: string;
+        interestLevel?: string;
       };
 
     const partnerOid = partnerId ? parseObjectId(partnerId) : null;
@@ -1435,12 +1431,24 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
       }
     }
 
-    if (!type || !NOTE_TYPES.includes(type as (typeof NOTE_TYPES)[number])) {
+    const interactionParsed = parseInteractionFields(
+      {
+        summary,
+        type,
+        visitType,
+        activityDate,
+        activityTime,
+        primaryContact,
+        duration,
+        interestLevel,
+      },
+      { allowInternal: true, summaryRequired: true }
+    );
+    if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
+
+    if (!NOTE_TYPES.includes(interactionParsed.fields.legacyType)) {
       return res.status(400).json({ message: "Invalid note type" });
     }
-
-    const summaryTrim = summary ? String(summary).trim() : "";
-    if (!summaryTrim) return res.status(400).json({ message: "summary is required" });
 
     let followUp: Date | undefined;
     if (followUpDate) {
@@ -1451,15 +1459,15 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
       followUp = parsed;
     }
 
-    const note = await CommunicationNote.create({
-      partnerId: resolvedPartnerId ?? undefined,
-      prospectId: resolvedProspectId ?? undefined,
-      relationshipProtectionId: resolvedProtectionId ?? undefined,
-      type,
-      summary: summaryTrim,
-      followUpDate: followUp,
-      createdBy: adminActor._id,
-    });
+    const note = await CommunicationNote.create(
+      buildInteractionCreatePayload(interactionParsed.fields, {
+        partnerId: resolvedPartnerId ?? undefined,
+        prospectId: resolvedProspectId ?? undefined,
+        relationshipProtectionId: resolvedProtectionId ?? undefined,
+        followUpDate: followUp,
+        createdBy: adminActor._id,
+      })
+    );
 
     const creator = await User.findById(adminActor._id).select("name email").lean();
     const serialized = serializeNote(note, {
@@ -1476,6 +1484,49 @@ router.post("/communication-notes", async (req: Request, res: Response) => {
     return res.status(201).json(serialized);
   } catch (err) {
     console.error("[FoundingPartners] POST communication-notes", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/admin/founding-partners/communication-notes/:id
+ */
+router.patch("/communication-notes/:id", async (req: Request, res: Response) => {
+  try {
+    const adminActor = getAdminActor(req);
+    if (!adminActor) return res.status(401).json({ message: "Unauthorized" });
+
+    const noteId = parseObjectId(req.params.id);
+    if (!noteId) return res.status(404).json({ message: "Interaction not found" });
+
+    const note = await CommunicationNote.findById(noteId);
+    if (!note) return res.status(404).json({ message: "Interaction not found" });
+
+    const patchParsed = parseInteractionPatchInput(
+      req.body as InteractionWriteInput & { followUpDate?: string | null }
+    );
+    if (!patchParsed.ok) return res.status(400).json({ message: patchParsed.error });
+
+    const before = serializeNote(note);
+    Object.assign(note, patchParsed.patch);
+    await note.save();
+
+    const creator = await User.findById(note.createdBy).select("name email").lean();
+    const serialized = serializeNote(note, {
+      createdByName: creator?.name || creator?.email || "Admin",
+    });
+
+    await auditFromReq(req, {
+      action: "communication_note.update",
+      entityType: "communicationNote",
+      entityId: note._id,
+      before,
+      after: serialized,
+    });
+
+    return res.json(serialized);
+  } catch (err) {
+    console.error("[FoundingPartners] PATCH communication-notes/:id", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

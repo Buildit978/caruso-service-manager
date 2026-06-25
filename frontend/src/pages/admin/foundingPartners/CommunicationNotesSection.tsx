@@ -5,8 +5,13 @@ import {
   type CommunicationNote,
   type CommunicationNoteType,
 } from "../../../api/adminFoundingPartners";
-import { NoteTypeBadge, NOTE_TYPE_OPTIONS } from "./foundingPartnerBadges";
-import { apiErrorMessage, formatDate, formatDateTime } from "./foundingPartnerFormat";
+import { NOTE_TYPE_OPTIONS } from "./foundingPartnerBadges";
+import { apiErrorMessage, todayDateInputValue } from "./foundingPartnerFormat";
+import InteractionFormFields, {
+  createDefaultInteractionFormValues,
+  type InteractionFormValues,
+} from "./InteractionFormFields";
+import InteractionTimelineCard from "./InteractionTimelineCard";
 
 interface CommunicationNotesSectionProps {
   partnerId?: string;
@@ -21,16 +26,17 @@ export default function CommunicationNotesSection({
   relationshipProtectionId,
   onNoteAdded,
 }: CommunicationNotesSectionProps) {
-  const [notes, setNotes] = useState<CommunicationNote[]>([]);
+  const [interactions, setInteractions] = useState<CommunicationNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [type, setType] = useState<CommunicationNoteType>("internalNote");
-  const [summary, setSummary] = useState("");
+  const [recordAsInternal, setRecordAsInternal] = useState(false);
+  const [internalType, setInternalType] = useState<CommunicationNoteType>("internalNote");
   const [followUpDate, setFollowUpDate] = useState("");
+  const [form, setForm] = useState<InteractionFormValues>(() => createDefaultInteractionFormValues());
 
-  const loadNotes = useCallback(async () => {
+  const loadInteractions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -40,21 +46,28 @@ export default function CommunicationNotesSection({
         relationshipProtectionId,
         limit: 50,
       });
-      setNotes(res.items);
+      setInteractions(res.items);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load relationship history"));
+      setError(apiErrorMessage(err, "Failed to load interactions"));
     } finally {
       setLoading(false);
     }
   }, [partnerId, prospectId, relationshipProtectionId]);
 
   useEffect(() => {
-    loadNotes();
-  }, [loadNotes]);
+    loadInteractions();
+  }, [loadInteractions]);
+
+  function resetForm() {
+    setForm(createDefaultInteractionFormValues());
+    setFollowUpDate("");
+    setRecordAsInternal(false);
+    setInternalType("internalNote");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!summary.trim()) return;
+    if (!form.summary.trim()) return;
     setSaving(true);
     setError(null);
     try {
@@ -62,17 +75,22 @@ export default function CommunicationNotesSection({
         partnerId,
         prospectId,
         relationshipProtectionId,
-        type,
-        summary: summary.trim(),
+        type: recordAsInternal ? internalType : undefined,
+        visitType: recordAsInternal ? undefined : form.visitType,
+        summary: form.summary.trim(),
+        activityDate: form.activityDate || todayDateInputValue(),
+        activityTime: form.activityTime,
+        primaryContact: form.primaryContact.trim() || undefined,
+        duration: form.duration.trim() || undefined,
+        interestLevel: form.interestLevel || undefined,
         followUpDate: followUpDate || undefined,
       });
-      setSummary("");
-      setFollowUpDate("");
+      resetForm();
       setShowForm(false);
-      await loadNotes();
+      await loadInteractions();
       onNoteAdded?.();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to add note"));
+      setError(apiErrorMessage(err, "Failed to log interaction"));
     } finally {
       setSaving(false);
     }
@@ -81,13 +99,13 @@ export default function CommunicationNotesSection({
   return (
     <section className="fp-card fp-print-root">
       <div className="fp-detail-header">
-        <h2 className="fp-section-title">Relationship history</h2>
+        <h2 className="fp-section-title">Interactions</h2>
         <button
           type="button"
           className="fp-btn fp-btn-secondary fp-btn-sm fp-no-print"
           onClick={() => setShowForm((v) => !v)}
         >
-          {showForm ? "Cancel" : "Add note"}
+          {showForm ? "Cancel" : "Log interaction"}
         </button>
       </div>
 
@@ -95,29 +113,38 @@ export default function CommunicationNotesSection({
 
       {showForm && (
         <form className="fp-form-grid fp-no-print" onSubmit={handleSubmit}>
-          <label className="fp-form-label">
-            Type
-            <select
-              className="fp-form-select"
-              value={type}
-              onChange={(e) => setType(e.target.value as CommunicationNoteType)}
-            >
-              {NOTE_TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="fp-form-label">
-            Summary
-            <textarea
-              className="fp-form-textarea"
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              required
+          <label className="fp-form-label fp-checkbox-row">
+            <input
+              type="checkbox"
+              checked={recordAsInternal}
+              onChange={(e) => setRecordAsInternal(e.target.checked)}
             />
+            <span>Record as internal admin interaction</span>
           </label>
+
+          {recordAsInternal && (
+            <label className="fp-form-label">
+              Internal type
+              <select
+                className="fp-form-select"
+                value={internalType}
+                onChange={(e) => setInternalType(e.target.value as CommunicationNoteType)}
+              >
+                {NOTE_TYPE_OPTIONS.filter((t) => t === "internalNote").map((t) => (
+                  <option key={t} value={t}>
+                    Internal
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <InteractionFormFields
+            values={form}
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+            showInterestLevel={!recordAsInternal}
+          />
+
           <label className="fp-form-label">
             Follow-up date (optional)
             <input
@@ -127,27 +154,22 @@ export default function CommunicationNotesSection({
               onChange={(e) => setFollowUpDate(e.target.value)}
             />
           </label>
+
           <div className="fp-form-actions">
             <button type="submit" className="fp-btn fp-btn-primary" disabled={saving}>
-              {saving ? "Saving…" : "Save note"}
+              {saving ? "Saving…" : "Save interaction"}
             </button>
           </div>
         </form>
       )}
 
-      {loading && <p className="fp-loading">Loading relationship history…</p>}
-      {!loading && notes.length === 0 && <p className="fp-empty">No relationship history yet.</p>}
-      {!loading && notes.length > 0 && (
+      {loading && <p className="fp-loading">Loading interactions…</p>}
+      {!loading && interactions.length === 0 && <p className="fp-empty">No interactions yet.</p>}
+      {!loading && interactions.length > 0 && (
         <ul className="fp-notes-list">
-          {notes.map((note) => (
-            <li key={note.id} className="fp-note-item">
-              <div className="fp-note-meta">
-                <NoteTypeBadge type={note.type} />
-                <span>{formatDateTime(note.createdAt)}</span>
-                {note.createdByName && <span>by {note.createdByName}</span>}
-                {note.followUpDate && <span>Follow-up {formatDate(note.followUpDate)}</span>}
-              </div>
-              <p className="fp-note-summary">{note.summary}</p>
+          {interactions.map((interaction) => (
+            <li key={interaction.id}>
+              <InteractionTimelineCard interaction={interaction} showAudit />
             </li>
           ))}
         </ul>

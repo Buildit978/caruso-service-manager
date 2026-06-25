@@ -4,13 +4,13 @@
 .partner-portal-login-page {
   --pp-bg: #0f172a;
   --pp-surface: #1e293b;
-  --pp-input-bg: #020617;
+  --pp-input-bg: #111827;
   --pp-border: #334155;
-  --pp-border-input: #4b5563;
-  --pp-text: #e5e7eb;
-  --pp-text-heading: #f1f5f9;
-  --pp-text-muted: #94a3b8;
-  --pp-text-label: #e2e8f0;
+  --pp-border-input: #64748b;
+  --pp-text: var(--color-text-body);
+  --pp-text-heading: var(--color-text-primary);
+  --pp-text-label: var(--color-text-label);
+  --pp-placeholder: #9fb0c5;
   --pp-primary: #2563eb;
   --pp-primary-hover: #1d4ed8;
   --pp-link: #93c5fd;
@@ -26,6 +26,11 @@
   --pp-success-text: #86efac;
   --pp-meaningful-bg: rgba(251, 191, 36, 0.1);
   --pp-meaningful-text: #fcd34d;
+  /* Field typography — high contrast for outdoor/mobile readability */
+  --pp-field-value: #ffffff;
+  --pp-field-label: #ffffff;
+  --pp-field-placeholder: #718096;
+  color-scheme: dark;
 }
 
 .partner-portal {
@@ -36,8 +41,8 @@
   background: var(--pp-bg);
   color: var(--pp-text);
   font-family: "Inter", "Roboto", "Segoe UI", sans-serif;
-  font-size: 1rem;
-  line-height: 1.5;
+  font-size: 18px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -64,8 +69,8 @@
 
 .partner-portal-subtitle {
   margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--pp-text-muted);
+  text-align: left;
+  font-size: 0.95rem;
 }
 
 .partner-portal-logout {
@@ -102,8 +107,6 @@
   border-radius: 8px;
   border: 1px solid var(--pp-border);
   background: var(--pp-surface);
-  color: var(--pp-text-muted);
-  font-weight: 600;
   font-size: 0.8125rem;
   text-decoration: none;
   padding: 0 0.25rem;
@@ -155,17 +158,20 @@
 
 .partner-portal-activity-business-name {
   margin: 0 0 0.25rem;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.9375rem;
+  color: var(--pp-text-heading);
 }
 
 .partner-portal-stat-label {
   margin: 0;
   font-size: 0.8125rem;
+  /* App.css .data-label */
   font-weight: 600;
-  color: var(--pp-text-muted);
+  color: var(--color-text-label);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 .partner-portal-stat-value {
@@ -222,8 +228,6 @@
 
 .partner-portal-link-card-sub {
   margin: 0.25rem 0 0;
-  font-size: 0.875rem;
-  color: var(--pp-text-muted);
 }
 
 .partner-portal-business-card {
@@ -261,7 +265,10 @@
   gap: 0.5rem;
   align-items: center;
   font-size: 0.875rem;
-  color: var(--pp-text-muted);
+  /* App.css .label-muted-readable */
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .partner-portal-search {
@@ -271,10 +278,19 @@
   border: 1px solid var(--pp-border-input);
   border-radius: 8px;
   font-size: 1rem;
+  font-weight: 600;
   margin-bottom: 1rem;
   box-sizing: border-box;
   background: var(--pp-input-bg);
-  color: var(--pp-text);
+  color: var(--pp-field-value);
+  caret-color: var(--pp-field-value);
+  -webkit-text-fill-color: var(--pp-field-value);
+}
+
+.partner-portal-search::placeholder {
+  color: var(--pp-field-placeholder);
+  opacity: 1;
+  font-weight: 400;
 }
 
 .partner-portal-search:focus {
@@ -292,16 +308,20 @@
 .partner-portal-dl dt {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--pp-text-muted);
+  /* App.css .data-label */
+  font-weight: 600;
+  color: var(--color-text-label);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 .partner-portal-dl dd {
   margin: 0.125rem 0 0.5rem;
   font-size: 1rem;
-  color: var(--pp-text);
+  /* App.css .data-value */
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 .partner-portal-note-item {
@@ -319,15 +339,20 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8125rem;
-  color: var(--pp-text-muted);
+  font-size: 0.875rem;
+  /* App.css .label-muted-readable */
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.45;
   margin-bottom: 0.375rem;
 }
 
 .partner-portal-note-summary {
   margin: 0;
-  font-size: 0.9375rem;
-  color: var(--pp-text);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--pp-field-value);
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -336,23 +361,90 @@
   flex-direction: column;
   gap: 0.375rem;
   margin-bottom: 0.875rem;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--pp-text-label);
+  color: var(--pp-field-label);
+  line-height: 1.35;
 }
 
-.partner-portal-form-input,
-.partner-portal-form-select,
-.partner-portal-form-textarea {
+.partner-portal-form-input {
   min-height: 48px;
   padding: 0.75rem 1rem;
   border: 1px solid var(--pp-border-input);
   border-radius: 8px;
   font-size: 1rem;
+  font-weight: 600;
   font-family: inherit;
   box-sizing: border-box;
   background: var(--pp-input-bg);
-  color: var(--pp-text);
+  color: var(--pp-field-value);
+  caret-color: var(--pp-field-value);
+  -webkit-text-fill-color: var(--pp-field-value);
+}
+
+.partner-portal-form-input::placeholder {
+  color: var(--pp-field-placeholder);
+  opacity: 1;
+  font-weight: 400;
+  -webkit-text-fill-color: var(--pp-field-placeholder);
+}
+
+.partner-portal-form-select {
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pp-border-input);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  box-sizing: border-box;
+  background: var(--pp-input-bg);
+  color: var(--pp-field-value);
+  caret-color: var(--pp-field-value);
+  -webkit-text-fill-color: var(--pp-field-value);
+  color-scheme: dark;
+}
+
+.partner-portal-form-textarea {
+  min-height: 120px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pp-border-input);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  box-sizing: border-box;
+  background: var(--pp-input-bg);
+  color: var(--pp-field-value);
+  caret-color: var(--pp-field-value);
+  -webkit-text-fill-color: var(--pp-field-value);
+  resize: vertical;
+}
+
+.partner-portal-form-textarea::placeholder {
+  color: var(--pp-field-placeholder);
+  opacity: 1;
+  font-weight: 400;
+  -webkit-text-fill-color: var(--pp-field-placeholder);
+}
+
+.partner-portal-form-select option {
+  background: var(--pp-surface);
+  color: var(--pp-field-value);
+  font-weight: 500;
+}
+
+.partner-portal-form-input[type="date"],
+.partner-portal-form-input[type="time"] {
+  color: var(--pp-field-value);
+  font-weight: 600;
+  -webkit-text-fill-color: var(--pp-field-value);
+}
+
+.partner-portal-form-input[type="date"]::-webkit-calendar-picker-indicator,
+.partner-portal-form-input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  opacity: 0.9;
 }
 
 .partner-portal-form-input:focus,
@@ -362,9 +454,23 @@
   outline-offset: 1px;
 }
 
-.partner-portal-form-textarea {
-  min-height: 120px;
-  resize: vertical;
+.partner-portal-form-input:-webkit-autofill,
+.partner-portal-form-input:-webkit-autofill:hover,
+.partner-portal-form-input:-webkit-autofill:focus,
+.partner-portal-form-textarea:-webkit-autofill,
+.partner-portal-form-textarea:-webkit-autofill:hover,
+.partner-portal-form-textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--pp-field-value);
+  -webkit-box-shadow: 0 0 0 1000px var(--pp-input-bg) inset;
+  box-shadow: 0 0 0 1000px var(--pp-input-bg) inset;
+  font-weight: 600;
+  caret-color: var(--pp-field-value);
+}
+
+.partner-portal-form-textarea:-webkit-autofill,
+.partner-portal-form-textarea:-webkit-autofill:hover,
+.partner-portal-form-textarea:-webkit-autofill:focus {
+  font-weight: 500;
 }
 
 .partner-portal-btn {
@@ -389,8 +495,28 @@
 }
 
 .partner-portal-btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.partner-portal-btn-secondary {
+  background: var(--pp-input-bg);
+  border: 1px solid var(--pp-border-input);
+  color: var(--pp-text);
+  width: 100%;
+}
+
+.partner-portal-btn-secondary:hover:not(:disabled) {
+  border-color: var(--pp-primary);
+  color: var(--pp-text-heading);
+}
+
+.partner-portal-btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  font-weight: 500;
 }
 
 .partner-portal-login-page {
@@ -402,6 +528,10 @@
   padding: 1.5rem 1rem;
   background: var(--pp-bg);
   box-sizing: border-box;
+  color: var(--pp-text);
+  font-family: "Inter", "Roboto", "Segoe UI", sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
 }
 
 .partner-portal-login-card {
@@ -434,10 +564,7 @@
 
 .partner-portal-login-subtitle {
   margin: 0 0 1.25rem;
-  color: var(--pp-text-muted);
-  font-size: 0.9375rem;
   text-align: center;
-  line-height: 1.5;
 }
 
 .partner-portal-login-subtitle-tight {
@@ -447,9 +574,6 @@
 .partner-portal-password-rules {
   margin: 0 0 1.25rem;
   padding-left: 1.25rem;
-  color: var(--pp-text-muted);
-  font-size: 0.875rem;
-  line-height: 1.5;
 }
 
 .partner-portal-password-rules li {
@@ -466,11 +590,13 @@
   font-size: 0.9375rem;
 }
 
-.partner-portal-loading,
+.partner-portal-loading {
+  margin: 0;
+}
+
 .partner-portal-empty {
   margin: 0;
-  color: var(--pp-text-muted);
-  font-size: 0.9375rem;
+  font-style: normal;
 }
 
 .partner-portal-activity-item {
@@ -505,9 +631,6 @@
 
 .partner-portal-intro-copy {
   margin: -0.5rem 0 1rem;
-  color: var(--pp-text-muted);
-  font-size: 0.9375rem;
-  line-height: 1.5;
 }
 
 .partner-portal-page-header-row {
@@ -534,9 +657,10 @@
   align-items: flex-start;
   gap: 0.625rem;
   margin-bottom: 1rem;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   line-height: 1.45;
-  color: var(--pp-text);
+  font-weight: 600;
+  color: var(--pp-field-value);
 }
 
 .partner-portal-checkbox-label input {
@@ -573,8 +697,11 @@
 
 .partner-portal-meaningful-date {
   margin: 0 0 0.5rem;
-  font-size: 0.8125rem;
-  color: var(--pp-text-muted);
+  font-size: 0.875rem;
+  /* App.css .label-muted-readable */
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .partner-portal-stewarding-banner {
@@ -584,8 +711,9 @@
   border: 1px solid var(--pp-success-border);
   border-radius: 8px;
   color: var(--pp-success-text);
-  font-size: 0.875rem;
-  line-height: 1.45;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .partner-portal-stewarding-pill {
@@ -617,10 +745,10 @@
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   background: var(--pp-input-bg);
   border: 1px solid var(--pp-border-input);
-  color: var(--pp-text-muted);
+  color: var(--color-text-label);
 }
 
 .partner-portal-stage-badge-meaningfulConversation {
@@ -642,7 +770,84 @@
   margin: 0;
   padding-left: 1.25rem;
   color: var(--pp-warn-text);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.partner-portal-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.partner-portal-meaningful-card {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.fp-interaction-datetime-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.partner-portal .fp-interaction-datetime-row .partner-portal-form-label {
+  margin-bottom: 0;
+}
+
+.partner-portal .fp-interaction-timestamp {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--pp-field-value);
+  letter-spacing: 0.01em;
+}
+
+.partner-portal .fp-interaction-line {
+  margin: 0.2rem 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--pp-field-value);
+  line-height: 1.45;
+}
+
+.partner-portal .fp-interaction-label {
+  font-weight: 700;
+  color: var(--pp-field-value);
+}
+
+.partner-portal .fp-interaction-visit-type {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--pp-field-value);
+}
+
+.partner-portal .fp-note-summary {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--pp-field-value);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.partner-portal .fp-interaction-follow-up {
+  /* App.css .label-muted-readable */
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.partner-portal .fp-note-audit {
+  margin-top: 0.35rem;
   font-size: 0.875rem;
+  /* App.css .label-muted-readable */
+  color: var(--color-text-label);
+  font-weight: 600;
+  line-height: 1.45;
+  font-style: normal;
 }
 
 @media (min-width: 768px) {

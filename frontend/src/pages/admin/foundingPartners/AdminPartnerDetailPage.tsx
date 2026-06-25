@@ -151,7 +151,7 @@ export default function AdminPartnerDetailPage() {
                   <>
                     <dt>Introductions</dt>
                     <dd>{partner.counts.relationshipProtections}</dd>
-                    <dt>Relationship history entries</dt>
+                    <dt>Interactions</dt>
                     <dd>{partner.counts.communicationNotes}</dd>
                   </>
                 )}

@@ -151,6 +151,12 @@ export interface CommunicationNote {
   relationshipProtectionId?: string;
   type: CommunicationNoteType;
   summary: string;
+  activityDate?: string;
+  activityTime?: string;
+  primaryContact?: string;
+  visitType?: string;
+  duration?: string;
+  interestLevel?: string;
   followUpDate?: string;
   createdBy: string;
   createdByName?: string;
@@ -348,9 +354,35 @@ export function createCommunicationNote(body: {
   partnerId?: string;
   prospectId?: string;
   relationshipProtectionId?: string;
-  type: CommunicationNoteType;
+  type?: CommunicationNoteType;
+  visitType?: string;
   summary: string;
+  activityDate?: string;
+  activityTime?: string;
+  primaryContact?: string;
+  duration?: string;
+  interestLevel?: string;
   followUpDate?: string;
 }): Promise<CommunicationNote> {
   return adminFetch(`${BASE}/communication-notes`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updateCommunicationNote(
+  id: string,
+  body: Partial<{
+    type: CommunicationNoteType;
+    visitType: string;
+    summary: string;
+    activityDate: string;
+    activityTime: string;
+    primaryContact: string;
+    duration: string;
+    interestLevel: string | null;
+    followUpDate: string | null;
+  }>
+): Promise<CommunicationNote> {
+  return adminFetch(`${BASE}/communication-notes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }

@@ -6,8 +6,11 @@ import {
   partnerApiErrorMessage,
   type PartnerDashboard,
 } from "../../api/partner";
-import { formatDateTime } from "../admin/foundingPartners/foundingPartnerFormat";
-import { NoteTypeBadge } from "../admin/foundingPartners/foundingPartnerBadges";
+import {
+  formatInteractionTimestamp,
+  getVisitTypeLabel,
+} from "../admin/foundingPartners/fieldInteractionUi";
+import type { FieldInteraction } from "../admin/foundingPartners/fieldInteractionUi";
 
 export default function PartnerDashboardPage() {
   const navigate = useNavigate();
@@ -43,7 +46,7 @@ export default function PartnerDashboardPage() {
     <>
       <h1 className="partner-portal-page-title">Dashboard</h1>
 
-      {loading && <p className="partner-portal-loading">Loading dashboard…</p>}
+      {loading && <p className="partner-portal-loading label-muted-readable">Loading dashboard…</p>}
       {error && <p className="partner-portal-error">{error}</p>}
 
       {!loading && !error && data && (
@@ -65,17 +68,17 @@ export default function PartnerDashboardPage() {
 
           <Link to="/partner/introductions/new" className="partner-portal-link-card">
             <p className="partner-portal-link-card-title">New Shop Introduction</p>
-            <p className="partner-portal-link-card-sub">Capture the beginning of a relationship</p>
+            <p className="partner-portal-link-card-sub label-muted-readable">Capture the beginning of a relationship</p>
           </Link>
 
           <Link to="/partner/introductions" className="partner-portal-link-card">
             <p className="partner-portal-link-card-title">Introductions</p>
-            <p className="partner-portal-link-card-sub">Review relationships you are building</p>
+            <p className="partner-portal-link-card-sub label-muted-readable">Review relationships you are building</p>
           </Link>
 
           <Link to="/partner/businesses" className="partner-portal-link-card">
             <p className="partner-portal-link-card-title">My Businesses</p>
-            <p className="partner-portal-link-card-sub">
+            <p className="partner-portal-link-card-sub label-muted-readable">
               View {data.stewardedBusinessCount} stewarded business
               {data.stewardedBusinessCount === 1 ? "" : "es"}
             </p>
@@ -84,7 +87,7 @@ export default function PartnerDashboardPage() {
           {data.attentionNeededCount > 0 && (
             <Link to="/partner/businesses" className="partner-portal-link-card">
               <p className="partner-portal-link-card-title">Review attention needed</p>
-              <p className="partner-portal-link-card-sub">
+              <p className="partner-portal-link-card-sub label-muted-readable">
                 {data.attentionNeededCount} business
                 {data.attentionNeededCount === 1 ? "" : "es"} may need follow-up
               </p>
@@ -94,26 +97,39 @@ export default function PartnerDashboardPage() {
           <section className="partner-portal-card">
             <h2 className="partner-portal-card-title">Recent activity</h2>
             {data.recentActivity.length === 0 ? (
-              <p className="partner-portal-empty">No recent activity in the last 7 days.</p>
+              <p className="partner-portal-empty label-muted-readable">No recent activity in the last 7 days.</p>
             ) : (
-              data.recentActivity.map((item, idx) => (
-                <div key={`${item.at}-${idx}`} className="partner-portal-activity-item">
-                  <div className="partner-portal-note-meta">
-                    <NoteTypeBadge type={item.noteType} />
-                    <span>{formatDateTime(item.at)}</span>
-                  </div>
-                  {item.businessName && (
-                    <p className="partner-portal-activity-business-name">
-                      {item.prospectId ? (
-                        <Link to={`/partner/businesses/${item.prospectId}`}>{item.businessName}</Link>
-                      ) : (
-                        item.businessName
-                      )}
+              data.recentActivity.map((item, idx) => {
+                const interaction: FieldInteraction = {
+                  summary: item.summary,
+                  activityDate: item.at,
+                  visitType: item.visitType ?? item.noteType,
+                  primaryContact: item.primaryContact,
+                };
+                return (
+                  <div key={`${item.at}-${idx}`} className="partner-portal-activity-item">
+                    <p className="fp-interaction-timestamp">{formatInteractionTimestamp(interaction)}</p>
+                    <p className="fp-interaction-line fp-interaction-visit-type">
+                      {getVisitTypeLabel(interaction)}
                     </p>
-                  )}
-                  <p className="partner-portal-note-summary">{item.summary}</p>
-                </div>
-              ))
+                    {item.businessName && (
+                      <p className="partner-portal-activity-business-name">
+                        {item.prospectId ? (
+                          <Link to={`/partner/businesses/${item.prospectId}`}>{item.businessName}</Link>
+                        ) : (
+                          item.businessName
+                        )}
+                      </p>
+                    )}
+                    {item.primaryContact && (
+                      <p className="fp-interaction-line">
+                        <span className="fp-interaction-label">Primary Contact:</span> {item.primaryContact}
+                      </p>
+                    )}
+                    <p className="partner-portal-note-summary">{item.summary}</p>
+                  </div>
+                );
+              })
             )}
           </section>
         </>

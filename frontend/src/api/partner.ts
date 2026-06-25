@@ -10,8 +10,20 @@ export interface HttpError extends Error {
 
 export type HealthStatus = "healthy" | "attention_needed" | "stale";
 export type RelationshipLifecycleStatus = "new" | "protected" | "connected" | "engaged";
+export type PartnerVisitType =
+  | "walkIn"
+  | "phone"
+  | "email"
+  | "textWhatsApp"
+  | "demo"
+  | "followUp"
+  | "referral"
+  | "other";
+
+/** @deprecated Use visitType on interaction payloads. */
 export type PartnerNoteType = "call" | "email" | "walkIn" | "meeting" | "demo" | "followUp";
 
+/** @deprecated Use PartnerVisitType. */
 export const PARTNER_NOTE_TYPE_OPTIONS: PartnerNoteType[] = [
   "call",
   "email",
@@ -20,6 +32,36 @@ export const PARTNER_NOTE_TYPE_OPTIONS: PartnerNoteType[] = [
   "demo",
   "followUp",
 ];
+
+export interface PartnerInteractionPayload {
+  visitType?: PartnerVisitType;
+  summary: string;
+  activityDate?: string;
+  activityTime?: string;
+  primaryContact?: string;
+  duration?: string;
+  interestLevel?: string;
+  isMeaningful?: boolean;
+  followUpDate?: string;
+  nextFollowUpDate?: string;
+  /** Legacy */
+  type?: PartnerNoteType;
+}
+
+export interface PartnerInteraction {
+  id: string;
+  type: string;
+  summary: string;
+  isMeaningful?: boolean;
+  activityDate?: string;
+  activityTime?: string;
+  primaryContact?: string;
+  visitType?: PartnerVisitType | string;
+  duration?: string;
+  interestLevel?: string;
+  followUpDate?: string;
+  createdAt?: string;
+}
 
 export interface PartnerPortalAccess {
   status: "enabled" | "disabled";
@@ -63,10 +105,12 @@ export interface PartnerDashboard {
   attentionNeededCount: number;
   recentActivityCount: number;
   recentActivity: Array<{
-    type: "note";
+    type: "interaction";
     noteType: string;
+    visitType?: string;
     at?: string;
     summary: string;
+    primaryContact?: string;
     prospectId?: string;
     businessName?: string;
   }>;
@@ -99,6 +143,10 @@ export interface PartnerIntroductionListItem {
   isStewarding: boolean;
   introducedAt?: string;
   stageUpdatedAt?: string;
+  firstContactDate?: string;
+  lastVisitDate?: string;
+  nextFollowUpDate?: string;
+  lastActivityAt?: string;
   lastMeaningfulConversation: { summary: string; at?: string } | null;
 }
 
@@ -108,30 +156,19 @@ export interface PartnerIntroductionDetail {
     stage: PartnerRelationshipStage;
     introducedAt?: string;
     stageUpdatedAt?: string;
+    firstContactDate?: string;
+    lastVisitDate?: string;
+    nextFollowUpDate?: string;
     isStewarding: boolean;
   };
-  lastMeaningfulConversation: {
-    id: string;
-    type: string;
-    summary: string;
-    isMeaningful: boolean;
-    followUpDate?: string;
-    createdAt?: string;
-  } | null;
-  notes: Array<{
-    id: string;
-    type: string;
-    summary: string;
-    isMeaningful: boolean;
-    followUpDate?: string;
-    createdAt?: string;
-  }>;
+  lastMeaningfulConversation: PartnerInteraction | null;
+  notes: PartnerInteraction[];
 }
 
 export interface PartnerIntroductionCreateResponse {
   business: PartnerIntroductionDetail["business"];
   relationship: PartnerIntroductionDetail["relationship"];
-  note: PartnerIntroductionDetail["notes"][0];
+  note: PartnerInteraction;
   possibleDuplicates: PartnerDuplicateMatch[];
 }
 
@@ -178,13 +215,7 @@ export interface PartnerBusinessDetail {
     createdAt?: string;
     updatedAt?: string;
   };
-  notes: Array<{
-    id: string;
-    type: string;
-    summary: string;
-    followUpDate?: string;
-    createdAt?: string;
-  }>;
+  notes: PartnerInteraction[];
 }
 
 export function getPartnerToken(): string | null {
@@ -389,8 +420,8 @@ export function fetchPartnerBusinessById(id: string): Promise<PartnerBusinessDet
 
 export function createPartnerBusinessNote(
   prospectId: string,
-  body: { type: PartnerNoteType; summary: string; followUpDate?: string; isMeaningful?: boolean }
-): Promise<PartnerBusinessDetail["notes"][0]> {
+  body: PartnerInteractionPayload
+): Promise<PartnerInteraction> {
   return partnerFetch(`/businesses/${prospectId}/notes`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -420,6 +451,14 @@ export function createPartnerIntroduction(body: {
   address?: string;
   conversationNotes: string;
   isMeaningful?: boolean;
+  visitType?: PartnerVisitType;
+  activityDate?: string;
+  activityTime?: string;
+  primaryContact?: string;
+  duration?: string;
+  interestLevel?: string;
+  nextFollowUpDate?: string;
+  /** Legacy */
   type?: PartnerNoteType;
 }): Promise<PartnerIntroductionCreateResponse> {
   return partnerFetch("/introductions", {
@@ -428,15 +467,24 @@ export function createPartnerIntroduction(body: {
   });
 }
 
-export function createPartnerIntroductionNote(
+export function updatePartnerIntroduction(
   prospectId: string,
   body: {
-    type: PartnerNoteType;
-    summary: string;
-    followUpDate?: string;
-    isMeaningful?: boolean;
+    firstContactDate?: string | null;
+    lastVisitDate?: string | null;
+    nextFollowUpDate?: string | null;
   }
-): Promise<{ note: PartnerIntroductionDetail["notes"][0]; relationship: PartnerIntroductionDetail["relationship"] }> {
+): Promise<{ relationship: PartnerIntroductionDetail["relationship"] }> {
+  return partnerFetch(`/introductions/${prospectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function createPartnerIntroductionNote(
+  prospectId: string,
+  body: PartnerInteractionPayload
+): Promise<{ note: PartnerInteraction; relationship: PartnerIntroductionDetail["relationship"] }> {
   return partnerFetch(`/introductions/${prospectId}/notes`, {
     method: "POST",
     body: JSON.stringify(body),

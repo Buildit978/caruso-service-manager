@@ -8,6 +8,12 @@ export interface IPartnerProspectRelationship extends Document {
   stage: PartnerRelationshipStage;
   introducedAt: Date;
   stageUpdatedAt: Date;
+  /** Real-world date of first contact with the prospect. */
+  firstContactDate?: Date;
+  /** Real-world date of the most recent visit or conversation. */
+  lastVisitDate?: Date;
+  /** Planned next follow-up (may be in the future). */
+  nextFollowUpDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +30,9 @@ const partnerProspectRelationshipSchema = new Schema<IPartnerProspectRelationshi
     },
     introducedAt: { type: Date, required: true, default: () => new Date() },
     stageUpdatedAt: { type: Date, required: true, default: () => new Date() },
+    firstContactDate: { type: Date },
+    lastVisitDate: { type: Date },
+    nextFollowUpDate: { type: Date },
   },
   { timestamps: true }
 );

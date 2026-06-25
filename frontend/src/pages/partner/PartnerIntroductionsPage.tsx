@@ -7,7 +7,7 @@ import {
   PARTNER_RELATIONSHIP_STAGE_LABELS,
   type PartnerIntroductionListItem,
 } from "../../api/partner";
-import { formatDateTime } from "../admin/foundingPartners/foundingPartnerFormat";
+import { formatDate } from "../admin/foundingPartners/foundingPartnerFormat";
 import "./partnerPortal.css";
 
 function StageBadge({ stage }: { stage: PartnerIntroductionListItem["stage"] }) {
@@ -56,16 +56,16 @@ export default function PartnerIntroductionsPage() {
           New
         </Link>
       </div>
-      <p className="partner-portal-intro-copy">
+      <p className="partner-portal-intro-copy label-muted-readable">
         Relationships you are building before admin relationship protection is granted.
       </p>
 
-      {loading && <p className="partner-portal-loading">Loading introductions…</p>}
+      {loading && <p className="partner-portal-loading label-muted-readable">Loading introductions…</p>}
       {error && <p className="partner-portal-error">{error}</p>}
 
       {!loading && !error && items.length === 0 && (
         <div className="partner-portal-card">
-          <p className="partner-portal-empty">No introductions yet.</p>
+          <p className="partner-portal-empty label-muted-readable">No introductions yet.</p>
           <Link to="/partner/introductions/new" className="partner-portal-btn partner-portal-btn-primary">
             Record new introduction
           </Link>
@@ -89,14 +89,16 @@ export default function PartnerIntroductionsPage() {
               )}
             </div>
             {row.lastMeaningfulConversation ? (
-              <p className="partner-portal-link-card-sub partner-portal-list-snippet">
+              <p className="partner-portal-link-card-sub label-muted-readable partner-portal-list-snippet">
                 Last meaningful: {row.lastMeaningfulConversation.summary.slice(0, 120)}
                 {row.lastMeaningfulConversation.summary.length > 120 ? "…" : ""}
               </p>
             ) : (
-              <p className="partner-portal-link-card-sub">No meaningful conversation recorded yet</p>
+              <p className="partner-portal-link-card-sub label-muted-readable">No meaningful conversation recorded yet</p>
             )}
-            <p className="partner-portal-link-card-sub">Updated {formatDateTime(row.stageUpdatedAt)}</p>
+            <p className="partner-portal-link-card-sub label-muted-readable">
+              Last activity {formatDate(row.lastActivityAt ?? row.lastVisitDate ?? row.stageUpdatedAt)}
+            </p>
           </button>
         ))}
     </>

@@ -62,13 +62,43 @@ export function isValidLifecycleAdvance(
 export async function getProtectionLastActivityAt(
   relationshipProtectionId: Types.ObjectId
 ): Promise<Date | null> {
-  const latest = await CommunicationNote.findOne({ relationshipProtectionId })
-    .sort({ createdAt: -1 })
-    .select("createdAt")
-    .lean();
+  const rows = await CommunicationNote.aggregate<{ effectiveAt: Date }>([
+    { $match: { relationshipProtectionId } },
+    {
+      $addFields: {
+        effectiveAt: {
+          $cond: {
+            if: { $ifNull: ["$activityDate", false] },
+            then: {
+              $dateFromParts: {
+                year: { $year: "$activityDate" },
+                month: { $month: "$activityDate" },
+                day: { $dayOfMonth: "$activityDate" },
+                hour: {
+                  $toInt: {
+                    $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 0, 2],
+                  },
+                },
+                minute: {
+                  $toInt: {
+                    $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 3, 2],
+                  },
+                },
+              },
+            },
+            else: "$createdAt",
+          },
+        },
+      },
+    },
+    { $sort: { effectiveAt: -1 } },
+    { $limit: 1 },
+    { $project: { effectiveAt: 1 } },
+  ]);
 
-  if (!latest?.createdAt) return null;
-  return new Date(latest.createdAt);
+  const latest = rows[0]?.effectiveAt;
+  if (!latest) return null;
+  return new Date(latest);
 }
 
 /** Approved protection for a prospect, if any. */

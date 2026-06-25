@@ -12,6 +12,19 @@ export function formatDateTime(iso: string | undefined | null): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
+export function todayDateInputValue(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function noteActivityDisplayDate(note: {
+  activityDate?: string | null;
+  createdAt?: string | null;
+}): string {
+  return formatDate(note.activityDate ?? note.createdAt);
+}
+
 export function formatWebsiteHref(website: string | undefined | null): string | null {
   if (!website?.trim()) return null;
   const raw = website.trim();

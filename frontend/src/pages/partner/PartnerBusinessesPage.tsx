@@ -6,7 +6,7 @@ import {
   partnerApiErrorMessage,
   type PartnerBusinessListItem,
 } from "../../api/partner";
-import { formatDateTime } from "../admin/foundingPartners/foundingPartnerFormat";
+import { formatDate } from "../admin/foundingPartners/foundingPartnerFormat";
 import {
   HealthStatusBadge,
   LifecycleStatusBadge,
@@ -62,11 +62,11 @@ export default function PartnerBusinessesPage() {
         aria-label="Search businesses"
       />
 
-      {loading && <p className="partner-portal-loading">Loading businesses…</p>}
+      {loading && <p className="partner-portal-loading label-muted-readable">Loading businesses…</p>}
       {error && <p className="partner-portal-error">{error}</p>}
 
       {!loading && !error && filtered.length === 0 && (
-        <p className="partner-portal-empty">
+        <p className="partner-portal-empty label-muted-readable">
           {items.length === 0 ? "No stewarded businesses yet." : "No businesses match your search."}
         </p>
       )}
@@ -85,7 +85,7 @@ export default function PartnerBusinessesPage() {
               <LifecycleStatusBadge status={row.lifecycleStatus} />
               {row.healthStatus != null && <HealthStatusBadge status={row.healthStatus} />}
               {row.lastActivityAt ? (
-                <span>Last activity {formatDateTime(row.lastActivityAt)}</span>
+                <span>Last activity {formatDate(row.lastActivityAt)}</span>
               ) : (
                 <span>No activity recorded</span>
               )}

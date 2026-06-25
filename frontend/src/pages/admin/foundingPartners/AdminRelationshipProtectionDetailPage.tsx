@@ -195,7 +195,7 @@ export default function AdminRelationshipProtectionDetailPage() {
                 {protection.protectionStatus === "approved" && nextLifecycle && (
                   <p className="fp-muted" style={{ marginBottom: "0.75rem" }}>
                     Advance relationship lifecycle when activity supports the next stage. Activity is
-                    recorded in communication notes below.
+                    recorded in interactions below.
                   </p>
                 )}
                 <label className="fp-form-label">

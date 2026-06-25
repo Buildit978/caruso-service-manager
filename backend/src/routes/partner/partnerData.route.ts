@@ -11,13 +11,20 @@ import {
   getProtectionLastActivityMap,
   type HealthStatus,
 } from "../../utils/foundingPartners/relationshipHealth";
+import {
+  getEffectiveActivityTimestamp,
+  parseOptionalFollowUpDateInput,
+  sortNotesByEffectiveActivityDesc,
+} from "../../utils/foundingPartners/activityDates";
+import {
+  buildInteractionCreatePayload,
+  parseInteractionFields,
+  serializeInteractionNote,
+} from "../../utils/foundingPartners/fieldInteractions";
 
 const router = Router();
 
 const RECENT_ACTIVITY_MS = 7 * 24 * 60 * 60 * 1000;
-
-const PARTNER_NOTE_TYPES = ["call", "email", "walkIn", "meeting", "demo", "followUp"] as const;
-type PartnerNoteType = (typeof PARTNER_NOTE_TYPES)[number];
 
 function parseObjectId(param: string | undefined): Types.ObjectId | null {
   if (param == null || param === "" || !Types.ObjectId.isValid(param)) return null;
@@ -123,20 +130,8 @@ function serializePartnerBusiness(prospect: {
   };
 }
 
-function serializePartnerNote(note: {
-  _id: Types.ObjectId;
-  type: string;
-  summary: string;
-  followUpDate?: Date;
-  createdAt?: Date;
-}) {
-  return {
-    id: note._id.toString(),
-    type: note.type,
-    summary: note.summary,
-    followUpDate: toIso(note.followUpDate),
-    createdAt: toIso(note.createdAt),
-  };
+function serializePartnerNote(note: Parameters<typeof serializeInteractionNote>[0]) {
+  return serializeInteractionNote(note);
 }
 
 async function findApprovedProtectionForPartner(
@@ -197,22 +192,100 @@ router.get("/dashboard", async (req: Request, res: Response) => {
     let recentNotes: Array<{
       _id: Types.ObjectId;
       type: string;
+      visitType?: string;
       summary: string;
+      primaryContact?: string;
       prospectId?: Types.ObjectId;
+      activityDate?: Date;
+      activityTime?: string;
       createdAt?: Date;
+      effectiveAt?: Date;
     }> = [];
 
     if (approvedProtectionIds.length > 0) {
-      const noteFilter = {
+      const noteMatch = {
         relationshipProtectionId: { $in: approvedProtectionIds },
         type: { $ne: "internalNote" as const },
-        createdAt: { $gte: cutoff },
       };
 
-      [recentActivityCount, recentNotes] = await Promise.all([
-        CommunicationNote.countDocuments(noteFilter),
-        CommunicationNote.find(noteFilter).sort({ createdAt: -1 }).limit(5).lean(),
+      const [countRows, recentNoteRows] = await Promise.all([
+        CommunicationNote.aggregate<{ total: number }>([
+          { $match: noteMatch },
+          {
+            $addFields: {
+              effectiveAt: {
+                $cond: {
+                  if: { $ifNull: ["$activityDate", false] },
+                  then: {
+                    $dateFromParts: {
+                      year: { $year: "$activityDate" },
+                      month: { $month: "$activityDate" },
+                      day: { $dayOfMonth: "$activityDate" },
+                      hour: {
+                        $toInt: {
+                          $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 0, 2],
+                        },
+                      },
+                      minute: {
+                        $toInt: {
+                          $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 3, 2],
+                        },
+                      },
+                    },
+                  },
+                  else: "$createdAt",
+                },
+              },
+            },
+          },
+          { $match: { effectiveAt: { $gte: cutoff } } },
+          { $count: "total" },
+        ]),
+        CommunicationNote.aggregate<{
+          _id: Types.ObjectId;
+          type: string;
+          summary: string;
+          prospectId?: Types.ObjectId;
+          activityDate?: Date;
+          createdAt?: Date;
+          effectiveAt?: Date;
+        }>([
+          { $match: noteMatch },
+          {
+            $addFields: {
+              effectiveAt: {
+                $cond: {
+                  if: { $ifNull: ["$activityDate", false] },
+                  then: {
+                    $dateFromParts: {
+                      year: { $year: "$activityDate" },
+                      month: { $month: "$activityDate" },
+                      day: { $dayOfMonth: "$activityDate" },
+                      hour: {
+                        $toInt: {
+                          $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 0, 2],
+                        },
+                      },
+                      minute: {
+                        $toInt: {
+                          $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 3, 2],
+                        },
+                      },
+                    },
+                  },
+                  else: "$createdAt",
+                },
+              },
+            },
+          },
+          { $match: { effectiveAt: { $gte: cutoff } } },
+          { $sort: { effectiveAt: -1 } },
+          { $limit: 5 },
+        ]),
       ]);
+
+      recentActivityCount = countRows[0]?.total ?? 0;
+      recentNotes = recentNoteRows;
     }
 
     const activityMap = await getProtectionLastActivityMap(approvedProtectionIds);
@@ -235,16 +308,21 @@ router.get("/dashboard", async (req: Request, res: Response) => {
         : [];
     const businessNameByProspectId = new Map(prospects.map((p) => [p._id.toString(), p.businessName]));
 
-    const recentActivity = recentNotes.map((note) => ({
-      type: "note" as const,
-      noteType: note.type,
-      at: toIso(note.createdAt),
-      summary: note.summary,
-      prospectId: note.prospectId?.toString(),
-      businessName: note.prospectId
-        ? businessNameByProspectId.get(note.prospectId.toString())
-        : undefined,
-    }));
+    const recentActivity = recentNotes.map((note) => {
+      const ts = getEffectiveActivityTimestamp(note as any);
+      return {
+        type: "interaction" as const,
+        noteType: note.visitType ?? note.type,
+        visitType: note.visitType ?? undefined,
+        at: ts != null ? new Date(ts).toISOString() : toIso(note.createdAt),
+        summary: note.summary,
+        primaryContact: note.primaryContact ?? undefined,
+        prospectId: note.prospectId?.toString(),
+        businessName: note.prospectId
+          ? businessNameByProspectId.get(note.prospectId.toString())
+          : undefined,
+      };
+    });
 
     return res.json({
       partner: {
@@ -344,18 +422,33 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
     const protection = await findApprovedProtectionForPartner(actor.partnerId, prospectId);
     if (!protection) return res.status(404).json({ message: "Business not found" });
 
-    const { type, summary, followUpDate } = req.body as {
-      type?: string;
-      summary?: string;
-      followUpDate?: string;
-    };
+    const { type, visitType, summary, followUpDate, activityDate, activityTime, primaryContact, duration, interestLevel } =
+      req.body as {
+        type?: string;
+        visitType?: string;
+        summary?: string;
+        followUpDate?: string;
+        activityDate?: string;
+        activityTime?: string;
+        primaryContact?: string;
+        duration?: string;
+        interestLevel?: string;
+      };
 
-    if (!type || !PARTNER_NOTE_TYPES.includes(type as PartnerNoteType)) {
-      return res.status(400).json({ message: "Invalid note type" });
-    }
-
-    const summaryTrim = summary ? String(summary).trim() : "";
-    if (!summaryTrim) return res.status(400).json({ message: "summary is required" });
+    const interactionParsed = parseInteractionFields(
+      {
+        summary,
+        type,
+        visitType,
+        activityDate,
+        activityTime,
+        primaryContact,
+        duration,
+        interestLevel,
+      },
+      { summaryRequired: true }
+    );
+    if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
 
     let followUp: Date | undefined;
     if (followUpDate) {
@@ -366,15 +459,15 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
       followUp = parsed;
     }
 
-    const note = await CommunicationNote.create({
-      partnerId: actor.partnerId,
-      prospectId,
-      relationshipProtectionId: protection._id,
-      type,
-      summary: summaryTrim,
-      followUpDate: followUp,
-      createdBy: actor.userId,
-    });
+    const note = await CommunicationNote.create(
+      buildInteractionCreatePayload(interactionParsed.fields, {
+        partnerId: actor.partnerId,
+        prospectId,
+        relationshipProtectionId: protection._id,
+        followUpDate: followUp,
+        createdBy: actor.userId,
+      })
+    );
 
     return res.status(201).json(serializePartnerNote(note));
   } catch (err) {
@@ -413,11 +506,12 @@ router.get("/businesses/:id", async (req: Request, res: Response) => {
     if (!prospect) return res.status(404).json({ message: "Business not found" });
 
     const healthExtras = buildHealthExtras(protection, activityMap);
+    const sortedNotes = sortNotesByEffectiveActivityDesc(notes as any);
 
     return res.json({
       business: serializePartnerBusiness(prospect as any),
       relationship: serializePartnerRelationship(protection, healthExtras),
-      notes: notes.map((note) => serializePartnerNote(note as any)),
+      notes: sortedNotes.map((note) => serializePartnerNote(note as any)),
     });
   } catch (err) {
     console.error("[PartnerBusinessDetail] error", err);

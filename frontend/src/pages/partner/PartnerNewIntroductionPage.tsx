@@ -5,6 +5,10 @@ import {
   isPartnerUnauthorized,
   partnerApiErrorMessage,
 } from "../../api/partner";
+import InteractionFormFields, {
+  createDefaultInteractionFormValues,
+  type InteractionFormValues,
+} from "../admin/foundingPartners/InteractionFormFields";
 import "./partnerPortal.css";
 
 export default function PartnerNewIntroductionPage() {
@@ -14,7 +18,9 @@ export default function PartnerNewIntroductionPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
-  const [conversationNotes, setConversationNotes] = useState("");
+  const [interaction, setInteraction] = useState<InteractionFormValues>(() =>
+    createDefaultInteractionFormValues()
+  );
   const [isMeaningful, setIsMeaningful] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +36,14 @@ export default function PartnerNewIntroductionPage() {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         address: address.trim() || undefined,
-        conversationNotes: conversationNotes.trim(),
+        conversationNotes: interaction.summary.trim(),
+        visitType: interaction.visitType,
+        activityDate: interaction.activityDate,
+        activityTime: interaction.activityTime,
+        primaryContact: interaction.primaryContact.trim() || undefined,
+        duration: interaction.duration.trim() || undefined,
+        interestLevel: interaction.interestLevel || undefined,
         isMeaningful,
-        type: "walkIn",
       });
       navigate(`/partner/introductions/${res.business.id}`, {
         replace: true,
@@ -55,13 +66,14 @@ export default function PartnerNewIntroductionPage() {
         ← Introductions
       </Link>
       <h1 className="partner-portal-page-title">New Shop Introduction</h1>
-      <p className="partner-portal-intro-copy">
-        Capture the beginning of a relationship. Record what matters so you know where to continue next time.
+      <p className="partner-portal-intro-copy label-muted-readable">
+        Capture the beginning of a relationship while it is fresh. Log the interaction before you leave the parking lot.
       </p>
 
       {error && <p className="partner-portal-error">{error}</p>}
 
-      <form onSubmit={handleSubmit} className="partner-portal-card">
+      <form onSubmit={handleSubmit} className="partner-portal-card partner-portal-form-stack">
+        <h2 className="partner-portal-card-title">Business</h2>
         <label className="partner-portal-form-label">
           Business name *
           <input
@@ -106,15 +118,17 @@ export default function PartnerNewIntroductionPage() {
             onChange={(e) => setAddress(e.target.value)}
           />
         </label>
-        <label className="partner-portal-form-label">
-          What did you talk about? *
-          <textarea
-            className="partner-portal-form-textarea"
-            value={conversationNotes}
-            onChange={(e) => setConversationNotes(e.target.value)}
-            required
-          />
-        </label>
+
+        <h2 className="partner-portal-card-title">First interaction</h2>
+        <InteractionFormFields
+          values={interaction}
+          onChange={(patch) => setInteraction((prev) => ({ ...prev, ...patch }))}
+          inputClassName="partner-portal-form-input"
+          selectClassName="partner-portal-form-select"
+          textareaClassName="partner-portal-form-textarea"
+          labelClassName="partner-portal-form-label"
+        />
+
         <label className="partner-portal-checkbox-label">
           <input
             type="checkbox"

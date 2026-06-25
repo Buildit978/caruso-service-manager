@@ -9,6 +9,18 @@ export type CommunicationNoteType =
   | "followUp"
   | "internalNote";
 
+export type VisitType =
+  | "walkIn"
+  | "phone"
+  | "email"
+  | "textWhatsApp"
+  | "demo"
+  | "followUp"
+  | "referral"
+  | "other";
+
+export type InterestLevel = "cold" | "cool" | "warm" | "hot" | "unknown";
+
 export interface ICommunicationNote extends Document {
   partnerId?: Types.ObjectId;
   prospectId?: Types.ObjectId;
@@ -17,6 +29,15 @@ export interface ICommunicationNote extends Document {
   summary: string;
   /** Partner attests this note captures a meaningful conversation (evidence-based). */
   isMeaningful?: boolean;
+  /** When the visit/conversation/observation actually happened (real-world date). */
+  activityDate?: Date;
+  /** Local time of the interaction (HH:mm). */
+  activityTime?: string;
+  /** Person spoken with during this interaction only. */
+  primaryContact?: string;
+  visitType?: VisitType;
+  duration?: string;
+  interestLevel?: InterestLevel;
   followUpDate?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -39,6 +60,18 @@ const communicationNoteSchema = new Schema<ICommunicationNote>(
     },
     summary: { type: String, required: true, trim: true },
     isMeaningful: { type: Boolean, default: false, required: false },
+    activityDate: { type: Date, index: true },
+    activityTime: { type: String, trim: true },
+    primaryContact: { type: String, trim: true, maxlength: 200 },
+    visitType: {
+      type: String,
+      enum: ["walkIn", "phone", "email", "textWhatsApp", "demo", "followUp", "referral", "other"],
+    },
+    duration: { type: String, trim: true, maxlength: 32 },
+    interestLevel: {
+      type: String,
+      enum: ["cold", "cool", "warm", "hot", "unknown"],
+    },
     followUpDate: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

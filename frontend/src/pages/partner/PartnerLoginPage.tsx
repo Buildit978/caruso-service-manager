@@ -70,7 +70,7 @@ export default function PartnerLoginPage() {
       <div className="partner-portal-login-card">
         <h1 className="partner-portal-login-title">Shop Service Manager</h1>
         <p className="partner-portal-login-kicker">Partner Portal</p>
-        <p className="partner-portal-login-subtitle">Access is by invitation only. Sign in with your invite credentials.</p>
+        <p className="partner-portal-login-subtitle label-muted-readable">Access is by invitation only. Sign in with your invite credentials.</p>
 
         {error && <p className="partner-portal-error">{error}</p>}
 

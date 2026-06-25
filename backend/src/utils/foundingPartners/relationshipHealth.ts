@@ -60,7 +60,34 @@ export async function getProtectionLastActivityMap(
 
   const rows = await CommunicationNote.aggregate<{ _id: Types.ObjectId; lastActivityAt: Date }>([
     { $match: { relationshipProtectionId: { $in: protectionIds } } },
-    { $group: { _id: "$relationshipProtectionId", lastActivityAt: { $max: "$createdAt" } } },
+    {
+      $addFields: {
+        effectiveActivityAt: {
+          $cond: {
+            if: { $ifNull: ["$activityDate", false] },
+            then: {
+              $dateFromParts: {
+                year: { $year: "$activityDate" },
+                month: { $month: "$activityDate" },
+                day: { $dayOfMonth: "$activityDate" },
+                hour: {
+                  $toInt: {
+                    $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 0, 2],
+                  },
+                },
+                minute: {
+                  $toInt: {
+                    $substr: [{ $ifNull: ["$activityTime", "12:00"] }, 3, 2],
+                  },
+                },
+              },
+            },
+            else: "$createdAt",
+          },
+        },
+      },
+    },
+    { $group: { _id: "$relationshipProtectionId", lastActivityAt: { $max: "$effectiveActivityAt" } } },
   ]);
 
   for (const row of rows) {

@@ -5,14 +5,17 @@ import {
   fetchPartnerIntroductionById,
   isPartnerUnauthorized,
   partnerApiErrorMessage,
-  PARTNER_NOTE_TYPE_OPTIONS,
+  updatePartnerIntroduction,
   PARTNER_RELATIONSHIP_STAGE_LABELS,
   type PartnerDuplicateMatch,
   type PartnerIntroductionDetail,
-  type PartnerNoteType,
 } from "../../api/partner";
-import { formatDateTime } from "../admin/foundingPartners/foundingPartnerFormat";
-import { NoteTypeBadge } from "../admin/foundingPartners/foundingPartnerBadges";
+import { formatDate } from "../admin/foundingPartners/foundingPartnerFormat";
+import InteractionFormFields, {
+  createDefaultInteractionFormValues,
+  type InteractionFormValues,
+} from "../admin/foundingPartners/InteractionFormFields";
+import InteractionTimelineCard from "../admin/foundingPartners/InteractionTimelineCard";
 import "./partnerPortal.css";
 
 function StageBadge({ stage }: { stage: PartnerIntroductionDetail["relationship"]["stage"] }) {
@@ -32,11 +35,13 @@ export default function PartnerIntroductionDetailPage() {
   const [detail, setDetail] = useState<PartnerIntroductionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(true);
-  const [noteType, setNoteType] = useState<PartnerNoteType>("walkIn");
-  const [summary, setSummary] = useState("");
+  const [form, setForm] = useState<InteractionFormValues>(() => createDefaultInteractionFormValues());
+  const [nextFollowUpDate, setNextFollowUpDate] = useState("");
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [isMeaningful, setIsMeaningful] = useState(false);
 
   const load = useCallback(async () => {
@@ -46,6 +51,9 @@ export default function PartnerIntroductionDetailPage() {
     try {
       const res = await fetchPartnerIntroductionById(id);
       setDetail(res);
+      setNextFollowUpDate(
+        res.relationship.nextFollowUpDate ? res.relationship.nextFollowUpDate.slice(0, 10) : ""
+      );
     } catch (err) {
       if (isPartnerUnauthorized(err)) {
         navigate("/partner/login", { replace: true });
@@ -62,18 +70,23 @@ export default function PartnerIntroductionDetailPage() {
     load();
   }, [load]);
 
-  async function handleSubmitNote(e: FormEvent) {
+  async function handleSubmitInteraction(e: FormEvent) {
     e.preventDefault();
-    if (!id || !summary.trim()) return;
+    if (!id || !form.summary.trim()) return;
     setSaving(true);
-    setNoteError(null);
+    setInteractionError(null);
     try {
       await createPartnerIntroductionNote(id, {
-        type: noteType,
-        summary: summary.trim(),
+        visitType: form.visitType,
+        summary: form.summary.trim(),
+        activityDate: form.activityDate,
+        activityTime: form.activityTime,
+        primaryContact: form.primaryContact.trim() || undefined,
+        duration: form.duration.trim() || undefined,
+        interestLevel: form.interestLevel || undefined,
         isMeaningful,
       });
-      setSummary("");
+      setForm(createDefaultInteractionFormValues());
       setIsMeaningful(false);
       await load();
     } catch (err) {
@@ -81,9 +94,30 @@ export default function PartnerIntroductionDetailPage() {
         navigate("/partner/login", { replace: true });
         return;
       }
-      setNoteError(partnerApiErrorMessage(err, "Failed to add note"));
+      setInteractionError(partnerApiErrorMessage(err, "Failed to log interaction"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveFollowUp(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setFollowUpSaving(true);
+    setFollowUpError(null);
+    try {
+      const res = await updatePartnerIntroduction(id, {
+        nextFollowUpDate: nextFollowUpDate || null,
+      });
+      setDetail((prev) => (prev ? { ...prev, relationship: res.relationship } : prev));
+    } catch (err) {
+      if (isPartnerUnauthorized(err)) {
+        navigate("/partner/login", { replace: true });
+        return;
+      }
+      setFollowUpError(partnerApiErrorMessage(err, "Failed to save follow-up date"));
+    } finally {
+      setFollowUpSaving(false);
     }
   }
 
@@ -93,7 +127,7 @@ export default function PartnerIntroductionDetailPage() {
         ← Introductions
       </Link>
 
-      {loading && <p className="partner-portal-loading">Loading…</p>}
+      {loading && <p className="partner-portal-loading label-muted-readable">Loading…</p>}
       {error && <p className="partner-portal-error">{error}</p>}
 
       {detail && (
@@ -109,7 +143,7 @@ export default function PartnerIntroductionDetailPage() {
           {possibleDuplicates.length > 0 && (
             <section className="partner-portal-card partner-portal-warn-card">
               <h2 className="partner-portal-card-title">Possible duplicates</h2>
-              <p className="partner-portal-intro-copy">These existing records may match this business.</p>
+              <p className="partner-portal-intro-copy label-muted-readable">These existing records may match this business.</p>
               <ul className="partner-portal-duplicate-list">
                 {possibleDuplicates.map((d) => (
                   <li key={d.prospectId}>
@@ -123,16 +157,17 @@ export default function PartnerIntroductionDetailPage() {
           <section className="partner-portal-card partner-portal-meaningful-hero">
             <h2 className="partner-portal-card-title">Last meaningful conversation</h2>
             {detail.lastMeaningfulConversation ? (
-              <>
-                <p className="partner-portal-meaningful-date">
-                  {formatDateTime(detail.lastMeaningfulConversation.createdAt)}
-                </p>
-                <p className="partner-portal-note-summary">{detail.lastMeaningfulConversation.summary}</p>
-              </>
+              <InteractionTimelineCard
+                interaction={detail.lastMeaningfulConversation}
+                className="partner-portal-meaningful-card"
+                meaningfulBadge={
+                  <span className="partner-portal-meaningful-pill">Meaningful</span>
+                }
+              />
             ) : (
-              <p className="partner-portal-empty">
-                No meaningful conversation recorded yet. Mark a note as meaningful when the owner shares real business
-                context — even on your first meeting.
+              <p className="partner-portal-empty label-muted-readable">
+                No meaningful conversation recorded yet. Mark an interaction as meaningful when the owner shares real
+                business context — even on your first meeting.
               </p>
             )}
           </section>
@@ -145,7 +180,7 @@ export default function PartnerIntroductionDetailPage() {
 
           <section className="partner-portal-card">
             <div className="partner-portal-section-header">
-              <h2 className="partner-portal-card-title">Add new note</h2>
+              <h2 className="partner-portal-card-title">Log interaction</h2>
               <button
                 type="button"
                 className="partner-portal-logout"
@@ -155,33 +190,18 @@ export default function PartnerIntroductionDetailPage() {
               </button>
             </div>
 
-            {noteError && <p className="partner-portal-error">{noteError}</p>}
+            {interactionError && <p className="partner-portal-error">{interactionError}</p>}
 
             {showForm && (
-              <form onSubmit={handleSubmitNote}>
-                <label className="partner-portal-form-label">
-                  Type
-                  <select
-                    className="partner-portal-form-select"
-                    value={noteType}
-                    onChange={(e) => setNoteType(e.target.value as PartnerNoteType)}
-                  >
-                    {PARTNER_NOTE_TYPE_OPTIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {t === "walkIn" ? "Walk-in" : t === "followUp" ? "Follow-up" : t.charAt(0).toUpperCase() + t.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="partner-portal-form-label">
-                  What did you talk about?
-                  <textarea
-                    className="partner-portal-form-textarea"
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    required
-                  />
-                </label>
+              <form onSubmit={handleSubmitInteraction} className="partner-portal-form-stack">
+                <InteractionFormFields
+                  values={form}
+                  onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+                  inputClassName="partner-portal-form-input"
+                  selectClassName="partner-portal-form-select"
+                  textareaClassName="partner-portal-form-textarea"
+                  labelClassName="partner-portal-form-label"
+                />
                 <label className="partner-portal-checkbox-label">
                   <input
                     type="checkbox"
@@ -197,28 +217,51 @@ export default function PartnerIntroductionDetailPage() {
                   className="partner-portal-btn partner-portal-btn-primary"
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Save note"}
+                  {saving ? "Saving…" : "Save interaction"}
                 </button>
               </form>
             )}
           </section>
 
           <section className="partner-portal-card">
-            <h2 className="partner-portal-card-title">Conversation history</h2>
+            <h2 className="partner-portal-card-title">Next follow-up</h2>
+            {followUpError && <p className="partner-portal-error">{followUpError}</p>}
+            <form onSubmit={handleSaveFollowUp}>
+              <label className="partner-portal-form-label">
+                Planned follow-up date
+                <input
+                  type="date"
+                  className="partner-portal-form-input"
+                  value={nextFollowUpDate}
+                  onChange={(e) => setNextFollowUpDate(e.target.value)}
+                />
+              </label>
+              <button
+                type="submit"
+                className="partner-portal-btn partner-portal-btn-secondary"
+                disabled={followUpSaving}
+              >
+                {followUpSaving ? "Saving…" : "Save follow-up date"}
+              </button>
+            </form>
+          </section>
+
+          <section className="partner-portal-card">
+            <h2 className="partner-portal-card-title">Interactions</h2>
             {detail.notes.length === 0 ? (
-              <p className="partner-portal-empty">No notes yet.</p>
+              <p className="partner-portal-empty label-muted-readable">No interactions yet.</p>
             ) : (
-              detail.notes.map((note) => (
-                <div key={note.id} className="partner-portal-note-item">
-                  <div className="partner-portal-note-meta">
-                    <NoteTypeBadge type={note.type} />
-                    {note.isMeaningful && (
+              detail.notes.map((interaction) => (
+                <InteractionTimelineCard
+                  key={interaction.id}
+                  interaction={interaction}
+                  className="partner-portal-note-item"
+                  meaningfulBadge={
+                    interaction.isMeaningful ? (
                       <span className="partner-portal-meaningful-pill">Meaningful</span>
-                    )}
-                    <span>{formatDateTime(note.createdAt)}</span>
-                  </div>
-                  <p className="partner-portal-note-summary">{note.summary}</p>
-                </div>
+                    ) : undefined
+                  }
+                />
               ))
             )}
           </section>
@@ -234,8 +277,12 @@ export default function PartnerIntroductionDetailPage() {
               <dd>{detail.business.email || "—"}</dd>
               <dt>Address</dt>
               <dd>{detail.business.location || "—"}</dd>
-              <dt>Introduced</dt>
-              <dd>{formatDateTime(detail.relationship.introducedAt)}</dd>
+              <dt>First contact</dt>
+              <dd>{formatDate(detail.relationship.firstContactDate ?? detail.relationship.introducedAt)}</dd>
+              <dt>Last visit</dt>
+              <dd>{formatDate(detail.relationship.lastVisitDate)}</dd>
+              <dt>Next follow-up</dt>
+              <dd>{formatDate(detail.relationship.nextFollowUpDate)}</dd>
             </dl>
           </section>
         </>

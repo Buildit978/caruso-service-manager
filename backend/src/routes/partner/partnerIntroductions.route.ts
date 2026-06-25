@@ -10,14 +10,23 @@ import { RelationshipProtection } from "../../models/relationshipProtection.mode
 import { findDuplicateProspects } from "../../utils/foundingPartners/duplicateProspects";
 import { normalizeEmail } from "../../utils/foundingPartners/normalize";
 import {
+  getEffectiveActivityTimestamp,
+  parseOptionalFollowUpDateInput,
+  parseOptionalPastOrPresentDateInput,
+  sortNotesByEffectiveActivityDesc,
+} from "../../utils/foundingPartners/activityDates";
+import { applyPartnerProspectRelationshipActivity } from "../../utils/foundingPartners/partnerRelationshipActivity";
+import {
+  buildInteractionCreatePayload,
+  parseInteractionFields,
+  serializeInteractionNote,
+} from "../../utils/foundingPartners/fieldInteractions";
+import {
   advancePartnerRelationshipStage,
   isPartnerStewarding,
 } from "../../utils/foundingPartners/partnerRelationshipStage";
 
 const router = Router();
-
-const PARTNER_NOTE_TYPES = ["call", "email", "walkIn", "meeting", "demo", "followUp"] as const;
-type PartnerNoteType = (typeof PARTNER_NOTE_TYPES)[number];
 
 function parseObjectId(param: string | undefined): Types.ObjectId | null {
   if (param == null || param === "" || !Types.ObjectId.isValid(param)) return null;
@@ -78,33 +87,25 @@ function serializeBusiness(prospect: {
   };
 }
 
-function serializeNote(note: {
-  _id: Types.ObjectId;
-  type: string;
-  summary: string;
-  isMeaningful?: boolean;
-  followUpDate?: Date;
-  createdAt?: Date;
-}) {
-  return {
-    id: note._id.toString(),
-    type: note.type,
-    summary: note.summary,
-    isMeaningful: note.isMeaningful === true,
-    followUpDate: toIso(note.followUpDate),
-    createdAt: toIso(note.createdAt),
-  };
+function serializeNote(note: Parameters<typeof serializeInteractionNote>[0]) {
+  return serializeInteractionNote(note);
 }
 
 function serializeRelationship(row: {
   stage: PartnerRelationshipStage;
   introducedAt: Date;
   stageUpdatedAt: Date;
+  firstContactDate?: Date;
+  lastVisitDate?: Date;
+  nextFollowUpDate?: Date;
 }) {
   return {
     stage: row.stage,
     introducedAt: toIso(row.introducedAt),
     stageUpdatedAt: toIso(row.stageUpdatedAt),
+    firstContactDate: toIso(row.firstContactDate),
+    lastVisitDate: toIso(row.lastVisitDate),
+    nextFollowUpDate: toIso(row.nextFollowUpDate),
     isStewarding: isPartnerStewarding(row.stage),
   };
 }
@@ -129,9 +130,18 @@ async function findPartnerIntroduction(
 }
 
 function findLastMeaningfulNote(
-  notes: Array<{ isMeaningful?: boolean; type: string; summary: string; createdAt?: Date; _id: Types.ObjectId; followUpDate?: Date }>
+  notes: Array<{
+    isMeaningful?: boolean;
+    type: string;
+    summary: string;
+    activityDate?: Date;
+    createdAt?: Date;
+    _id: Types.ObjectId;
+    followUpDate?: Date;
+  }>
 ) {
-  return notes.find((n) => n.isMeaningful === true) ?? null;
+  const sorted = sortNotesByEffectiveActivityDesc(notes);
+  return sorted.find((n) => n.isMeaningful === true) ?? null;
 }
 
 /**
@@ -151,6 +161,13 @@ router.post("/", async (req: Request, res: Response) => {
       conversationNotes,
       isMeaningful,
       type,
+      visitType,
+      activityDate,
+      activityTime,
+      primaryContact,
+      duration,
+      interestLevel,
+      nextFollowUpDate: nextFollowUpDateRaw,
     } = req.body as {
       businessName?: string;
       ownerName?: string;
@@ -160,6 +177,13 @@ router.post("/", async (req: Request, res: Response) => {
       conversationNotes?: string;
       isMeaningful?: boolean;
       type?: string;
+      visitType?: string;
+      activityDate?: string;
+      activityTime?: string;
+      primaryContact?: string;
+      duration?: string;
+      interestLevel?: string;
+      nextFollowUpDate?: string;
     };
 
     const businessNameTrim = businessName ? String(businessName).trim() : "";
@@ -170,8 +194,25 @@ router.post("/", async (req: Request, res: Response) => {
     if (!ownerNameTrim) return res.status(400).json({ message: "ownerName is required" });
     if (!notesTrim) return res.status(400).json({ message: "conversationNotes is required" });
 
-    const noteType = type && PARTNER_NOTE_TYPES.includes(type as PartnerNoteType) ? type : "walkIn";
     const meaningful = isMeaningful === true;
+
+    const interactionParsed = parseInteractionFields(
+      {
+        summary: notesTrim,
+        type,
+        visitType,
+        activityDate,
+        activityTime,
+        primaryContact,
+        duration,
+        interestLevel,
+      },
+      { summaryRequired: true }
+    );
+    if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
+
+    const nextFollowUpParsed = parseOptionalFollowUpDateInput(nextFollowUpDateRaw);
+    if (!nextFollowUpParsed.ok) return res.status(400).json({ message: nextFollowUpParsed.error });
 
     const prospect = await FoundingProspect.create({
       businessName: businessNameTrim,
@@ -184,6 +225,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const now = new Date();
     const initialStage = advancePartnerRelationshipStage("introduced", meaningful);
+    const activityDateValue = interactionParsed.fields.activityDate;
 
     const relationship = await PartnerProspectRelationship.create({
       partnerId: actor.partnerId,
@@ -191,16 +233,19 @@ router.post("/", async (req: Request, res: Response) => {
       stage: initialStage,
       introducedAt: now,
       stageUpdatedAt: now,
+      firstContactDate: activityDateValue,
+      lastVisitDate: activityDateValue,
+      nextFollowUpDate: nextFollowUpParsed.date,
     });
 
-    const note = await CommunicationNote.create({
-      partnerId: actor.partnerId,
-      prospectId: prospect._id,
-      type: noteType,
-      summary: notesTrim,
-      isMeaningful: meaningful,
-      createdBy: actor.userId,
-    });
+    const note = await CommunicationNote.create(
+      buildInteractionCreatePayload(interactionParsed.fields, {
+        partnerId: actor.partnerId,
+        prospectId: prospect._id,
+        isMeaningful: meaningful,
+        createdBy: actor.userId,
+      })
+    );
 
     const possibleDuplicates = await findDuplicateProspects(
       {
@@ -269,12 +314,10 @@ router.get("/", async (req: Request, res: Response) => {
       partnerId: actor.partnerId,
       prospectId: { $in: pageProspectIds },
       isMeaningful: true,
-    })
-      .sort({ createdAt: -1 })
-      .lean();
+    }).lean();
 
     const lastMeaningfulByProspect = new Map<string, (typeof meaningfulNotes)[0]>();
-    for (const n of meaningfulNotes) {
+    for (const n of sortNotesByEffectiveActivityDesc(meaningfulNotes)) {
       const key = n.prospectId?.toString();
       if (key && !lastMeaningfulByProspect.has(key)) {
         lastMeaningfulByProspect.set(key, n);
@@ -284,6 +327,7 @@ router.get("/", async (req: Request, res: Response) => {
     const items = page.map((row) => {
       const prospect = prospectById.get(row.prospectId.toString());
       const lastMeaningful = lastMeaningfulByProspect.get(row.prospectId.toString());
+      const lastActivityAt = row.lastVisitDate ?? lastMeaningful?.activityDate ?? lastMeaningful?.createdAt;
       return {
         prospectId: row.prospectId.toString(),
         businessName: prospect?.businessName ?? "Unknown business",
@@ -292,10 +336,18 @@ router.get("/", async (req: Request, res: Response) => {
         isStewarding: isPartnerStewarding(row.stage as PartnerRelationshipStage),
         introducedAt: toIso(row.introducedAt),
         stageUpdatedAt: toIso(row.stageUpdatedAt),
+        firstContactDate: toIso(row.firstContactDate),
+        lastVisitDate: toIso(row.lastVisitDate),
+        nextFollowUpDate: toIso(row.nextFollowUpDate),
+        lastActivityAt: toIso(lastActivityAt),
         lastMeaningfulConversation: lastMeaningful
           ? {
               summary: lastMeaningful.summary,
-              at: toIso(lastMeaningful.createdAt),
+              at: toIso(
+                getEffectiveActivityTimestamp(lastMeaningful as any) != null
+                  ? new Date(getEffectiveActivityTimestamp(lastMeaningful as any)!)
+                  : lastMeaningful.createdAt
+              ),
             }
           : null,
       };
@@ -333,14 +385,14 @@ router.get("/:prospectId", async (req: Request, res: Response) => {
         prospectId,
         type: { $ne: "internalNote" },
       })
-        .sort({ createdAt: -1 })
         .limit(50)
         .lean(),
     ]);
 
     if (!prospect) return res.status(404).json({ message: "Introduction not found" });
 
-    const lastMeaningful = findLastMeaningfulNote(notes as any);
+    const sortedNotes = sortNotesByEffectiveActivityDesc(notes as any);
+    const lastMeaningful = findLastMeaningfulNote(sortedNotes as any);
 
     return res.json({
       business: serializeBusiness(prospect as any),
@@ -348,7 +400,7 @@ router.get("/:prospectId", async (req: Request, res: Response) => {
       lastMeaningfulConversation: lastMeaningful
         ? serializeNote(lastMeaningful as any)
         : null,
-      notes: notes.map((n) => serializeNote(n as any)),
+      notes: sortedNotes.map((n) => serializeNote(n as any)),
     });
   } catch (err) {
     console.error("[PartnerIntroductionDetail] error", err);
@@ -374,19 +426,49 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Introduction not found" });
     }
 
-    const { type, summary, followUpDate, isMeaningful } = req.body as {
+    const {
+      type,
+      visitType,
+      summary,
+      followUpDate,
+      isMeaningful,
+      activityDate,
+      activityTime,
+      primaryContact,
+      duration,
+      interestLevel,
+      nextFollowUpDate: nextFollowUpDateRaw,
+    } = req.body as {
       type?: string;
+      visitType?: string;
       summary?: string;
       followUpDate?: string;
       isMeaningful?: boolean;
+      activityDate?: string;
+      activityTime?: string;
+      primaryContact?: string;
+      duration?: string;
+      interestLevel?: string;
+      nextFollowUpDate?: string;
     };
 
-    if (!type || !PARTNER_NOTE_TYPES.includes(type as PartnerNoteType)) {
-      return res.status(400).json({ message: "Invalid note type" });
-    }
+    const interactionParsed = parseInteractionFields(
+      {
+        summary,
+        type,
+        visitType,
+        activityDate,
+        activityTime,
+        primaryContact,
+        duration,
+        interestLevel,
+      },
+      { summaryRequired: true }
+    );
+    if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
 
-    const summaryTrim = summary ? String(summary).trim() : "";
-    if (!summaryTrim) return res.status(400).json({ message: "summary is required" });
+    const nextFollowUpParsed = parseOptionalFollowUpDateInput(nextFollowUpDateRaw);
+    if (!nextFollowUpParsed.ok) return res.status(400).json({ message: nextFollowUpParsed.error });
 
     let followUp: Date | undefined;
     if (followUpDate) {
@@ -399,22 +481,28 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
 
     const meaningful = isMeaningful === true;
     const nextStage = advancePartnerRelationshipStage(relationship.stage, meaningful);
+    const activityDateValue = interactionParsed.fields.activityDate;
 
-    const note = await CommunicationNote.create({
-      partnerId: actor.partnerId,
-      prospectId,
-      type,
-      summary: summaryTrim,
-      isMeaningful: meaningful,
-      followUpDate: followUp,
-      createdBy: actor.userId,
-    });
+    const note = await CommunicationNote.create(
+      buildInteractionCreatePayload(interactionParsed.fields, {
+        partnerId: actor.partnerId,
+        prospectId,
+        isMeaningful: meaningful,
+        followUpDate: followUp,
+        createdBy: actor.userId,
+      })
+    );
 
     if (nextStage !== relationship.stage) {
       relationship.stage = nextStage;
       relationship.stageUpdatedAt = new Date();
-      await relationship.save();
     }
+
+    await applyPartnerProspectRelationshipActivity(
+      relationship,
+      activityDateValue,
+      nextFollowUpDateRaw !== undefined ? { nextFollowUpDate: nextFollowUpParsed.date ?? null } : undefined
+    );
 
     return res.status(201).json({
       note: serializeNote(note),
@@ -422,6 +510,78 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("[PartnerIntroductionNoteCreate] error", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/partner/introductions/:prospectId
+ * Update real-world relationship dates (not system timestamps).
+ */
+router.patch("/:prospectId", async (req: Request, res: Response) => {
+  try {
+    const actor = getPartnerActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+
+    const prospectId = parseObjectId(req.params.prospectId);
+    if (!prospectId) return res.status(404).json({ message: "Introduction not found" });
+
+    const relationship = await findPartnerIntroduction(actor.partnerId, prospectId);
+    if (!relationship) return res.status(404).json({ message: "Introduction not found" });
+
+    if (await partnerHasApprovedProtection(actor.partnerId, prospectId)) {
+      return res.status(404).json({ message: "Introduction not found" });
+    }
+
+    const { firstContactDate, lastVisitDate, nextFollowUpDate } = req.body as {
+      firstContactDate?: string | null;
+      lastVisitDate?: string | null;
+      nextFollowUpDate?: string | null;
+    };
+
+    if (
+      firstContactDate === undefined &&
+      lastVisitDate === undefined &&
+      nextFollowUpDate === undefined
+    ) {
+      return res.status(400).json({ message: "No updatable fields provided" });
+    }
+
+    if (firstContactDate !== undefined) {
+      if (firstContactDate === null || firstContactDate === "") {
+        relationship.firstContactDate = undefined;
+      } else {
+        const parsed = parseOptionalPastOrPresentDateInput(firstContactDate, "firstContactDate");
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.firstContactDate = parsed.date;
+      }
+    }
+
+    if (lastVisitDate !== undefined) {
+      if (lastVisitDate === null || lastVisitDate === "") {
+        relationship.lastVisitDate = undefined;
+      } else {
+        const parsed = parseOptionalPastOrPresentDateInput(lastVisitDate, "lastVisitDate");
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.lastVisitDate = parsed.date;
+      }
+    }
+
+    if (nextFollowUpDate !== undefined) {
+      if (nextFollowUpDate === null || nextFollowUpDate === "") {
+        relationship.nextFollowUpDate = undefined;
+      } else {
+        const parsed = parseOptionalFollowUpDateInput(nextFollowUpDate);
+        if (!parsed.ok) return res.status(400).json({ message: parsed.error });
+        relationship.nextFollowUpDate = parsed.date;
+      }
+    }
+
+    await relationship.save();
+
+    return res.json({ relationship: serializeRelationship(relationship) });
+  } catch (err) {
+    console.error("[PartnerIntroductionPatch] error", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

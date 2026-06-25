@@ -31,6 +31,7 @@ import {
   advancePartnerRelationshipStage,
   isPartnerStewarding,
 } from "../../utils/foundingPartners/partnerRelationshipStage";
+import { buildPartnerInteractionSearchText } from "../../utils/foundingPartners/partnerInteractionSearchText";
 
 const router = Router();
 
@@ -317,14 +318,23 @@ router.get("/", async (req: Request, res: Response) => {
     const prospects = await FoundingProspect.find({ _id: { $in: pageProspectIds } }).lean();
     const prospectById = new Map(prospects.map((p) => [p._id.toString(), p]));
 
-    const meaningfulNotes = await CommunicationNote.find({
+    const partnerNotes = await CommunicationNote.find({
       partnerId: actor.partnerId,
       prospectId: { $in: pageProspectIds },
-      isMeaningful: true,
     }).lean();
 
-    const lastMeaningfulByProspect = new Map<string, (typeof meaningfulNotes)[0]>();
-    for (const n of sortNotesByEffectiveActivityDesc(meaningfulNotes)) {
+    const notesByProspect = new Map<string, typeof partnerNotes>();
+    for (const note of partnerNotes) {
+      const key = note.prospectId?.toString();
+      if (!key) continue;
+      const bucket = notesByProspect.get(key);
+      if (bucket) bucket.push(note);
+      else notesByProspect.set(key, [note]);
+    }
+
+    const lastMeaningfulByProspect = new Map<string, (typeof partnerNotes)[0]>();
+    for (const n of sortNotesByEffectiveActivityDesc(partnerNotes)) {
+      if (n.isMeaningful !== true) continue;
       const key = n.prospectId?.toString();
       if (key && !lastMeaningfulByProspect.has(key)) {
         lastMeaningfulByProspect.set(key, n);
@@ -333,12 +343,21 @@ router.get("/", async (req: Request, res: Response) => {
 
     const items = page.map((row) => {
       const prospect = prospectById.get(row.prospectId.toString());
-      const lastMeaningful = lastMeaningfulByProspect.get(row.prospectId.toString());
+      const prospectKey = row.prospectId.toString();
+      const prospectNotes = notesByProspect.get(prospectKey) ?? [];
+      const lastMeaningful = lastMeaningfulByProspect.get(prospectKey);
       const lastActivityAt = row.lastVisitDate ?? lastMeaningful?.activityDate ?? lastMeaningful?.createdAt;
+      const interactionSearchText = buildPartnerInteractionSearchText(prospectNotes);
       return {
-        prospectId: row.prospectId.toString(),
+        prospectId: prospectKey,
         businessName: prospect?.businessName ?? "Unknown business",
         contactName: prospect?.contactName ?? undefined,
+        phone: prospect?.phone ?? undefined,
+        email: prospect?.email ?? undefined,
+        location: prospect?.location ?? undefined,
+        website: prospect?.website ?? undefined,
+        notes: prospect?.notes ?? undefined,
+        interactionSearchText: interactionSearchText || undefined,
         stage: row.stage,
         isStewarding: isPartnerStewarding(row.stage as PartnerRelationshipStage),
         introducedAt: toIso(row.introducedAt),

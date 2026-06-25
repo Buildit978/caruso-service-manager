@@ -146,6 +146,13 @@ export interface PartnerIntroductionListItem {
   prospectId: string;
   businessName: string;
   contactName?: string;
+  phone?: string;
+  email?: string;
+  location?: string;
+  website?: string;
+  notes?: string;
+  /** Concatenated primary contacts, summaries, and amendments for client-side search. */
+  interactionSearchText?: string;
   stage: PartnerRelationshipStage;
   isStewarding: boolean;
   introducedAt?: string;

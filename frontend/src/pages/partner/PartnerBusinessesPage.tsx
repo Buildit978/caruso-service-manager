@@ -6,6 +6,7 @@ import {
   partnerApiErrorMessage,
   type PartnerBusinessListItem,
 } from "../../api/partner";
+import { filterFoundingPartnerListItems } from "../../utils/foundingPartnerListSearch";
 import { formatDate } from "../admin/foundingPartners/foundingPartnerFormat";
 import {
   HealthStatusBadge,
@@ -43,11 +44,17 @@ export default function PartnerBusinessesPage() {
     };
   }, [navigate]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((row) => row.businessName.toLowerCase().includes(q));
-  }, [items, query]);
+  const filtered = useMemo(
+    () =>
+      filterFoundingPartnerListItems(items, query, (row) => ({
+        businessName: row.businessName,
+        ownerName: row.contactName,
+        phone: row.phone,
+        email: row.email,
+        address: row.location,
+      })),
+    [items, query]
+  );
 
   return (
     <>

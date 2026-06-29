@@ -391,3 +391,20 @@ export function updateCommunicationNote(
     body: JSON.stringify(body),
   });
 }
+
+export interface LearningCenterObservation {
+  id: string;
+  date: string;
+  partnerId?: string;
+  partnerName: string;
+  prospectId?: string;
+  businessName: string;
+  observation: string;
+}
+
+export function fetchLearningCenterObservations(params?: {
+  limit?: number;
+  skip?: number;
+}): Promise<PaginatedResponse<LearningCenterObservation>> {
+  return adminFetch(`${BASE}/learning-center${buildQuery(params ?? {})}`);
+}

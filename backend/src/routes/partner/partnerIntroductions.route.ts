@@ -20,6 +20,7 @@ import {
   buildInteractionCreatePayload,
   parseInteractionFields,
   parseAmendmentText,
+  parseFieldIntelligenceInput,
   serializeInteractionNote,
 } from "../../utils/foundingPartners/fieldInteractions";
 import {
@@ -178,6 +179,7 @@ router.post("/", async (req: Request, res: Response) => {
       duration,
       interestLevel,
       nextFollowUpDate: nextFollowUpDateRaw,
+      fieldIntelligence,
     } = req.body as {
       businessName?: string;
       ownerName?: string;
@@ -195,6 +197,7 @@ router.post("/", async (req: Request, res: Response) => {
       duration?: string;
       interestLevel?: string;
       nextFollowUpDate?: string;
+      fieldIntelligence?: { observation?: string };
     };
 
     const businessNameTrim = businessName ? String(businessName).trim() : "";
@@ -220,6 +223,9 @@ router.post("/", async (req: Request, res: Response) => {
       { summaryRequired: true }
     );
     if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
+
+    const fieldIntelligenceParsed = parseFieldIntelligenceInput(fieldIntelligence);
+    if (!fieldIntelligenceParsed.ok) return res.status(400).json({ message: fieldIntelligenceParsed.error });
 
     const nextFollowUpParsed = parseOptionalFollowUpDateInput(nextFollowUpDateRaw);
     if (!nextFollowUpParsed.ok) return res.status(400).json({ message: nextFollowUpParsed.error });
@@ -254,6 +260,7 @@ router.post("/", async (req: Request, res: Response) => {
         partnerId: actor.partnerId,
         prospectId: prospect._id,
         isMeaningful: meaningful,
+        fieldIntelligence: fieldIntelligenceParsed.fieldIntelligence,
         createdBy: actor.userId,
       })
     );
@@ -467,6 +474,7 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
       duration,
       interestLevel,
       nextFollowUpDate: nextFollowUpDateRaw,
+      fieldIntelligence,
     } = req.body as {
       type?: string;
       visitType?: string;
@@ -479,6 +487,7 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
       duration?: string;
       interestLevel?: string;
       nextFollowUpDate?: string;
+      fieldIntelligence?: { observation?: string };
     };
 
     const interactionParsed = parseInteractionFields(
@@ -495,6 +504,9 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
       { summaryRequired: true }
     );
     if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
+
+    const fieldIntelligenceParsed = parseFieldIntelligenceInput(fieldIntelligence);
+    if (!fieldIntelligenceParsed.ok) return res.status(400).json({ message: fieldIntelligenceParsed.error });
 
     const nextFollowUpParsed = parseOptionalFollowUpDateInput(nextFollowUpDateRaw);
     if (!nextFollowUpParsed.ok) return res.status(400).json({ message: nextFollowUpParsed.error });
@@ -518,6 +530,7 @@ router.post("/:prospectId/notes", async (req: Request, res: Response) => {
         prospectId,
         isMeaningful: meaningful,
         followUpDate: followUp,
+        fieldIntelligence: fieldIntelligenceParsed.fieldIntelligence,
         createdBy: actor.userId,
       })
     );

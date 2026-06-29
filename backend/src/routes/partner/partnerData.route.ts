@@ -20,6 +20,7 @@ import {
   buildInteractionCreatePayload,
   parseInteractionFields,
   parseAmendmentText,
+  parseFieldIntelligenceInput,
   serializeInteractionNote,
 } from "../../utils/foundingPartners/fieldInteractions";
 import {
@@ -430,7 +431,7 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
     const protection = await findApprovedProtectionForPartner(actor.partnerId, prospectId);
     if (!protection) return res.status(404).json({ message: "Business not found" });
 
-    const { type, visitType, summary, followUpDate, activityDate, activityTime, primaryContact, duration, interestLevel } =
+    const { type, visitType, summary, followUpDate, activityDate, activityTime, primaryContact, duration, interestLevel, fieldIntelligence } =
       req.body as {
         type?: string;
         visitType?: string;
@@ -441,6 +442,7 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
         primaryContact?: string;
         duration?: string;
         interestLevel?: string;
+        fieldIntelligence?: { observation?: string };
       };
 
     const interactionParsed = parseInteractionFields(
@@ -458,6 +460,9 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
     );
     if (!interactionParsed.ok) return res.status(400).json({ message: interactionParsed.error });
 
+    const fieldIntelligenceParsed = parseFieldIntelligenceInput(fieldIntelligence);
+    if (!fieldIntelligenceParsed.ok) return res.status(400).json({ message: fieldIntelligenceParsed.error });
+
     let followUp: Date | undefined;
     if (followUpDate) {
       const parsed = new Date(followUpDate);
@@ -473,6 +478,7 @@ router.post("/businesses/:id/notes", async (req: Request, res: Response) => {
         prospectId,
         relationshipProtectionId: protection._id,
         followUpDate: followUp,
+        fieldIntelligence: fieldIntelligenceParsed.fieldIntelligence,
         createdBy: actor.userId,
       })
     );

@@ -10,7 +10,7 @@ import { RelationshipProtection } from "../../models/relationshipProtection.mode
 import { User } from "../../models/user.model";
 import { findDuplicateProspects } from "../../utils/foundingPartners/duplicateProspects";
 import { normalizeEmail } from "../../utils/foundingPartners/normalize";
-import { parseActivityDateInput, sortNotesByEffectiveActivityDesc } from "../../utils/foundingPartners/activityDates";
+import { parseActivityDateInput, sortNotesByEffectiveActivityDesc, getEffectiveActivityTimestamp } from "../../utils/foundingPartners/activityDates";
 import {
   buildInteractionCreatePayload,
   parseInteractionFields,
@@ -1527,6 +1527,85 @@ router.patch("/communication-notes/:id", async (req: Request, res: Response) => 
     return res.json(serialized);
   } catch (err) {
     console.error("[FoundingPartners] PATCH communication-notes/:id", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ─── Learning Center ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/founding-partners/learning-center
+ * Lists partner-shared field observations, newest first.
+ */
+router.get("/learning-center", async (req: Request, res: Response) => {
+  try {
+    if (!getAdminActor(req)) return res.status(401).json({ message: "Unauthorized" });
+
+    const limit = parseLimit(req.query);
+    const skip = parseSkip(req.query);
+
+    const filter = {
+      "fieldIntelligence.observation": { $exists: true, $nin: [null, ""] },
+    };
+
+    const [rawItems, total] = await Promise.all([
+      CommunicationNote.find(filter).lean(),
+      CommunicationNote.countDocuments(filter),
+    ]);
+
+    const sorted = sortNotesByEffectiveActivityDesc(rawItems);
+    const page = sorted.slice(skip, skip + limit);
+
+    const partnerIds = [
+      ...new Set(page.map((n) => n.partnerId?.toString()).filter(Boolean) as string[]),
+    ].map((id) => new Types.ObjectId(id));
+    const prospectIds = [
+      ...new Set(page.map((n) => n.prospectId?.toString()).filter(Boolean) as string[]),
+    ].map((id) => new Types.ObjectId(id));
+
+    const [partners, prospects] = await Promise.all([
+      partnerIds.length > 0
+        ? FoundingPartner.find({ _id: { $in: partnerIds } }).select("_id name").lean()
+        : Promise.resolve([]),
+      prospectIds.length > 0
+        ? FoundingProspect.find({ _id: { $in: prospectIds } }).select("_id businessName").lean()
+        : Promise.resolve([]),
+    ]);
+
+    const partnerNameById = new Map(partners.map((p) => [p._id.toString(), p.name]));
+    const businessNameById = new Map(prospects.map((p) => [p._id.toString(), p.businessName]));
+
+    function toIso(date: Date | undefined | null): string | undefined {
+      if (date == null) return undefined;
+      const d = date instanceof Date ? date : new Date(date);
+      return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+    }
+
+    const items = page.map((note) => {
+      const effectiveTs = getEffectiveActivityTimestamp(note as any);
+      const dateIso =
+        effectiveTs != null
+          ? new Date(effectiveTs).toISOString()
+          : toIso(note.createdAt) ?? new Date().toISOString();
+
+      return {
+        id: note._id.toString(),
+        date: dateIso,
+        partnerId: note.partnerId?.toString(),
+        partnerName: note.partnerId
+          ? partnerNameById.get(note.partnerId.toString()) ?? "Unknown partner"
+          : "Unknown partner",
+        prospectId: note.prospectId?.toString(),
+        businessName: note.prospectId
+          ? businessNameById.get(note.prospectId.toString()) ?? "Unknown business"
+          : "Unknown business",
+        observation: note.fieldIntelligence?.observation?.trim() ?? "",
+      };
+    });
+
+    return res.json({ items, total, limit, skip });
+  } catch (err) {
+    console.error("[FoundingPartners] GET learning-center", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

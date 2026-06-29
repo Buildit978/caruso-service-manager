@@ -10,6 +10,7 @@ const links = [
     end: false,
   },
   { to: "/admin/founding-partners/partners", label: "Partners", end: false },
+  { to: "/admin/founding-partners/learning-center", label: "Learning Center", end: false },
 ];
 
 export default function FoundingPartnerNav() {

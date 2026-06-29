@@ -31,6 +31,7 @@ import AdminAccountsPage from "./pages/admin/AdminAccountsPage";
 import AdminAccountDetailPage from "./pages/admin/AdminAccountDetailPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminGuard from "./pages/admin/AdminGuard";
+import AdminLearningCenterPage from "./pages/admin/foundingPartners/AdminLearningCenterPage";
 import AdminFoundingPartnerDashboardPage from "./pages/admin/foundingPartners/AdminFoundingPartnerDashboardPage";
 import AdminPartnersPage from "./pages/admin/foundingPartners/AdminPartnersPage";
 import AdminPartnerDetailPage from "./pages/admin/foundingPartners/AdminPartnerDetailPage";
@@ -73,6 +74,7 @@ function App() {
           <Route path="prospects/:id" element={<AdminProspectDetailPage />} />
           <Route path="relationship-protections" element={<AdminRelationshipProtectionsPage />} />
           <Route path="relationship-protections/:id" element={<AdminRelationshipProtectionDetailPage />} />
+          <Route path="learning-center" element={<AdminLearningCenterPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
       </Route>

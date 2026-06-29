@@ -9,6 +9,10 @@ import InteractionFormFields, {
   createDefaultInteractionFormValues,
   type InteractionFormValues,
 } from "../admin/foundingPartners/InteractionFormFields";
+import ShareWhatYouLearnedFields, {
+  buildFieldIntelligencePayload,
+  validateShareWhatYouLearned,
+} from "./ShareWhatYouLearnedFields";
 import "./partnerPortal.css";
 
 export default function PartnerNewIntroductionPage() {
@@ -23,12 +27,21 @@ export default function PartnerNewIntroductionPage() {
     createDefaultInteractionFormValues()
   );
   const [isMeaningful, setIsMeaningful] = useState(false);
+  const [shareLearned, setShareLearned] = useState(false);
+  const [learnedObservation, setLearnedObservation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const shareError = validateShareWhatYouLearned(shareLearned, learnedObservation);
+    if (shareError) {
+      setError(shareError);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await createPartnerIntroduction({
@@ -46,6 +59,7 @@ export default function PartnerNewIntroductionPage() {
         duration: interaction.duration.trim() || undefined,
         interestLevel: interaction.interestLevel || undefined,
         isMeaningful,
+        ...buildFieldIntelligencePayload(shareLearned, learnedObservation),
       });
       navigate(`/partner/introductions/${res.business.id}`, {
         replace: true,
@@ -136,6 +150,13 @@ export default function PartnerNewIntroductionPage() {
           selectClassName="partner-portal-form-select"
           textareaClassName="partner-portal-form-textarea"
           labelClassName="partner-portal-form-label"
+        />
+
+        <ShareWhatYouLearnedFields
+          enabled={shareLearned}
+          observation={learnedObservation}
+          onEnabledChange={setShareLearned}
+          onObservationChange={setLearnedObservation}
         />
 
         <label className="partner-portal-checkbox-label">

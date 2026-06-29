@@ -895,6 +895,17 @@
   font-style: normal;
 }
 
+.partner-portal-share-learned {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--pp-border, rgba(0, 0, 0, 0.08));
+}
+
+.partner-portal-share-learned-help {
+  margin: 0 0 0.75rem 2rem;
+  font-size: 0.875rem;
+}
+
 @media (min-width: 768px) {
   .partner-portal-main {
     padding: 1.5rem;

@@ -37,6 +37,10 @@ export interface IInteractionAmendment {
   createdAt: Date;
 }
 
+export interface IFieldIntelligence {
+  observation: string;
+}
+
 export interface ICommunicationNote extends Document {
   partnerId?: Types.ObjectId;
   prospectId?: Types.ObjectId;
@@ -57,6 +61,8 @@ export interface ICommunicationNote extends Document {
   followUpDate?: Date;
   /** Later clarifications — original interaction summary is not rewritten. */
   amendments?: IInteractionAmendment[];
+  /** Optional learning shared from a visit (separate from the relationship note). */
+  fieldIntelligence?: IFieldIntelligence;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -109,6 +115,9 @@ const communicationNoteSchema = new Schema<ICommunicationNote>(
         createdAt: { type: Date, default: Date.now, required: true },
       },
     ],
+    fieldIntelligence: {
+      observation: { type: String, trim: true, maxlength: 2000 },
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }

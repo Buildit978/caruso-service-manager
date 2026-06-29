@@ -54,6 +54,11 @@ export const INTEREST_LEVELS: InterestLevel[] = [
 
 const MAX_PRIMARY_CONTACT_LENGTH = 200;
 const MAX_DURATION_LENGTH = 32;
+const MAX_FIELD_INTELLIGENCE_OBSERVATION_LENGTH = 2000;
+
+export interface FieldIntelligenceInput {
+  observation?: string;
+}
 
 export interface InteractionWriteInput {
   activityDate?: string;
@@ -217,6 +222,24 @@ export function parseInteractionFields(
   };
 }
 
+export function parseFieldIntelligenceInput(
+  value: FieldIntelligenceInput | null | undefined
+): { ok: true; fieldIntelligence: { observation: string } | undefined } | { ok: false; error: string } {
+  if (value == null) return { ok: true, fieldIntelligence: undefined };
+
+  const observationRaw = value.observation;
+  if (observationRaw == null || String(observationRaw).trim() === "") {
+    return { ok: true, fieldIntelligence: undefined };
+  }
+
+  const trimmed = String(observationRaw).trim();
+  if (trimmed.length > MAX_FIELD_INTELLIGENCE_OBSERVATION_LENGTH) {
+    return { ok: false, error: "Observation is too long" };
+  }
+
+  return { ok: true, fieldIntelligence: { observation: trimmed } };
+}
+
 export function parseAmendmentText(
   text: unknown
 ): { ok: true; text: string } | { ok: false; error: string } {
@@ -246,6 +269,7 @@ export function serializeInteractionNote(note: {
     createdAt?: Date;
     createdBy?: { toString(): string };
   }>;
+  fieldIntelligence?: { observation?: string };
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: { toString(): string };
@@ -271,6 +295,10 @@ export function serializeInteractionNote(note: {
       createdAt: toIso(amendment.createdAt),
       createdBy: amendment.createdBy?.toString(),
     })),
+    fieldIntelligence:
+      note.fieldIntelligence?.observation?.trim()
+        ? { observation: note.fieldIntelligence.observation.trim() }
+        : undefined,
     createdBy: note.createdBy?.toString(),
     createdAt: toIso(note.createdAt),
     updatedAt: toIso(note.updatedAt),
@@ -285,6 +313,7 @@ export function buildInteractionCreatePayload(
     relationshipProtectionId?: unknown;
     isMeaningful?: boolean;
     followUpDate?: Date;
+    fieldIntelligence?: { observation: string };
     createdBy: unknown;
   }
 ) {
@@ -302,6 +331,7 @@ export function buildInteractionCreatePayload(
     interestLevel: fields.interestLevel,
     isMeaningful: extras.isMeaningful,
     followUpDate: extras.followUpDate,
+    fieldIntelligence: extras.fieldIntelligence,
     createdBy: extras.createdBy,
   };
 }

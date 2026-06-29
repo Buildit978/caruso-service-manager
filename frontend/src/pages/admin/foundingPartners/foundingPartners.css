@@ -1738,3 +1738,53 @@
     font-weight: 500 !important;
   }
 }
+
+.fp-learning-center-count {
+  margin-bottom: 1rem;
+}
+
+.fp-learning-center-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fp-learning-center-item {
+  margin: 0;
+}
+
+.fp-learning-center-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.fp-learning-center-meta dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-label, #666);
+  margin: 0 0 0.15rem;
+}
+
+.fp-learning-center-meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.fp-learning-center-observation {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+@media (min-width: 640px) {
+  .fp-learning-center-meta {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

@@ -19,6 +19,10 @@ import InteractionFormFields, {
 } from "../admin/foundingPartners/InteractionFormFields";
 import PartnerBusinessDetailsSection from "./PartnerBusinessDetailsSection";
 import PartnerInteractionTimelineItem from "./PartnerInteractionTimelineItem";
+import ShareWhatYouLearnedFields, {
+  buildFieldIntelligencePayload,
+  validateShareWhatYouLearned,
+} from "./ShareWhatYouLearnedFields";
 import "./partnerPortal.css";
 
 function StageBadge({ stage }: { stage: PartnerIntroductionDetail["relationship"]["stage"] }) {
@@ -46,6 +50,8 @@ export default function PartnerIntroductionDetailPage() {
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [isMeaningful, setIsMeaningful] = useState(false);
+  const [shareLearned, setShareLearned] = useState(false);
+  const [learnedObservation, setLearnedObservation] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -76,6 +82,13 @@ export default function PartnerIntroductionDetailPage() {
   async function handleSubmitInteraction(e: FormEvent) {
     e.preventDefault();
     if (!id || !form.summary.trim()) return;
+
+    const shareError = validateShareWhatYouLearned(shareLearned, learnedObservation);
+    if (shareError) {
+      setInteractionError(shareError);
+      return;
+    }
+
     setSaving(true);
     setInteractionError(null);
     try {
@@ -88,9 +101,12 @@ export default function PartnerIntroductionDetailPage() {
         duration: form.duration.trim() || undefined,
         interestLevel: form.interestLevel || undefined,
         isMeaningful,
+        ...buildFieldIntelligencePayload(shareLearned, learnedObservation),
       });
       setForm(createDefaultInteractionFormValues());
       setIsMeaningful(false);
+      setShareLearned(false);
+      setLearnedObservation("");
       await load();
     } catch (err) {
       if (isPartnerUnauthorized(err)) {
@@ -231,6 +247,12 @@ export default function PartnerIntroductionDetailPage() {
                   selectClassName="partner-portal-form-select"
                   textareaClassName="partner-portal-form-textarea"
                   labelClassName="partner-portal-form-label"
+                />
+                <ShareWhatYouLearnedFields
+                  enabled={shareLearned}
+                  observation={learnedObservation}
+                  onEnabledChange={setShareLearned}
+                  onObservationChange={setLearnedObservation}
                 />
                 <label className="partner-portal-checkbox-label">
                   <input

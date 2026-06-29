@@ -44,6 +44,7 @@ export interface PartnerInteractionPayload {
   isMeaningful?: boolean;
   followUpDate?: string;
   nextFollowUpDate?: string;
+  fieldIntelligence?: { observation: string };
   /** Legacy */
   type?: PartnerNoteType;
 }
@@ -480,6 +481,7 @@ export function createPartnerIntroduction(body: {
   duration?: string;
   interestLevel?: string;
   nextFollowUpDate?: string;
+  fieldIntelligence?: { observation: string };
   /** Legacy */
   type?: PartnerNoteType;
 }): Promise<PartnerIntroductionCreateResponse> {

@@ -18,6 +18,10 @@ import InteractionFormFields, {
 } from "../admin/foundingPartners/InteractionFormFields";
 import PartnerBusinessDetailsSection from "./PartnerBusinessDetailsSection";
 import PartnerInteractionTimelineItem from "./PartnerInteractionTimelineItem";
+import ShareWhatYouLearnedFields, {
+  buildFieldIntelligencePayload,
+  validateShareWhatYouLearned,
+} from "./ShareWhatYouLearnedFields";
 import {
   HealthStatusBadge,
   LifecycleStatusBadge,
@@ -35,6 +39,8 @@ export default function PartnerBusinessDetailPage() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<InteractionFormValues>(() => createDefaultInteractionFormValues());
+  const [shareLearned, setShareLearned] = useState(false);
+  const [learnedObservation, setLearnedObservation] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -62,6 +68,13 @@ export default function PartnerBusinessDetailPage() {
   async function handleSubmitInteraction(e: FormEvent) {
     e.preventDefault();
     if (!id || !form.summary.trim()) return;
+
+    const shareError = validateShareWhatYouLearned(shareLearned, learnedObservation);
+    if (shareError) {
+      setInteractionError(shareError);
+      return;
+    }
+
     setSaving(true);
     setInteractionError(null);
     try {
@@ -73,8 +86,11 @@ export default function PartnerBusinessDetailPage() {
         primaryContact: form.primaryContact.trim() || undefined,
         duration: form.duration.trim() || undefined,
         interestLevel: form.interestLevel || undefined,
+        ...buildFieldIntelligencePayload(shareLearned, learnedObservation),
       });
       setForm(createDefaultInteractionFormValues());
+      setShareLearned(false);
+      setLearnedObservation("");
       setShowForm(false);
       await load();
     } catch (err) {
@@ -191,6 +207,12 @@ export default function PartnerBusinessDetailPage() {
                   selectClassName="partner-portal-form-select"
                   textareaClassName="partner-portal-form-textarea"
                   labelClassName="partner-portal-form-label"
+                />
+                <ShareWhatYouLearnedFields
+                  enabled={shareLearned}
+                  observation={learnedObservation}
+                  onEnabledChange={setShareLearned}
+                  onObservationChange={setLearnedObservation}
                 />
                 <button
                   type="submit"
